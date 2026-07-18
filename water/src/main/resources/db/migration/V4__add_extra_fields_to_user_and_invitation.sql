@@ -1,0 +1,9 @@
+ALTER TABLE users
+ADD COLUMN gender VARCHAR(20),
+ADD COLUMN mobile_no VARCHAR(20),
+ADD COLUMN alternate_no VARCHAR(20);
+
+ALTER TABLE invitations
+ADD COLUMN gender VARCHAR(20),
+ADD COLUMN mobile_no VARCHAR(20),
+ADD COLUMN alternate_no VARCHAR(20);
