@@ -33,6 +33,7 @@ public class TariffController {
             BigDecimal baseRate = new BigDecimal(request.get("baseRate").toString());
             BigDecimal excessRate = new BigDecimal(request.get("excessRate").toString());
             Integer baseLimitKl = Integer.valueOf(request.get("baseLimitKl").toString());
+            Integer baseLimitDays = request.containsKey("baseLimitDays") ? Integer.valueOf(request.get("baseLimitDays").toString()) : 30;
 
             Apartment apartment = apartmentRepository.findById(apartmentId)
                     .orElseThrow(() -> new IllegalArgumentException("Apartment not found!"));
@@ -44,6 +45,7 @@ public class TariffController {
             tariffPlan.setBaseRate(baseRate);
             tariffPlan.setExcessRate(excessRate);
             tariffPlan.setBaseLimitKl(baseLimitKl);
+            tariffPlan.setBaseLimitDays(baseLimitDays);
 
             return ResponseEntity.ok(tariffPlanRepository.save(tariffPlan));
         } catch (Exception e) {

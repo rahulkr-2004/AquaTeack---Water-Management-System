@@ -87,12 +87,17 @@ public class AlertController {
             }
             boolean shouldAdd = false;
             if (user.getRole() == Role.ROLE_USER) {
-                if (alert.getTargetUser() != null && alert.getTargetUser().getId().equals(user.getId())) {
+                if ("REGISTRATION".equalsIgnoreCase(alert.getType())) {
+                    shouldAdd = false;
+                } else if (alert.getTargetUser() != null && alert.getTargetUser().getId().equals(user.getId())) {
                     shouldAdd = true;
                 } else if (alert.getHousehold() != null && user.getHousehold() != null && alert.getHousehold().getId().equals(user.getHousehold().getId())) {
                     shouldAdd = true;
                 } else if (alert.getHousehold() == null && alert.getTargetUser() == null) {
-                    shouldAdd = true;
+                    String type = alert.getType();
+                    if ("BROADCAST".equalsIgnoreCase(type) || "MAINTENANCE".equalsIgnoreCase(type) || "GENERAL".equalsIgnoreCase(type) || "INFO".equalsIgnoreCase(type)) {
+                        shouldAdd = true;
+                    }
                 }
             } else {
                 // Admins see all their targeted alerts + all other general/household alerts

@@ -3063,7 +3063,7 @@ function InviteVerificationView({ inviteToken, showMessage, darkMode, toggleDark
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mobile Number</label>
                 <input
-                  type="tel" required placeholder="9876543210" pattern="[0-9]{10}"
+                  type="tel" required placeholder="9876543210" pattern="(\+[0-9]{1,3}\s?)?[0-9]{10}"
                   className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
                   value={formData.mobileNo}
                   onChange={e => setFormData({...formData, mobileNo: e.target.value})}
@@ -3275,7 +3275,7 @@ function CommunityAdminVerifyView({ userId, showMessage, onComplete, darkMode })
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mobile Number *</label>
-                <input type="tel" required placeholder="9876543210" pattern="[0-9]{10}"
+                <input type="tel" required placeholder="9876543210" pattern="(\+[0-9]{1,3}\s?)?[0-9]{10}"
                   className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
                   value={formData.mobileNo} onChange={e => setFormData({...formData, mobileNo: e.target.value})} />
               </div>
@@ -3802,7 +3802,7 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
       });
       if (res.ok) {
         showMessage('success', 'Tariff plan saved successfully!');
-        setFormData({ apartmentId: '', baseRate: '', excessRate: '', baseLimitKl: '' });
+        setFormData({ apartmentId: '', baseRate: '', excessRate: '', baseLimitKl: '', baseLimitDays: 30 });
         fetchTariffs();
       } else {
         const text = await res.text();
@@ -3822,14 +3822,29 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
       {isSuperAdmin && (
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
           <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Set Tariff Rates</h3>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
               <select
                 required
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.apartmentId}
-                onChange={e => setFormData({ ...formData, apartmentId: e.target.value })}
+                onChange={e => {
+                  const aptId = e.target.value;
+                  const existing = tariffs.find(t => t.apartment && t.apartment.id.toString() === aptId.toString());
+                  if (existing) {
+                    setFormData({
+                      ...formData,
+                      apartmentId: aptId,
+                      baseRate: existing.baseRate || '',
+                      excessRate: existing.excessRate || '',
+                      baseLimitKl: existing.baseLimitKl || '',
+                      baseLimitDays: existing.baseLimitDays || 30
+                    });
+                  } else {
+                    setFormData({ ...formData, apartmentId: aptId, baseRate: '', excessRate: '', baseLimitKl: '', baseLimitDays: 30 });
+                  }
+                }}
               >
                 <option value="">-- Choose Building --</option>
                 {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -3851,6 +3866,15 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.baseLimitKl}
                 onChange={e => setFormData({ ...formData, baseLimitKl: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cycle Length (Days)</label>
+              <input
+                type="number" step="1" required placeholder="30"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                value={formData.baseLimitDays || ''}
+                onChange={e => setFormData({ ...formData, baseLimitDays: e.target.value })}
               />
             </div>
             <div className="flex items-end gap-2">
@@ -4129,10 +4153,7 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
                 <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.apartmentId} onChange={e => {
-                  const aptId = e.target.value;
-                  const matchingTariff = tariffs.find(t => t.apartment && t.apartment.id.toString() === aptId.toString());
-                  const defaultCost = matchingTariff ? matchingTariff.baseRate.toString() : '';
-                  setFormData({ ...formData, apartmentId: aptId, totalBulkCost: defaultCost });
+                  setFormData({ ...formData, apartmentId: e.target.value });
                 }}>
                   <option value="">-- Choose Apartment --</option>
                   {apartments.map(a => <option key={a.id} value={a.id}>{a.name} — {a.address}</option>)}

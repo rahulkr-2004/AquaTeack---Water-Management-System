@@ -47,7 +47,7 @@ public class AlertService {
             if (!household.isHasMeter()) continue;
 
             // Get tariff plan for the apartment
-            Optional<TariffPlan> tariffPlanOpt = tariffPlanRepository.findById(household.getApartment().getId());
+            Optional<TariffPlan> tariffPlanOpt = tariffPlanRepository.findByApartmentId(household.getApartment().getId());
             if (tariffPlanOpt.isEmpty()) continue;
 
             int limitLiters = tariffPlanOpt.get().getBaseLimitKl() * 1000;

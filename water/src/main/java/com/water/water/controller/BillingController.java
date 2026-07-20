@@ -137,11 +137,11 @@ public class BillingController {
             BigDecimal baseRate = tariff != null ? tariff.getBaseRate() : new BigDecimal("1.5");
             BigDecimal excessRate = tariff != null ? tariff.getExcessRate() : new BigDecimal("3.0");
             double baseLimitKl = tariff != null ? tariff.getBaseLimitKl() : 10.0;
+            int baseLimitDays = (tariff != null && tariff.getBaseLimitDays() != null) ? tariff.getBaseLimitDays() : 30;
 
-            // Calculate proportional base limit based on cycle length vs month length
+            // Calculate proportional base limit based on cycle length vs base limit days
             long cycleDays = java.time.temporal.ChronoUnit.DAYS.between(cycle.getStartDate(), cycle.getEndDate()) + 1;
-            int daysInMonth = cycle.getStartDate().lengthOfMonth();
-            double proportionalBaseLimitKl = baseLimitKl * ((double) cycleDays / daysInMonth);
+            double proportionalBaseLimitKl = baseLimitKl * ((double) cycleDays / baseLimitDays);
 
             double meteredConsumptionSum = 0;
             double meteredAreaSum = 0;
@@ -184,10 +184,10 @@ public class BillingController {
                 BigDecimal excessCost = BigDecimal.ZERO;
 
                 if (consumptionLiters <= baseLimitLiters) {
-                    baseCost = baseRate.multiply(BigDecimal.valueOf(consumptionLiters));
+                    baseCost = baseRate.multiply(BigDecimal.valueOf(consumptionLiters / 1000.0));
                 } else {
-                    baseCost = baseRate.multiply(BigDecimal.valueOf(baseLimitLiters));
-                    excessCost = excessRate.multiply(BigDecimal.valueOf(consumptionLiters - baseLimitLiters));
+                    baseCost = baseRate.multiply(BigDecimal.valueOf(baseLimitLiters / 1000.0));
+                    excessCost = excessRate.multiply(BigDecimal.valueOf((consumptionLiters - baseLimitLiters) / 1000.0));
                 }
 
                 BigDecimal sharedCostAllocation = BigDecimal.ZERO;
@@ -738,13 +738,27 @@ public class BillingController {
             document.add(new Paragraph("\n"));
             
             // -- BOX 3 (Grid) --
+            // Fetch real tariff
+            TariffPlan tariff = tariffPlanRepository.findByApartmentId(bill.getBillingCycle().getApartment().getId()).orElse(null);
+            BigDecimal baseRatePerKl = tariff != null ? tariff.getBaseRate() : new BigDecimal("1.5");
+            BigDecimal excessRatePerKl = tariff != null ? tariff.getExcessRate() : new BigDecimal("3.0");
+            double baseLimitKlPlan = tariff != null ? tariff.getBaseLimitKl() : 10.0;
+            int baseLimitDays = (tariff != null && tariff.getBaseLimitDays() != null) ? tariff.getBaseLimitDays() : 30;
+
+            long cycleDaysPdf = java.time.temporal.ChronoUnit.DAYS.between(bill.getBillingCycle().getStartDate(), bill.getBillingCycle().getEndDate()) + 1;
+            double proportionalBaseLimitKl = baseLimitKlPlan * ((double) cycleDaysPdf / baseLimitDays);
+            long actualBaseLimitLiters = (long) (proportionalBaseLimitKl * 1000.0);
+
+            BigDecimal baseRatePerLiter = baseRatePerKl.divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP);
+            BigDecimal excessRatePerLiter = excessRatePerKl.divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP);
+
             PdfPTable box3 = new PdfPTable(4);
             box3.setWidthPercentage(100);
             Color gridBorder = new Color(203, 213, 225);
             addGridCell(box3, "INVOICE DATE", bill.getBillingCycle().getStartDate().toString(), gridBorder, fGridLbl, fGridVal);
             addGridCell(box3, "DUE DATE", bill.getBillingCycle().getEndDate().plusDays(5).toString(), gridBorder, fGridLbl, fGridVal);
             addGridCell(box3, "CONSUMPTION", bill.getConsumptionLiters() + " Liters", gridBorder, fGridLbl, fGridVal);
-            addGridCell(box3, "RATE / LITER", "₹0.05", gridBorder, fGridLbl, fGridVal);
+            addGridCell(box3, "RATE / LITER", "₹" + String.format("%.4f", baseRatePerLiter), gridBorder, fGridLbl, fGridVal);
             document.add(box3);
             document.add(new Paragraph("\n"));
 
@@ -758,18 +772,17 @@ public class BillingController {
             addTh(t, "UNIT RATE (₹)", tableHeaderBg, fTh, Element.ALIGN_CENTER);
             addTh(t, "AMOUNT (₹)", tableHeaderBg, fTh, Element.ALIGN_RIGHT);
             
-            Long baseLimit = 5000L;
             long consumed = (long) bill.getConsumptionLiters();
-            long baseQty = Math.min(consumed, baseLimit);
-            long excessQty = Math.max(0, consumed - baseLimit);
+            long baseQty = Math.min(consumed, actualBaseLimitLiters);
+            long excessQty = Math.max(0, consumed - actualBaseLimitLiters);
             
             PdfPCell c1a = new PdfPCell();
             c1a.setBorderColor(gridBorder); c1a.setBorder(Rectangle.BOTTOM); c1a.setPadding(10);
             c1a.addElement(new Paragraph("Standard Consumption Charge", fTdBold));
-            c1a.addElement(new Paragraph("Within monthly limit (" + baseLimit + " L)", fTdGreen));
+            c1a.addElement(new Paragraph("Within cycle limit (" + actualBaseLimitLiters + " L)", fTdGreen));
             t.addCell(c1a);
             addTd(t, baseQty + " L", gridBorder, fTdNorm, Element.ALIGN_CENTER);
-            addTd(t, "0.05", gridBorder, fTdNorm, Element.ALIGN_CENTER);
+            addTd(t, String.format("%.4f", baseRatePerLiter), gridBorder, fTdNorm, Element.ALIGN_CENTER);
             addTd(t, "₹" + String.format("%.2f", bill.getBaseCharge() != null ? bill.getBaseCharge() : BigDecimal.ZERO), gridBorder, fTdGreen, Element.ALIGN_RIGHT);
             
             if (excessQty > 0) {
@@ -777,10 +790,10 @@ public class BillingController {
                 c2a.setBackgroundColor(lightRedBg);
                 c2a.setBorderColor(gridBorder); c2a.setBorder(Rectangle.BOTTOM); c2a.setPadding(10);
                 c2a.addElement(new Paragraph("⚠ Excess Consumption Charge", fTdRed));
-                c2a.addElement(new Paragraph(excessQty + " L above monthly limit — penalty rate applies", fTdRedSub));
+                c2a.addElement(new Paragraph(excessQty + " L above cycle limit — penalty rate applies", fTdRedSub));
                 t.addCell(c2a);
                 addTd(t, excessQty + " L", gridBorder, fTdRedSub, Element.ALIGN_CENTER, lightRedBg);
-                addTd(t, "1.00", gridBorder, fTdRedSub, Element.ALIGN_CENTER, lightRedBg);
+                addTd(t, String.format("%.4f", excessRatePerLiter), gridBorder, fTdRedSub, Element.ALIGN_CENTER, lightRedBg);
                 addTd(t, "+₹" + String.format("%.2f", bill.getExcessCharge() != null ? bill.getExcessCharge() : BigDecimal.ZERO), gridBorder, fTdRed, Element.ALIGN_RIGHT, lightRedBg);
             }
             
