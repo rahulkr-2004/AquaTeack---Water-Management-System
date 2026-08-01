@@ -11,9 +11,18 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    // Login / auth
+    // Login / auth — by email or username
     Optional<User> findByEmail(String email);
+    Optional<User> findByUsername(String username);
     boolean existsByEmail(String email);
+    boolean existsByUsername(String username);
+
+    // Find by email or username (for dual-login support)
+    default Optional<User> findByEmailOrUsername(String identifier) {
+        Optional<User> byEmail = findByEmail(identifier);
+        if (byEmail.isPresent()) return byEmail;
+        return findByUsername(identifier);
+    }
 
     // All pending (for Super Admin)
     List<User> findByApprovedFalse();

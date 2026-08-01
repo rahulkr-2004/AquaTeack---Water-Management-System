@@ -29,6 +29,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         final String authorizationHeader = request.getHeader("Authorization");
+        final String requestUri = request.getRequestURI();
+        final String method = request.getMethod();
 
         String username = null;
         String jwt = null;
@@ -39,8 +41,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 username = jwtUtil.extractUsername(jwt);
             } catch (Exception e) {
-                System.out.println("JWT Extraction failed: " + e.getMessage());
+                System.out.println("[JWT] Extraction failed for " + method + " " + requestUri + ": " + e.getMessage());
             }
+        } else {
+            System.out.println("[JWT] No Bearer token for " + method + " " + requestUri);
         }
 
         // 2. If we found a username and the user isn't already logged in
@@ -50,12 +54,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 3. Validate the token and officially authenticate the user
             if (jwtUtil.validateToken(jwt, userDetails)) {
-
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+                System.out.println("[JWT] Authenticated: " + username + " | authorities: " + userDetails.getAuthorities() + " | " + method + " " + requestUri);
+            } else {
+                System.out.println("[JWT] Token validation FAILED for: " + username + " | " + method + " " + requestUri);
             }
         }
 

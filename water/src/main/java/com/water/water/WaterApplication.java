@@ -24,7 +24,9 @@ public class WaterApplication {
 	public CommandLineRunner bootstrap(
 			UserRepository userRepository,
 			ApartmentRepository apartmentRepository,
-			HouseholdRepository householdRepository) {
+			HouseholdRepository householdRepository,
+			com.water.water.service.WaterUsageService waterUsageService,
+			com.water.water.service.OnboardingService onboardingService) {
 		return args -> {
 			List<User> users = userRepository.findAll();
 			for (User user : users) {
@@ -34,6 +36,13 @@ public class WaterApplication {
 					System.out.println("Auto-approved existing user on startup: " + user.getEmail());
 				}
 			}
+
+			// Automatically fix legacy consumption data on startup
+			int fixed = waterUsageService.recalculateAllConsumption();
+			System.out.println("Bootstrap: Recalculated consumption for " + fixed + " logs.");
+
+			// Drop legacy/orphaned tables left over from old schema versions
+			onboardingService.dropLegacyTables();
 
 			// Seeding logic removed so database remains clean
 			System.out.println("Bootstrap: Seeding disabled. Clean database active.");

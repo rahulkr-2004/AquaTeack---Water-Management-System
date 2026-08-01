@@ -46,6 +46,12 @@ public class Bill {
     @Column(name = "shared_cost_allocation")
     private BigDecimal sharedCostAllocation = BigDecimal.ZERO;
 
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount = BigDecimal.ZERO;
+
+    @Column(name = "platform_fee")
+    private BigDecimal platformFee = new BigDecimal("5.00");
+
     @Column(nullable = false)
     private boolean paid = false;
 

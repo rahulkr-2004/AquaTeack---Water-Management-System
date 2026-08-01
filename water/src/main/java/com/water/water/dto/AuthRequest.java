@@ -1,15 +1,17 @@
 package com.water.water.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class AuthRequest {
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email must be a valid email address")
-    private String email;
+    /**
+     * Accepts either an email address OR a username handle.
+     * The backend will try email first, then fall back to username.
+     */
+    @NotBlank(message = "Email or username is required")
+    private String email; // Field name kept as "email" for backwards-compat with existing frontend calls
 
     @NotBlank(message = "Password is required")
     private String password;
-}
+}

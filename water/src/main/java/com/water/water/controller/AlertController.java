@@ -39,7 +39,6 @@ public class AlertController {
         }
 
         List<SystemAlert> alerts = new ArrayList<>();
-
         List<SystemAlert> dbAlerts = systemAlertRepository.findAll();
 
         // 2. Scan water usage logs for dynamic leaks (> 500 liters spike in a single day)
@@ -82,32 +81,7 @@ public class AlertController {
         }
 
         for (SystemAlert alert : dbAlerts) {
-            if (alert.getClearedByUsers().contains(user)) {
-                continue;
-            }
-            boolean shouldAdd = false;
-            if (user.getRole() == Role.ROLE_USER) {
-                if ("REGISTRATION".equalsIgnoreCase(alert.getType())) {
-                    shouldAdd = false;
-                } else if (alert.getTargetUser() != null && alert.getTargetUser().getId().equals(user.getId())) {
-                    shouldAdd = true;
-                } else if (alert.getHousehold() != null && user.getHousehold() != null && alert.getHousehold().getId().equals(user.getHousehold().getId())) {
-                    shouldAdd = true;
-                } else if (alert.getHousehold() == null && alert.getTargetUser() == null) {
-                    String type = alert.getType();
-                    if ("BROADCAST".equalsIgnoreCase(type) || "MAINTENANCE".equalsIgnoreCase(type) || "GENERAL".equalsIgnoreCase(type) || "INFO".equalsIgnoreCase(type)) {
-                        shouldAdd = true;
-                    }
-                }
-            } else {
-                // Admins see all their targeted alerts + all other general/household alerts
-                if (alert.getTargetUser() != null && !alert.getTargetUser().getId().equals(user.getId())) {
-                    shouldAdd = false;
-                } else {
-                    shouldAdd = true;
-                }
-            }
-            if (shouldAdd) {
+            if (isAlertVisibleToUser(alert, user)) {
                 alert.setResolved(alert.getReadByUsers().contains(user));
                 alerts.add(alert);
             }
@@ -116,6 +90,57 @@ public class AlertController {
         alerts.sort((a, b) -> Long.compare(b.getId(), a.getId()));
 
         return ResponseEntity.ok(alerts);
+    }
+
+    /**
+     * Role-based notification visibility filter logic:
+     * - Resident (ROLE_USER): Sees only their flat's alerts, direct targeted alerts, and general broadcasts.
+     * - Community Admin (ROLE_COMMUNITY_ADMIN): Sees alerts for households under their managed apartment, direct targeted alerts, and system broadcasts.
+     * - Super Admin (ROLE_ADMIN): Sees all system-wide alerts, administrative notifications, and direct targeted alerts.
+     */
+    private boolean isAlertVisibleToUser(SystemAlert alert, User user) {
+        if (alert.getClearedByUsers().contains(user)) {
+            return false;
+        }
+
+        // Targeted alert directly to a specific user
+        if (alert.getTargetUser() != null) {
+            return alert.getTargetUser().getId().equals(user.getId());
+        }
+
+        Role role = user.getRole();
+
+        if (role == Role.ROLE_USER) {
+            // Resident notification isolation
+            if ("REGISTRATION".equalsIgnoreCase(alert.getType())) {
+                return false; // Residents don't see administrative registration requests
+            }
+            if (alert.getHousehold() != null) {
+                return user.getHousehold() != null && alert.getHousehold().getId().equals(user.getHousehold().getId());
+            }
+            // General broadcast notifications
+            String type = alert.getType();
+            return "BROADCAST".equalsIgnoreCase(type) || "MAINTENANCE".equalsIgnoreCase(type) 
+                || "GENERAL".equalsIgnoreCase(type) || "INFO".equalsIgnoreCase(type) || "WATER_SUPPLY".equalsIgnoreCase(type)
+                || "SUPPORT".equalsIgnoreCase(type);
+
+        } else if (role == Role.ROLE_COMMUNITY_ADMIN) {
+            // Community Admin notification isolation
+            if (alert.getHousehold() != null) {
+                // Only show household alerts within their managed apartment
+                return user.getManagedApartment() != null && 
+                       alert.getHousehold().getApartment() != null &&
+                       alert.getHousehold().getApartment().getId().equals(user.getManagedApartment().getId());
+            }
+            // General/System/Registration alerts visible to Community Admin
+            return true;
+
+        } else if (role == Role.ROLE_ADMIN) {
+            // Super Admin notification isolation — sees all system alerts
+            return true;
+        }
+
+        return false;
     }
 
     @PostMapping("/create")
@@ -182,22 +207,7 @@ public class AlertController {
         List<SystemAlert> toClear = new ArrayList<>();
         
         for (SystemAlert alert : dbAlerts) {
-            boolean isTargetedAtUser = false;
-            if (alert.getTargetUser() != null && alert.getTargetUser().getId().equals(user.getId())) {
-                isTargetedAtUser = true;
-            } else if (alert.getHousehold() != null && user.getHousehold() != null && alert.getHousehold().getId().equals(user.getHousehold().getId())) {
-                isTargetedAtUser = true;
-            } else if (alert.getHousehold() == null && alert.getTargetUser() == null) {
-                // building-wide
-                isTargetedAtUser = true;
-            } else if (user.getRole() != Role.ROLE_USER) {
-                // Admins clearing alerts they see (e.g., household alerts)
-                if (alert.getTargetUser() == null) {
-                    isTargetedAtUser = true;
-                }
-            }
-
-            if (isTargetedAtUser) {
+            if (isAlertVisibleToUser(alert, user)) {
                 alert.getClearedByUsers().add(user);
                 toClear.add(alert);
             }
@@ -226,20 +236,7 @@ public class AlertController {
         List<SystemAlert> toUpdate = new ArrayList<>();
         
         for (SystemAlert alert : dbAlerts) {
-            boolean isTargetedAtUser = false;
-            if (alert.getTargetUser() != null && alert.getTargetUser().getId().equals(user.getId())) {
-                isTargetedAtUser = true;
-            } else if (alert.getHousehold() != null && user.getHousehold() != null && alert.getHousehold().getId().equals(user.getHousehold().getId())) {
-                isTargetedAtUser = true;
-            } else if (alert.getHousehold() == null && alert.getTargetUser() == null) {
-                isTargetedAtUser = true;
-            } else if (user.getRole() != Role.ROLE_USER) {
-                if (alert.getTargetUser() == null) {
-                    isTargetedAtUser = true;
-                }
-            }
-
-            if (isTargetedAtUser && !alert.getReadByUsers().contains(user)) {
+            if (isAlertVisibleToUser(alert, user) && !alert.getReadByUsers().contains(user)) {
                 alert.getReadByUsers().add(user);
                 toUpdate.add(alert);
             }

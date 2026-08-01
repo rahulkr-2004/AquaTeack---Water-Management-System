@@ -26,6 +26,9 @@ public class User {
     @Column(nullable = false)
     private String name;
 
+    @Column(unique = true)
+    private String username; // Optional unique handle; login works via email OR username
+
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -54,14 +57,26 @@ public class User {
     @Column(name = "mobile_no", length = 20)
     private String mobileNo;
 
-    @Column(name = "alternate_no", length = 20)
-    private String alternateNo;
+    @Column(name = "whatsapp_no", length = 20)
+    private String whatsappNo; // WhatsApp number (repurposed from alternateNo)
 
     // The Community Admin who manages this household user (null for admins themselves)
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "managed_by_admin_id")
     @JsonIgnoreProperties({"managedByAdmin", "password", "household"})
     private User managedByAdmin;
+
+    // The Colony (Apartment) managed by this Community Admin (null for users and super admin)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "managed_apartment_id")
+    @JsonIgnoreProperties({"households"})
+    private Apartment managedApartment;
+
+    // The specific Building/Block within the colony managed by this Community Admin
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "managed_building_id")
+    @JsonIgnoreProperties({"colony"})
+    private Building managedBuilding;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

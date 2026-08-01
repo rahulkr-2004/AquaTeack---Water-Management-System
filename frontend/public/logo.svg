@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+
+  <!-- Outer concentric rings (light cyan, fade outward) -->
+  <circle cx="100" cy="100" r="98" stroke="#a5f3fc" stroke-width="2" fill="none" opacity="0.4"/>
+  <circle cx="100" cy="100" r="88" stroke="#67e8f9" stroke-width="2.5" fill="none" opacity="0.55"/>
+  <circle cx="100" cy="100" r="78" stroke="#22d3ee" stroke-width="3" fill="none" opacity="0.7"/>
+  <circle cx="100" cy="100" r="68" stroke="#06b6d4" stroke-width="3.5" fill="none" opacity="0.85"/>
+
+  <!-- Inner dark navy filled circle background -->
+  <circle cx="100" cy="100" r="56" fill="#0c2461"/>
+
+  <!-- Inner medium blue ring on the circle edge -->
+  <circle cx="100" cy="100" r="56" stroke="#1e6fc7" stroke-width="4" fill="none"/>
+
+  <!-- Water drop shape -->
+  <path
+    d="M100 50
+       C100 50 72 83 72 103
+       C72 119.6 84.8 133 100 133
+       C115.2 133 128 119.6 128 103
+       C128 83 100 50 100 50Z"
+    fill="url(#dropGrad)"
+  />
+
+  <!-- Highlight on water drop -->
+  <ellipse cx="89" cy="88" rx="7" ry="11" fill="white" opacity="0.35" transform="rotate(-20 89 88)"/>
+
+  <!-- Small inner wave / reflection arc at bottom of drop -->
+  <path
+    d="M83 112 Q100 122 117 112"
+    stroke="white"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    fill="none"
+    opacity="0.4"
+  />
+
+  <defs>
+    <linearGradient id="dropGrad" x1="80" y1="50" x2="125" y2="133" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="50%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+</svg>

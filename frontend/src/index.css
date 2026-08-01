@@ -1,89 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Outfit:wght@700;800;900&family=Berkshire+Swash&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&display=swap');
 
-/* ╔══════════════════════════════════════════════╗
-   ║   AquaTrack — Dual Theme Design System       ║
-   ║   Default:   Light Mode                      ║
-   ║   Dark Mode: html[data-theme="dark"]         ║
-   ╚══════════════════════════════════════════════╝ */
+/* Configure Tailwind v4 class-based dark mode selector */
+@variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-slate-50:  var(--theme-slate-50);
-  --color-slate-100: var(--theme-slate-100);
-  --color-slate-105: var(--theme-slate-105);
-  --color-slate-200: var(--theme-slate-200);
-  --color-slate-300: var(--theme-slate-300);
-  --color-slate-350: var(--theme-slate-350);
-  --color-slate-400: var(--theme-slate-400);
-  --color-slate-455: var(--theme-slate-455);
-  --color-slate-500: var(--theme-slate-500);
-  --color-slate-555: var(--theme-slate-555);
-  --color-slate-600: var(--theme-slate-600);
-  --color-slate-650: var(--theme-slate-650);
-  --color-slate-700: var(--theme-slate-700);
-  --color-slate-750: var(--theme-slate-750);
-  --color-slate-800: var(--theme-slate-800);
-  --color-slate-850: var(--theme-slate-850);
-  --color-slate-900: var(--theme-slate-900);
-  --color-slate-950: var(--theme-slate-950);
-  --color-slate-955: var(--theme-slate-955);
+.font-brand {
+  font-family: 'Space Grotesk', 'Outfit', sans-serif;
 }
 
-:root, html[data-theme="light"] {
-  --theme-slate-50:  #0f172a;
-  --theme-slate-100: #1a2535;
-  --theme-slate-105: #263347;
-  --theme-slate-200: #2d3f55;
-  --theme-slate-300: #3d5068;
-  --theme-slate-350: #4a5f77;
-  --theme-slate-400: #536070;
-  --theme-slate-455: #627080;
-  --theme-slate-500: #6b7a8e;
-  --theme-slate-555: #6b7a8e;
-  --theme-slate-600: #8494a6;
-  --theme-slate-650: #9dafc0;
-  --theme-slate-700: #c0cdd8;
-  --theme-slate-750: #d0dae4;
-  --theme-slate-800: #dce5ee;
-  --theme-slate-850: #e8eff6;
-  --theme-slate-900: #f4f7fb;
-  --theme-slate-950: #ebf0f6;
-  --theme-slate-955: #eef3f8;
+.font-berkshire {
+  font-family: 'Berkshire Swash', cursive, serif;
 }
 
-html[data-theme="dark"] {
-  --theme-slate-50:  #ffffff;
-  --theme-slate-100: #f4f6fb;
-  --theme-slate-105: #e6ebf4;
-  --theme-slate-200: #cdd7e8;
-  --theme-slate-300: #a7b9d4;
-  --theme-slate-350: #889ec1;
-  --theme-slate-400: #6b84ac;
-  --theme-slate-455: #50668b;
-  --theme-slate-500: #3f5274;
-  --theme-slate-555: #324361;
-  --theme-slate-600: #26344d;
-  --theme-slate-650: #1f2b41;
-  --theme-slate-700: #192336;
-  --theme-slate-750: #131b2b;
-  --theme-slate-800: #0d1421;
-  --theme-slate-850: #0a101b;
-  --theme-slate-900: #070c15;
-  --theme-slate-950: #04070d;
-  --theme-slate-955: #020408;
+.font-jakarta {
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* Ensure native select dropdowns match the theme and prevent OS dark-mode overrides */
+/* Ensure native select dropdowns match the theme */
 select option {
-  background-color: var(--color-slate-950);
-  color: var(--color-slate-200);
+  background-color: #0f172a;
+  color: #f8fafc;
 }
 
-/* ── Global Base ──────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL INPUT RESET (using @layer base for Tailwind v4 cascade)
+   All focus glows are on the OUTER WRAPPER DIV via focus-within,
+   never on the raw <input> element.
+   ══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  input,
+  input[type],
+  select,
+  textarea,
+  input:focus,
+  input:focus-visible,
+  input:focus-within,
+  input[type]:focus,
+  input[type]:focus-visible,
+  select:focus,
+  select:focus-visible,
+  textarea:focus,
+  textarea:focus-visible {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    outline: none;
+    outline-width: 0;
+    outline-style: none;
+    outline-offset: 0;
+    outline-color: transparent;
+    box-shadow: none;
+    border: none;
+  }
+
+  /* Firefox inner border kill */
+  input::-moz-focus-inner,
+  button::-moz-focus-inner,
+  select::-moz-focus-inner {
+    border: 0;
+    padding: 0;
+    outline: none;
+  }
+
+  /* Autofill — light mode */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px white inset;
+    -webkit-text-fill-color: #0f172a;
+  }
+
+  /* Autofill — dark mode */
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #020617 inset;
+    -webkit-text-fill-color: #f1f5f9;
+  }
+}
+
+/* ── Global Base & Browser Engine Normalization ──── */
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -115,7 +127,7 @@ input, select, textarea {
 
 input::placeholder,
 textarea::placeholder {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
@@ -151,89 +163,136 @@ html[data-theme="dark"] canvas {
    become invisible on light backgrounds.         */
 
 /* blue-300/400 text is nearly invisible on white — boost to blue-700 */
-:not(html[data-theme="dark"]) .text-blue-300,
-:not(html[data-theme="dark"]) .text-blue-400 {
+html:not(.dark):not([data-theme="dark"]) .text-blue-300,
+html:not(.dark):not([data-theme="dark"]) .text-blue-400 {
   color: #1d4ed8 !important;
 }
 
 /* amber-300/400 text – boost for readability on white */
-:not(html[data-theme="dark"]) .text-amber-300,
-:not(html[data-theme="dark"]) .text-amber-400 {
+html:not(.dark):not([data-theme="dark"]) .text-amber-300,
+html:not(.dark):not([data-theme="dark"]) .text-amber-400 {
   color: #b45309 !important;
 }
 
 /* emerald-300/400 text – boost */
-:not(html[data-theme="dark"]) .text-emerald-300,
-:not(html[data-theme="dark"]) .text-emerald-400 {
+html:not(.dark):not([data-theme="dark"]) .text-emerald-300,
+html:not(.dark):not([data-theme="dark"]) .text-emerald-400 {
   color: #047857 !important;
 }
 
 /* red-300/400 text – boost */
-:not(html[data-theme="dark"]) .text-red-300,
-:not(html[data-theme="dark"]) .text-red-400 {
+html:not(.dark):not([data-theme="dark"]) .text-red-300,
+html:not(.dark):not([data-theme="dark"]) .text-red-400 {
   color: #b91c1c !important;
 }
 
 /* cyan-300/400 text – boost */
-:not(html[data-theme="dark"]) .text-cyan-300,
-:not(html[data-theme="dark"]) .text-cyan-400 {
+html:not(.dark):not([data-theme="dark"]) .text-cyan-300,
+html:not(.dark):not([data-theme="dark"]) .text-cyan-400 {
   color: #0369a1 !important;
 }
 
 /* purple-300/400 text – boost */
-:not(html[data-theme="dark"]) .text-purple-300,
-:not(html[data-theme="dark"]) .text-purple-400 {
+html:not(.dark):not([data-theme="dark"]) .text-purple-300,
+html:not(.dark):not([data-theme="dark"]) .text-purple-400 {
   color: #6d28d9 !important;
 }
 
 /* slate-700 background used for buttons becomes too light;
    ensure the text inside is always legible */
-:not(html[data-theme="dark"]) .bg-slate-700 {
+html:not(.dark):not([data-theme="dark"]) .bg-slate-700 {
   background-color: #c0cdd8 !important;
 }
 
-:not(html[data-theme="dark"]) .bg-slate-700 * {
+html:not(.dark):not([data-theme="dark"]) .bg-slate-700 * {
   color: #1a2535 !important;
 }
 
 /* ── Light Mode Background Fixes for Badges/Alerts ─────
    Tailwind's red-950/amber-950/etc are very dark. On light mode,
    they look like dark smudges. We override them to light 100/200 tones. */
-:not(html[data-theme="dark"]) .bg-emerald-950\/20,
-:not(html[data-theme="dark"]) .bg-emerald-950\/30,
-:not(html[data-theme="dark"]) .bg-emerald-950\/40,
-:not(html[data-theme="dark"]) .bg-emerald-950\/50 {
+html:not(.dark):not([data-theme="dark"]) .bg-emerald-950\/20,
+html:not(.dark):not([data-theme="dark"]) .bg-emerald-950\/30,
+html:not(.dark):not([data-theme="dark"]) .bg-emerald-950\/40,
+html:not(.dark):not([data-theme="dark"]) .bg-emerald-950\/50 {
   background-color: #d1fae5 !important; /* emerald-100 */
 }
 
-:not(html[data-theme="dark"]) .bg-red-950,
-:not(html[data-theme="dark"]) .bg-red-950\/20,
-:not(html[data-theme="dark"]) .bg-red-950\/30,
-:not(html[data-theme="dark"]) .bg-red-950\/40 {
+html:not(.dark):not([data-theme="dark"]) .bg-red-950,
+html:not(.dark):not([data-theme="dark"]) .bg-red-950\/20,
+html:not(.dark):not([data-theme="dark"]) .bg-red-950\/30,
+html:not(.dark):not([data-theme="dark"]) .bg-red-950\/40 {
   background-color: #fee2e2 !important; /* red-100 */
 }
 
-:not(html[data-theme="dark"]) .bg-amber-950\/20,
-:not(html[data-theme="dark"]) .bg-amber-950\/25,
-:not(html[data-theme="dark"]) .bg-amber-950\/30 {
+html:not(.dark):not([data-theme="dark"]) .bg-amber-950\/20,
+html:not(.dark):not([data-theme="dark"]) .bg-amber-950\/25,
+html:not(.dark):not([data-theme="dark"]) .bg-amber-950\/30 {
   background-color: #fef3c7 !important; /* amber-100 */
 }
 
-:not(html[data-theme="dark"]) .bg-blue-950,
-:not(html[data-theme="dark"]) .bg-blue-950\/20,
-:not(html[data-theme="dark"]) .bg-blue-950\/30 {
+html:not(.dark):not([data-theme="dark"]) .bg-blue-950,
+html:not(.dark):not([data-theme="dark"]) .bg-blue-950\/20,
+html:not(.dark):not([data-theme="dark"]) .bg-blue-950\/30 {
   background-color: #dbeafe !important; /* blue-100 */
 }
 
-/* Fix slate alpha backgrounds in light mode */
-:not(html[data-theme="dark"]) .bg-slate-950\/60,
-:not(html[data-theme="dark"]) .bg-slate-950\/40,
-:not(html[data-theme="dark"]) .bg-slate-950\/35 {
+/* Fix slate alpha backgrounds in light mode ONLY */
+html:not(.dark):not([data-theme="dark"]) .bg-slate-950\/60,
+html:not(.dark):not([data-theme="dark"]) .bg-slate-950\/40,
+html:not(.dark):not([data-theme="dark"]) .bg-slate-950\/35 {
   background-color: #e2e8f0 !important; /* slate-200 */
 }
 
-:not(html[data-theme="dark"]) .bg-slate-800\/50 {
+html:not(.dark):not([data-theme="dark"]) .bg-slate-800\/50 {
   background-color: #cbd5e1 !important; /* slate-300 */
+}
+
+/* ── Light Mode Surface, Card & Dashboard Overrides (ONLY when NOT dark mode) ──── */
+html:not(.dark):not([data-theme="dark"]) .bg-slate-950 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a;
+}
+
+html:not(.dark):not([data-theme="dark"]) .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+html:not(.dark):not([data-theme="dark"]) .bg-slate-800 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .bg-slate-800\/40,
+html:not(.dark):not([data-theme="dark"]) .bg-slate-800\/50,
+html:not(.dark):not([data-theme="dark"]) .bg-slate-800\/60 {
+  background-color: #e2e8f0 !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .text-slate-100,
+html:not(.dark):not([data-theme="dark"]) .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .text-slate-300,
+html:not(.dark):not([data-theme="dark"]) .text-slate-400 {
+  color: #334155 !important;
+}
+
+html:not(.dark):not([data-theme="dark"]) .text-slate-500 {
+  color: #64748b !important;
 }
 
 /* ── Force Dark Zone (landing page) ─────────────
@@ -406,56 +465,61 @@ html[data-theme="dark"] .liquid-blob {
 
 /* ── Dark Mode Targeted Fixes ─────────────────
    Elevate the premium feel with glowing borders, glassmorphism,
-   and better contrast for dark mode specifically. */
+   cyan/blue glow effects, and ultra-crisp contrast. */
 
 html[data-theme="dark"] .bg-slate-800 {
-  background: rgba(13, 20, 33, 0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  background: rgba(13, 22, 38, 0.75) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(56, 189, 248, 0.15) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.08);
 }
 
 html[data-theme="dark"] .border-red-500\/50 {
-  border-color: rgba(239, 68, 68, 0.4) !important;
-  box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.05), 0 0 10px rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.08), 0 0 15px rgba(239, 68, 68, 0.2);
 }
 
 html[data-theme="dark"] .border-amber-500\/50 {
-  border-color: rgba(245, 158, 11, 0.4) !important;
-  box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.05), 0 0 10px rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.5) !important;
+  box-shadow: inset 0 0 20px rgba(245, 158, 11, 0.08), 0 0 15px rgba(245, 158, 11, 0.2);
 }
 
 html[data-theme="dark"] .border-blue-500\/50 {
-  border-color: rgba(59, 130, 246, 0.4) !important;
-  box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.05), 0 0 10px rgba(59, 130, 246, 0.15);
+  border-color: rgba(56, 189, 248, 0.5) !important;
+  box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.08), 0 0 15px rgba(56, 189, 248, 0.2);
 }
 
 html[data-theme="dark"] .text-slate-100, 
 html[data-theme="dark"] .text-slate-200 {
-  color: #f4f6fb !important;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  color: #f8fafc !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 html[data-theme="dark"] .text-slate-400 {
-  color: #a8b8c8 !important;
+  color: #94a3b8 !important;
 }
 
 html[data-theme="dark"] .bg-slate-900 {
-  background-color: #070c15 !important;
-  box-shadow: inset 0 1px 1px rgba(255,255,255,0.03);
+  background-color: #07101e !important;
+  border-color: rgba(56, 189, 248, 0.18) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.08);
 }
 
 html[data-theme="dark"] .bg-slate-950 {
-  background-color: #04070d !important;
+  background-color: #030712 !important;
 }
 
 html[data-theme="dark"] .border-slate-800 {
-  border-color: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(56, 189, 248, 0.15) !important;
 }
 
-/* Ensure buttons pop slightly */
+/* Focus glow is applied on the outer wrapper div via focus-within in the component,
+   NOT on the raw input element, to prevent inner box artifacts. */
+
+/* Ensure buttons pop with subtle neon text shadow in dark mode */
 html[data-theme="dark"] button {
-  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 /* ══════════════════════════════════════════════════
@@ -595,23 +659,9 @@ html[data-theme="dark"] tbody tr:hover {
   background-color: rgba(59, 130, 246, 0.08) !important;
 }
 
-/* ── Form Inputs Focus Glow ────────────────────── */
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25),
-              0 0 0 1px rgba(59, 130, 246, 0.5) !important;
-  transition: box-shadow 0.18s ease, border-color 0.18s ease;
-}
-
-html[data-theme="dark"] input:focus,
-html[data-theme="dark"] select:focus,
-html[data-theme="dark"] textarea:focus {
-  box-shadow: 0 0 0 2px rgba(99, 155, 255, 0.18),
-              0 0 0 1px rgba(99, 155, 255, 0.45),
-              0 0 12px rgba(59, 130, 246, 0.15) !important;
-}
+/* Focus glows removed from raw <input> elements.
+   Focus indication is handled on the outer wrapper div via
+   focus-within:border-cyan-500 and focus-within:ring-2 in the component. */
 
 /* ── Badge / Pill Hover ────────────────────────── */
 span.rounded-full,
@@ -765,28 +815,30 @@ html[data-theme="dark"] ::selection {
   align-items: center;
   text-align: center;
   border: 1px solid rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 3em rgba(59, 130, 246, 0.2),
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.12),
               inset 0 -0.25em 1px rgba(59, 130, 246, 0.1);
-  border-radius: 12px;
+  border-radius: 16px;
   background: rgba(var(--card-bg), 1);
   position: relative;
-  width: 280px;
-  min-height: 400px;
+  width: 100%;
+  max-width: 100%;
+  min-height: 380px;
   z-index: 0;
-  transition: all 0.6s ease-out;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
 
 html[data-theme="dark"] .profile-card {
   --card-bg: 10, 16, 27;
   background: rgba(10, 16, 27, 1);
-  box-shadow: 0 0 4em rgba(59, 130, 246, 0.18),
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
+              0 0 20px rgba(59, 130, 246, 0.12),
               inset 0 -0.25em 1px rgba(59, 130, 246, 0.08);
 }
 
 .profile-card:hover {
-  scale: 1.025;
-  box-shadow: 0 0 5em rgba(59, 130, 246, 0.5);
+  transform: translateY(-4px);
+  box-shadow: 0 15px 45px rgba(59, 130, 246, 0.25);
 }
 
 /* Pseudo-blobs */
@@ -819,7 +871,7 @@ html[data-theme="dark"] .profile-card {
   display: flex;
   flex-flow: column nowrap;
   align-items: center;
-  padding: 1em 1em 0.75em;
+  padding: 1.2em 1.2em 0.85em;
   margin: 0.6em 0.6em 0;
   background: rgba(248, 250, 255, 1);
   transition: all 0.5s ease-out;
@@ -833,7 +885,7 @@ html[data-theme="dark"] .profile-card {
   position: relative;
   z-index: 10;
   width: calc(100% - 1.2em);
-  border-radius: 2px;
+  border-radius: 6px;
 }
 
 html[data-theme="dark"] .profile-card-info {
@@ -848,8 +900,8 @@ html[data-theme="dark"] .profile-card-info {
   border-radius: 50%;
   overflow: hidden;
   background: rgba(59, 130, 246, 0.18);
-  height: 100px;
-  width: 100px;
+  height: 96px;
+  width: 96px;
   box-shadow: inset 0px 2px 4px rgba(59, 130, 246, 0.7),
               inset 0px 2px 40px rgba(248, 250, 255, 0.9);
   position: relative;
@@ -871,16 +923,16 @@ html[data-theme="dark"] .profile-card-avatar-wrap {
 }
 
 .profile-card-avatar {
-  width: 88px;
-  height: 88px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   transition: all 0.3s ease-out;
 }
 
 /* Name */
 .profile-card-title {
-  color: rgba(30, 40, 60, 0.85);
-  font-size: 1em;
+  color: rgba(30, 40, 60, 0.95);
+  font-size: 1.1em;
   font-weight: 800;
   margin: 0.4em 0 0.2em;
   transition: all 0.3s ease-out;
@@ -899,13 +951,14 @@ html[data-theme="dark"] .profile-card-title {
 
 /* Role badge */
 .profile-card-role {
-  font-size: 0.6em;
+  font-size: 0.62em;
   font-weight: 900;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 20px;
-  margin-bottom: 0.75em;
+  margin-bottom: 0.85em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 /* Detail rows table */
@@ -913,7 +966,7 @@ html[data-theme="dark"] .profile-card-title {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.3em;
+  gap: 0.4em;
   margin-bottom: 0.6em;
 }
 
@@ -921,9 +974,9 @@ html[data-theme="dark"] .profile-card-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5em;
-  padding: 0.25em 0.4em;
-  border-radius: 4px;
+  gap: 0.6em;
+  padding: 0.35em 0.6em;
+  border-radius: 6px;
   background: rgba(59, 130, 246, 0.04);
   transition: background 0.2s;
 }
@@ -937,36 +990,35 @@ html[data-theme="dark"] .profile-card-row {
 }
 
 .profile-card-label {
-  font-size: 0.62em;
+  font-size: 0.65em;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(100, 116, 139, 0.9);
+  color: rgba(100, 116, 139, 0.95);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 html[data-theme="dark"] .profile-card-label {
-  color: rgba(100, 140, 190, 0.9);
+  color: rgba(140, 170, 210, 0.9);
 }
 
 .profile-card-value {
-  font-size: 0.68em;
+  font-size: 0.72em;
   font-weight: 600;
-  color: rgba(30, 40, 60, 0.9);
+  color: rgba(30, 40, 60, 0.95);
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
+  word-break: break-all;
+  line-height: 1.3;
 }
 
 html[data-theme="dark"] .profile-card-value {
-  color: rgba(210, 225, 250, 0.95);
+  color: rgba(220, 235, 255, 0.95);
 }
 
 .profile-card-mono {
-  font-family: 'Courier New', monospace;
-  font-size: 0.6em !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68em !important;
 }
 
 /* Household ID chip */
@@ -1028,4 +1080,35 @@ html[data-theme="dark"] .profile-card-link-badge {
 
 .profile-card:hover .profile-card-link-badge {
   color: rgba(59, 130, 246, 0.85);
+}
+
+/* ══════════════════════════════════════════════════
+   GOOGLE TRANSLATE HIDE BANNER & HOVER TOOLTIPS
+   ══════════════════════════════════════════════════ */
+.goog-te-banner-frame, 
+.goog-te-banner, 
+iframe.goog-te-banner-frame, 
+#goog-gt-tt, 
+.goog-te-balloon-frame,
+.goog-tooltip,
+.goog-tooltip:hover,
+#goog-gt-tt * {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body {
+  top: 0px !important;
+  position: static !important;
+}
+
+.skiptranslate {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }

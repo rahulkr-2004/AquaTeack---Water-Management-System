@@ -1,1 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7 2.9 7 2.9s-2.29 6.16-3.29 7.16C2.57 11 2 12.08 2 13.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 1 14 8.5c.64.9 1.13 1.94 1.45 3 .32 1.06.49 2.18.49 3.3 0 2.15-1.55 3.97-3.66 4.35"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="dropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#1e3a8a" />
+    </linearGradient>
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="splashGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Cyan Circle Ring (Transparent Background) -->
+  <circle cx="32" cy="32" r="30" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
+
+  <!-- Inner Dark Blue Ring -->
+  <circle cx="32" cy="32" r="23" stroke="#1e3a8a" stroke-width="3" fill="none"/>
+
+  <!-- Side Water Leaves / Splashes -->
+  <path d="M18 30C15 25 18 20 23 23C23 23 21 28 18 30Z" fill="url(#splashGrad)"/>
+  <path d="M46 30C49 25 46 20 41 23C41 23 43 28 46 30Z" fill="url(#splashGrad)"/>
+  <path d="M21 37C17 34 18 29 23 31C23 31 23 35 21 37Z" fill="#0284c7"/>
+  <path d="M43 37C47 34 46 29 41 31C41 31 41 35 43 37Z" fill="#0284c7"/>
+  <circle cx="21" cy="22" r="1.5" fill="#38bdf8"/>
+  <circle cx="43" cy="22" r="1.5" fill="#38bdf8"/>
+  <circle cx="28" cy="17" r="1" fill="#38bdf8"/>
+
+  <!-- Central Water Drop -->
+  <path d="M32 14C32 14 23 28 23 36C23 41 27 45 32 45C37 45 41 41 41 36C41 28 32 14 32 14Z" fill="url(#dropGrad)"/>
+
+  <!-- Inner Wave Accent on Drop -->
+  <path d="M25 36C27 34 30 37 32 35C35 33 38 36 40 35C40.7 39 37.5 44 32 44C26.5 44 24.3 39 25 36Z" fill="#0284c7"/>
+  <path d="M28 26C28 26 25 33 25 36C25 38 27 39 28 37C29 35 30 30 28 26Z" fill="#ffffff" opacity="0.6"/>
+
+  <!-- Bottom Wave Ribbon -->
+  <path d="M14 42C20 48 30 49 38 45C44 42 48 35 50 32C46 45 36 52 24 50C17 49 14 43 14 42Z" fill="url(#waveGrad)"/>
+  <path d="M16 43C22 47 30 47 36 44C42 41 46 36 48 33C44 43 35 49 25 48C19 47 16 43 16 43Z" fill="#1e3a8a"/>
+</svg>

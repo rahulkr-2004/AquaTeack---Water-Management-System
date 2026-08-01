@@ -8,6 +8,7 @@ import java.util.List;
 @Repository
 public interface BillRepository extends JpaRepository<Bill, Long> {
     List<Bill> findByHouseholdId(Long householdId);
+    void deleteByHouseholdId(Long householdId);
     List<Bill> findByBillingCycleId(Long billingCycleId);
 
     // Bills targeting a specific user (Community Admin bills)

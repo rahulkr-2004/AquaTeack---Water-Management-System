@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @Data
@@ -27,4 +28,8 @@ public class Apartment {
     @OneToMany(mappedBy = "apartment", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<Household> households;
+
+    @OneToMany(mappedBy = "colony", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties({"colony"})
+    private List<Building> buildings;
 }

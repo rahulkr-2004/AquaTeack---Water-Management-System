@@ -62,10 +62,15 @@ public class JwtUtil {
     // Called when a user successfully logs in to give them a token
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        String role = userDetails.getAuthorities().stream()
+        String rawRole = userDetails.getAuthorities().stream()
                 .map(auth -> auth.getAuthority())
-                .findFirst().orElse("ROLE_USER");
-        claims.put("roles", role);
+                .filter(a -> a.startsWith("ROLE_"))
+                .findFirst()
+                .orElseGet(() -> {
+                    String first = userDetails.getAuthorities().stream().map(a -> a.getAuthority()).findFirst().orElse("ROLE_USER");
+                    return first.startsWith("ROLE_") ? first : "ROLE_" + first;
+                });
+        claims.put("roles", rawRole);
         return createToken(claims, userDetails.getUsername());
     }
 
@@ -82,6 +87,6 @@ public class JwtUtil {
     // Validates the token to ensure nobody tampered with it
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+        return (username.equalsIgnoreCase(userDetails.getUsername()) && !isTokenExpired(token));
     }
 }

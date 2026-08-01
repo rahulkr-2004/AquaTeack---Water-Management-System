@@ -61,7 +61,20 @@ public class BillingController {
     private ApartmentRepository apartmentRepository;
 
     @GetMapping("/cycles")
-    public ResponseEntity<List<BillingCycle>> getCycles() {
+    public ResponseEntity<List<BillingCycle>> getCycles(Authentication authentication) {
+        if (authentication != null) {
+            String role = authentication.getAuthorities().stream().map(a -> a.getAuthority()).findFirst().orElse("");
+            if ("ROLE_COMMUNITY_ADMIN".equals(role)) {
+                User admin = userRepository.findByEmail(authentication.getName()).orElse(null);
+                if (admin != null && admin.getManagedApartment() != null) {
+                    List<BillingCycle> cycles = billingCycleRepository.findAll().stream()
+                            .filter(c -> c.getApartment() != null && c.getApartment().getId().equals(admin.getManagedApartment().getId()))
+                            .collect(Collectors.toList());
+                    return ResponseEntity.ok(cycles);
+                }
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+        }
         return ResponseEntity.ok(billingCycleRepository.findAll());
     }
 
@@ -91,6 +104,29 @@ public class BillingController {
         }
     }
 
+    @DeleteMapping("/cycle/{id}")
+    public ResponseEntity<?> deleteCycle(@PathVariable Long id, Authentication authentication) {
+        try {
+            BillingCycle cycle = billingCycleRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Billing cycle not found!"));
+
+            if (cycle.isFinalized()) {
+                return ResponseEntity.badRequest().body("Error: Cannot delete a finalized billing cycle!");
+            }
+
+            List<Bill> associatedBills = billRepository.findByBillingCycleId(id);
+            if (associatedBills != null && !associatedBills.isEmpty()) {
+                billRepository.deleteAll(associatedBills);
+            }
+
+            billingCycleRepository.delete(cycle);
+            return ResponseEntity.ok("Billing cycle deleted successfully!");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+
     @PostMapping("/cycle/{id}/finalize")
     public ResponseEntity<?> finalizeCycle(@PathVariable Long id, Authentication authentication) {
         try {
@@ -101,42 +137,43 @@ public class BillingController {
                 return ResponseEntity.badRequest().body("Error: Billing cycle is already finalized!");
             }
 
-            String email = authentication.getName();
-            String role = authentication.getAuthorities().stream()
-                    .map(auth -> auth.getAuthority())
-                    .findFirst().orElse("ROLE_USER");
+            // Debug: log who is calling finalize and with what authorities
+            String callerEmail = authentication.getName();
+            java.util.Collection<?> callerAuthorities = authentication.getAuthorities();
+            System.out.println("[FINALIZE] Called by: " + callerEmail + " | authorities: " + callerAuthorities + " | cycleId: " + id);
 
-            // Determine which households to bill based on role
+            // Role check: only community admins and super admins can finalize
+            boolean isAdmin = callerAuthorities.stream()
+                    .map(a -> a.toString())
+                    .anyMatch(a -> a.contains("ADMIN"));
+            if (!isAdmin) {
+                System.out.println("[FINALIZE] BLOCKED - user does not have ADMIN authority");
+                return ResponseEntity.status(403).body("Access Denied: Only Community Admins can finalize billing cycles.");
+            }
+
+            // Determine which households to bill for this cycle
+            User user = userRepository.findByEmail(callerEmail).orElse(null);
             List<Household> householdsToProcess;
-            if ("ROLE_ADMIN".equals(role)) {
-                // Super Admin: bill all households in the apartment
+            if (user != null && user.getManagedApartment() != null) {
                 householdsToProcess = householdRepository.findAll().stream()
-                        .filter(h -> h.getApartment() != null &&
-                                h.getApartment().getId().equals(cycle.getApartment().getId()))
-                        .collect(Collectors.toList());
-            } else if ("ROLE_COMMUNITY_ADMIN".equals(role)) {
-                // Community Admin: only bill households with users managed by this admin
-                User admin = userRepository.findByEmail(email)
-                        .orElseThrow(() -> new IllegalArgumentException("Admin not found!"));
-                List<User> managedUsers = userRepository.findByManagedByAdminId(admin.getId());
-                List<Long> managedHouseholdIds = managedUsers.stream()
-                        .filter(u -> u.getHousehold() != null)
-                        .map(u -> u.getHousehold().getId())
-                        .distinct()
-                        .collect(Collectors.toList());
-                householdsToProcess = householdRepository.findAll().stream()
-                        .filter(h -> managedHouseholdIds.contains(h.getId()))
+                        .filter(h -> h.getApartment() != null && h.getApartment().getId().equals(user.getManagedApartment().getId()))
                         .collect(Collectors.toList());
             } else {
-                return ResponseEntity.status(403).body("Access Denied");
+                householdsToProcess = householdRepository.findAll().stream()
+                        .filter(h -> h.getApartment() != null && h.getApartment().getId().equals(cycle.getApartment().getId()))
+                        .collect(Collectors.toList());
+            }
+
+            if (householdsToProcess.isEmpty()) {
+                return ResponseEntity.badRequest().body("No registered households/flats found in this apartment block. Please add households first.");
             }
 
             List<Bill> generatedBills = new ArrayList<>();
 
             TariffPlan tariff = tariffPlanRepository.findByApartmentId(cycle.getApartment().getId()).orElse(null);
-            BigDecimal baseRate = tariff != null ? tariff.getBaseRate() : new BigDecimal("1.5");
-            BigDecimal excessRate = tariff != null ? tariff.getExcessRate() : new BigDecimal("3.0");
-            double baseLimitKl = tariff != null ? tariff.getBaseLimitKl() : 10.0;
+            BigDecimal baseRate = tariff != null ? tariff.getBaseRate() : new BigDecimal("30.0");
+            BigDecimal excessRate = tariff != null ? tariff.getExcessRate() : new BigDecimal("60.0");
+            double baseLimitKl = tariff != null ? tariff.getBaseLimitKl() : 15.0;
             int baseLimitDays = (tariff != null && tariff.getBaseLimitDays() != null) ? tariff.getBaseLimitDays() : 30;
 
             // Calculate proportional base limit based on cycle length vs base limit days
@@ -150,29 +187,32 @@ public class BillingController {
             for (Household h : householdsToProcess) {
                 List<WaterUsageLog> logs = waterUsageLogRepository.findByHouseholdIdOrderByDateDesc(h.getId());
                 double consumptionLiters = 0.0;
-                for (WaterUsageLog log : logs) {
-                    if ((log.getDate().isAfter(cycle.getStartDate()) || log.getDate().isEqual(cycle.getStartDate()))
-                            && (log.getDate().isBefore(cycle.getEndDate()) || log.getDate().isEqual(cycle.getEndDate()))) {
-                        consumptionLiters += log.getConsumptionLiters();
+                if (logs != null) {
+                    for (WaterUsageLog log : logs) {
+                        if (log.getDate() != null
+                                && (log.getDate().isAfter(cycle.getStartDate()) || log.getDate().isEqual(cycle.getStartDate()))
+                                && (log.getDate().isBefore(cycle.getEndDate()) || log.getDate().isEqual(cycle.getEndDate()))) {
+                            consumptionLiters += log.getConsumptionLiters();
+                        }
                     }
                 }
                 householdConsumptions.put(h.getId(), consumptionLiters);
-                if (h.isHasMeter() && consumptionLiters > 0) {
+                boolean hasMeter = Boolean.TRUE.equals(h.isHasMeter());
+                double area = (h.getAreaSqm() > 0) ? h.getAreaSqm() : 100.0;
+                if (hasMeter && consumptionLiters > 0) {
                     meteredConsumptionSum += consumptionLiters;
-                    meteredAreaSum += h.getAreaSqm();
+                    meteredAreaSum += area;
                 }
             }
 
-            double avgConsumptionPerSqm = (meteredAreaSum > 0) ? (meteredConsumptionSum / meteredAreaSum) : 500.0; // fallback
+            double avgConsumptionPerSqm = (meteredAreaSum > 0) ? (meteredConsumptionSum / meteredAreaSum) : 5.0;
 
-            double totalEquivalentConsumption = 0;
             for (Household h : householdsToProcess) {
-                if (h.isHasMeter()) {
-                    totalEquivalentConsumption += householdConsumptions.get(h.getId());
-                } else {
-                    double estimated = avgConsumptionPerSqm * h.getAreaSqm();
+                boolean hasMeter = Boolean.TRUE.equals(h.isHasMeter());
+                double area = (h.getAreaSqm() > 0) ? h.getAreaSqm() : 100.0;
+                if (!hasMeter) {
+                    double estimated = avgConsumptionPerSqm * area;
                     householdConsumptions.put(h.getId(), estimated);
-                    totalEquivalentConsumption += estimated;
                 }
             }
 
@@ -191,12 +231,11 @@ public class BillingController {
                 }
 
                 BigDecimal sharedCostAllocation = BigDecimal.ZERO;
-                if (totalEquivalentConsumption > 0 && cycle.getTotalBulkCost() != null) {
-                    double fraction = consumptionLiters / totalEquivalentConsumption;
-                    sharedCostAllocation = cycle.getTotalBulkCost().multiply(BigDecimal.valueOf(fraction));
-                }
 
-                BigDecimal billAmount = baseCost.add(excessCost).add(sharedCostAllocation);
+                BigDecimal subtotal = baseCost.add(excessCost);
+                BigDecimal taxAmount = subtotal.multiply(new BigDecimal("0.05")).setScale(2, java.math.RoundingMode.HALF_UP);
+                BigDecimal platformFee = new BigDecimal("5.00");
+                BigDecimal billAmount = subtotal.add(taxAmount).add(platformFee).setScale(2, java.math.RoundingMode.HALF_UP);
 
                 Bill bill = new Bill();
                 bill.setHousehold(h);
@@ -205,6 +244,8 @@ public class BillingController {
                 bill.setBaseCharge(baseCost);
                 bill.setExcessCharge(excessCost);
                 bill.setSharedCostAllocation(sharedCostAllocation);
+                bill.setTaxAmount(taxAmount);
+                bill.setPlatformFee(platformFee);
                 bill.setAmount(billAmount);
                 bill.setPaid(false);
                 bill.setInvoiceNumber("INV-" + cycle.getStartDate().getYear() + "-" + (100000 + h.getId()) + "-" + id);
@@ -213,13 +254,17 @@ public class BillingController {
                 generatedBills.add(bill);
 
                 // Notify User
-                SystemAlert alert = new SystemAlert();
-                alert.setHousehold(h);
-                alert.setTitle("New Bill Generated");
-                alert.setMessage("A new bill of ₹" + billAmount + " has been generated for the period " + cycle.getStartDate() + " to " + cycle.getEndDate() + ".");
-                alert.setDate(LocalDate.now());
-                alert.setType("BILLING");
-                systemAlertRepository.save(alert);
+                try {
+                    SystemAlert alert = new SystemAlert();
+                    alert.setHousehold(h);
+                    alert.setTitle("New Bill Generated");
+                    alert.setMessage("A new bill of ₹" + billAmount + " has been generated for the period " + cycle.getStartDate() + " to " + cycle.getEndDate() + ".");
+                    alert.setDate(LocalDate.now());
+                    alert.setType("BILLING");
+                    systemAlertRepository.save(alert);
+                } catch (Exception ex) {
+                    System.err.println("Alert creation failed: " + ex.getMessage());
+                }
             }
 
             cycle.setFinalized(true);
@@ -227,6 +272,7 @@ public class BillingController {
 
             return ResponseEntity.ok(generatedBills);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
@@ -293,12 +339,17 @@ public class BillingController {
             List<Long> managedHouseholdIds = managedUsers.stream()
                     .filter(u -> u.getHousehold() != null)
                     .map(u -> u.getHousehold().getId())
-                    .distinct()
                     .collect(Collectors.toList());
+            if (user.getManagedApartment() != null) {
+                userRepository.findByRole(Role.ROLE_USER).stream()
+                        .filter(u -> u.getHousehold() != null && u.getHousehold().getApartment().getId().equals(user.getManagedApartment().getId()))
+                        .forEach(u -> managedHouseholdIds.add(u.getHousehold().getId()));
+            }
+            List<Long> distinctIds = managedHouseholdIds.stream().distinct().collect(Collectors.toList());
 
             List<Bill> result = new ArrayList<>();
-            if (!managedHouseholdIds.isEmpty()) {
-                result.addAll(billRepository.findByHouseholdIdIn(managedHouseholdIds));
+            if (!distinctIds.isEmpty()) {
+                result.addAll(billRepository.findByHouseholdIdIn(distinctIds));
             }
             // Also include bills directly targeting this community admin
             result.addAll(billRepository.findByTargetUserId(user.getId()));
@@ -565,7 +616,7 @@ public class BillingController {
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document document = new Document(PageSize.A4, 36, 36, 36, 36);
-            PdfWriter writer = PdfWriter.getInstance(document, baos);
+            PdfWriter.getInstance(document, baos);
             document.open();
 
             // Colors
@@ -740,17 +791,14 @@ public class BillingController {
             // -- BOX 3 (Grid) --
             // Fetch real tariff
             TariffPlan tariff = tariffPlanRepository.findByApartmentId(bill.getBillingCycle().getApartment().getId()).orElse(null);
-            BigDecimal baseRatePerKl = tariff != null ? tariff.getBaseRate() : new BigDecimal("1.5");
-            BigDecimal excessRatePerKl = tariff != null ? tariff.getExcessRate() : new BigDecimal("3.0");
+            BigDecimal baseRatePerLiter = tariff != null ? tariff.getBaseRate().divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP) : new BigDecimal("0.03");
+            BigDecimal excessRatePerLiter = tariff != null ? tariff.getExcessRate().divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP) : new BigDecimal("0.06");
             double baseLimitKlPlan = tariff != null ? tariff.getBaseLimitKl() : 10.0;
             int baseLimitDays = (tariff != null && tariff.getBaseLimitDays() != null) ? tariff.getBaseLimitDays() : 30;
 
             long cycleDaysPdf = java.time.temporal.ChronoUnit.DAYS.between(bill.getBillingCycle().getStartDate(), bill.getBillingCycle().getEndDate()) + 1;
             double proportionalBaseLimitKl = baseLimitKlPlan * ((double) cycleDaysPdf / baseLimitDays);
             long actualBaseLimitLiters = (long) (proportionalBaseLimitKl * 1000.0);
-
-            BigDecimal baseRatePerLiter = baseRatePerKl.divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP);
-            BigDecimal excessRatePerLiter = excessRatePerKl.divide(new BigDecimal("1000"), 4, java.math.RoundingMode.HALF_UP);
 
             PdfPTable box3 = new PdfPTable(4);
             box3.setWidthPercentage(100);
@@ -807,13 +855,29 @@ public class BillingController {
                 addTd(t, String.format("%.2f", bill.getSharedCostAllocation()), gridBorder, fTdNorm, Element.ALIGN_RIGHT);
             }
             
+            BigDecimal subtotalPdf = (bill.getBaseCharge() != null ? bill.getBaseCharge() : BigDecimal.ZERO)
+                    .add(bill.getExcessCharge() != null ? bill.getExcessCharge() : BigDecimal.ZERO)
+                    .add(bill.getSharedCostAllocation() != null ? bill.getSharedCostAllocation() : BigDecimal.ZERO);
+            BigDecimal taxPdf = bill.getTaxAmount() != null && bill.getTaxAmount().compareTo(BigDecimal.ZERO) > 0
+                    ? bill.getTaxAmount()
+                    : subtotalPdf.multiply(new BigDecimal("0.05")).setScale(2, java.math.RoundingMode.HALF_UP);
+            BigDecimal platformFeePdf = bill.getPlatformFee() != null ? bill.getPlatformFee() : new BigDecimal("5.00");
+
             PdfPCell c4a = new PdfPCell();
             c4a.setBorderColor(gridBorder); c4a.setBorder(Rectangle.BOTTOM); c4a.setPadding(10);
-            c4a.addElement(new Paragraph("GST / Service Tax (0% — Govt. Exempted)", fTdNorm));
+            c4a.addElement(new Paragraph("GST / Government Tax (5%)", fTdNorm));
             t.addCell(c4a);
             addTd(t, "—", gridBorder, fTdNorm, Element.ALIGN_CENTER);
-            addTd(t, "0%", gridBorder, fTdNorm, Element.ALIGN_CENTER);
-            addTd(t, "0.00", gridBorder, fTdNorm, Element.ALIGN_RIGHT);
+            addTd(t, "5%", gridBorder, fTdNorm, Element.ALIGN_CENTER);
+            addTd(t, "₹" + String.format("%.2f", taxPdf), gridBorder, fTdNorm, Element.ALIGN_RIGHT);
+
+            PdfPCell c5a = new PdfPCell();
+            c5a.setBorderColor(gridBorder); c5a.setBorder(Rectangle.BOTTOM); c5a.setPadding(10);
+            c5a.addElement(new Paragraph("Platform Convenience Fee", fTdNorm));
+            t.addCell(c5a);
+            addTd(t, "—", gridBorder, fTdNorm, Element.ALIGN_CENTER);
+            addTd(t, "Flat", gridBorder, fTdNorm, Element.ALIGN_CENTER);
+            addTd(t, "₹" + String.format("%.2f", platformFeePdf), gridBorder, fTdNorm, Element.ALIGN_RIGHT);
             document.add(t);
             document.add(new Paragraph("\n"));
             
@@ -823,9 +887,9 @@ public class BillingController {
             totTb.setHorizontalAlignment(Element.ALIGN_RIGHT);
             totTb.setWidths(new float[]{1.5f, 1f});
             
-            addNoBorderRow(totTb, "Subtotal", "₹" + String.format("%.2f", bill.getAmount()), fNormal);
-            addNoBorderRow(totTb, "Discount", "₹0.00", fTdGreen);
-            addNoBorderRow(totTb, "Tax (GST @ 0%)", "₹0.00", fNormal);
+            addNoBorderRow(totTb, "Subtotal", "₹" + String.format("%.2f", subtotalPdf), fNormal);
+            addNoBorderRow(totTb, "Tax (GST 5%)", "₹" + String.format("%.2f", taxPdf), fNormal);
+            addNoBorderRow(totTb, "Platform Fee", "₹" + String.format("%.2f", platformFeePdf), fNormal);
             
             PdfPCell tl = new PdfPCell(new Paragraph("Total Payable", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, darkText)));
             tl.setBorder(Rectangle.TOP); tl.setBorderColor(primaryBlue); tl.setBorderWidth(2f); tl.setPaddingTop(10);

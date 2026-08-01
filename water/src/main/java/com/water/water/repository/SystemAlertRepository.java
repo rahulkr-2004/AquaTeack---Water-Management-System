@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface SystemAlertRepository extends JpaRepository<SystemAlert, Long> {
     List<SystemAlert> findByHouseholdId(Long householdId);
+    void deleteByHouseholdId(Long householdId);
 }

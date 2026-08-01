@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Droplets, 
   Upload, 
@@ -28,20 +28,44 @@ import {
   FileText,
   Bell,
   BarChart3,
+  Globe,
   HelpCircle,
   Crown,
   Sun,
   Moon,
   ChevronRight,
+  ChevronDown,
   UploadCloud,
   Camera,
   UserPlus,
   X,
   Check,
   Info,
-  RefreshCw
+  RefreshCw,
+  MapPin,
+  LifeBuoy,
+  Download,
+  Bot,
+  Send,
+  Sparkles,
+  MessageSquare,
+  Zap,
+  Search,
+  AlertTriangle,
+  TrendingUp,
+  Calendar,
+  CheckCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { translations } from './translations';
+import LanguagePicker, { ALL_LANGUAGES } from './components/LanguagePicker';
+import { WaterGridCanvas, BubblesCanvas, RaindropsCanvas } from './components/CanvasBackgrounds';
+import { InviteVerificationView, CommunityAdminVerifyView } from './components/VerificationViews';
+import AuthView from './components/AuthView';
+import { FormattedMarkdown, AquaBotChatWindow, ResidentChatbotTab, AquaBotFloatingWidget } from './components/AquaBot';
+import InvoiceModal from './components/InvoiceModal';
 
 const API_BASE_URL = 'http://localhost:8080';
 
@@ -59,6 +83,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('jwt_token') || null);
   const [userRole, setUserRole] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [openTicketsCount, setOpenTicketsCount] = useState(0);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -72,6 +97,46 @@ export default function App() {
   const [bills, setBills] = useState([]);
   const [alertsCount, setAlertsCount] = useState(0);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('aq-theme') === 'dark');
+  const [lang, setLang] = useState(() => localStorage.getItem('aquatrack_lang') || 'en');
+
+  // Initialize Google Translate Script
+  useEffect(() => {
+    if (!document.getElementById('google-translate-script')) {
+      const script = document.createElement('script');
+      script.id = 'google-translate-script';
+      script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+      document.body.appendChild(script);
+
+      window.googleTranslateElementInit = () => {
+        if (window.google && window.google.translate) {
+          new window.google.translate.TranslateElement(
+            {
+              pageLanguage: 'en',
+              layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+              autoDisplay: false
+            },
+            'google_translate_element'
+          );
+        }
+      };
+    }
+  }, []);
+
+  const toggleLanguage = (newLang) => {
+    setLang(newLang);
+    localStorage.setItem('aquatrack_lang', newLang);
+  };
+
+  const t = (key, params = {}) => {
+    let text = translations[lang]?.[key] || translations['en']?.[key] || key;
+    Object.keys(params).forEach(p => {
+      text = text.replace(`{${p}}`, params[p]);
+    });
+    return text;
+  };
+  useEffect(() => {
+    document.title = "AquaTrack - Smart Water Manager";
+  }, []);
 
   useEffect(() => {
     if (token) {
@@ -89,6 +154,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     localStorage.setItem('aq-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
@@ -114,6 +184,9 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
+        if (data.role) {
+          setUserRole(data.role);
+        }
       }
     } catch (err) {
       console.error("Error fetching profile", err);
@@ -236,42 +309,51 @@ export default function App() {
     }
     return (
       <>
-        <AuthView setToken={setToken} message={message} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} />
+        <AuthView setToken={setToken} message={message} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} lang={lang} setLang={setLang} />
         {toastNode}
       </>
     );
   }
 
-  const isSuperAdmin = userRole === 'ROLE_ADMIN';
-  const isCommunityAdmin = userRole === 'ROLE_COMMUNITY_ADMIN';
+  const activeRole = profile?.role || userRole;
+  const isSuperAdmin = activeRole === 'ROLE_ADMIN' || activeRole === 'ADMIN';
+  const isCommunityAdmin = activeRole === 'ROLE_COMMUNITY_ADMIN' || activeRole === 'COMMUNITY_ADMIN';
   const isManager = isSuperAdmin || isCommunityAdmin;
 
-  // Define sidebar items based on roles matching mockup exactly
-  const sidebarItems = isManager 
+  // Define sidebar items based on roles — all labels use t() for multi-lingual support
+  let sidebarItems = isManager
     ? [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-        { id: 'households', label: isSuperAdmin ? 'Buildings' : 'Apartments / Flats', icon: isSuperAdmin ? <Building2 size={18} /> : <Home size={18} /> },
-        { id: 'residents', label: 'Residents', icon: <UserCheck size={18} /> },
-        { id: 'water_usage', label: 'Water Usage', icon: <Activity size={18} /> },
-        { id: 'meter_readings', label: 'Meter Readings', icon: <List size={18} /> },
-        { id: 'billing', label: 'Billing', icon: <DollarSign size={18} /> },
-        { id: 'tariff_plans', label: 'Tariff Plans', icon: <FlameKindling size={18} /> },
-        { id: 'water_purchase', label: 'Water Purchase', icon: <Truck size={18} /> },
-        { id: 'invoices', label: 'Invoices', icon: <FileText size={18} /> },
-        { id: 'alerts', label: 'Alerts', icon: <Bell size={18} />, badge: alertsCount },
-        { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
-        { id: 'profile', label: 'Profile', icon: <User size={18} /> }
+        { id: 'dashboard', label: t('nav_dashboard'), icon: <LayoutDashboard size={18} /> },
+        ...(isSuperAdmin ? [{ id: 'colony_management', label: t('nav_colony'), icon: <Building2 size={18} /> }] : []),
+        { id: 'households', label: t('nav_households'), icon: <Home size={18} /> },
+        { id: 'residents', label: t('nav_residents'), icon: <UserCheck size={18} /> },
+        { id: 'water_usage', label: t('nav_water_usage'), icon: <Activity size={18} /> },
+        { id: 'meter_readings', label: t('nav_meter_readings'), icon: <List size={18} /> },
+        { id: 'billing', label: t('nav_billing'), icon: <DollarSign size={18} /> },
+        { id: 'tariff_plans', label: t('nav_tariff_plans'), icon: <FlameKindling size={18} /> },
+        { id: 'water_purchase', label: t('nav_water_purchase'), icon: <Truck size={18} /> },
+        { id: 'invoices', label: t('nav_invoices'), icon: <FileText size={18} /> },
+        { id: 'alerts', label: t('nav_alerts'), icon: <Bell size={18} />, badge: alertsCount },
+        { id: 'reports', label: t('nav_reports'), icon: <BarChart3 size={18} /> },
+        { id: 'support', label: t('nav_support'), icon: <LifeBuoy size={18} />, badge: openTicketsCount },
+        { id: 'profile', label: t('nav_profile'), icon: <User size={18} /> }
       ]
     : [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-        { id: 'my_usage', label: 'My Usage', icon: <Activity size={18} /> },
-        { id: 'usage_history', label: 'Usage History', icon: <List size={18} /> },
-        { id: 'my_bills', label: 'My Bills', icon: <DollarSign size={18} /> },
-        { id: 'my_invoices', label: 'My Invoices', icon: <FileText size={18} /> },
-        { id: 'notifications', label: 'Notifications', icon: <Bell size={18} />, badge: alertsCount },
-        { id: 'water_tips', label: 'Water Tips', icon: <HelpCircle size={18} /> },
-        { id: 'profile', label: 'Profile', icon: <User size={18} /> }
+        { id: 'dashboard', label: t('nav_dashboard'), icon: <LayoutDashboard size={18} /> },
+        { id: 'my_usage', label: t('nav_my_usage'), icon: <Activity size={18} /> },
+        { id: 'usage_history', label: t('nav_usage_history'), icon: <List size={18} /> },
+        { id: 'my_bills', label: t('nav_my_bills'), icon: <DollarSign size={18} /> },
+        { id: 'my_invoices', label: t('nav_my_invoices'), icon: <FileText size={18} /> },
+        { id: 'notifications', label: t('nav_notifications'), icon: <Bell size={18} />, badge: alertsCount },
+        { id: 'water_tips', label: t('nav_water_tips'), icon: <HelpCircle size={18} /> },
+        { id: 'support', label: t('nav_support'), icon: <LifeBuoy size={18} />, badge: openTicketsCount },
+        { id: 'chatbot', label: t('nav_aquabot'), icon: <Bot size={18} /> },
+        { id: 'profile', label: t('nav_profile'), icon: <User size={18} /> }
       ];
+
+  if (isSuperAdmin) {
+    sidebarItems = sidebarItems.filter(item => item.id !== 'water_usage' && item.id !== 'households');
+  }
 
   // Role Badge Styling classes
   const getBadgeStyle = () => {
@@ -292,19 +374,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
+      {/* Hidden Google Translate mount element */}
+      <div id="google_translate_element" className="hidden"></div>
+
       {/* Top Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center z-10 shadow-md">
         <div className="flex items-center gap-3.5">
           <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/10">
             <Droplets size={22} className="animate-pulse" />
           </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-100 flex items-center gap-0.5">
+          <div className="notranslate" translate="no">
+            <h1 className="text-lg font-black tracking-tight text-slate-100 flex items-center gap-0.5" translate="no">
               Aqua<span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent font-black">Track</span>
               {isSuperAdmin && <Crown size={16} className="text-amber-400 animate-bounce ml-0.5" />}
             </h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-              {isSuperAdmin ? 'Super Admin Portal' : isCommunityAdmin ? 'Community Admin Portal' : 'Resident Portal'}
+              {isSuperAdmin ? t('portal_superadmin') : isCommunityAdmin ? t('portal_admin') : t('portal_resident')}
             </p>
           </div>
         </div>
@@ -312,15 +397,35 @@ export default function App() {
         <div className="flex items-center gap-4 text-xs">
           {profile && (
             <div className="hidden sm:flex items-center gap-2">
-              <span className="text-slate-400">Welcome,</span>
+              <span className="text-slate-400">{t('dash_welcome')}</span>
               <span className={`font-bold ${isSuperAdmin ? 'text-amber-400' : 'text-blue-400'}`}>{profile.name}</span>
             </div>
           )}
+          {/* Searchable Browser Language Switcher with Indian & Global Languages */}
+          <LanguagePicker
+            currentLang={lang}
+            onSelectLanguage={(langCode) => {
+              // Set Google Translate cookie
+              document.cookie = `googtrans=/en/${langCode}; path=/; domain=${window.location.hostname}`;
+              document.cookie = `googtrans=/en/${langCode}; path=/`;
+              setLang(langCode);
+              localStorage.setItem('aquatrack_lang', langCode);
+
+              const selectElem = document.querySelector('.goog-te-combo');
+              if (selectElem) {
+                selectElem.value = langCode;
+                selectElem.dispatchEvent(new Event('change'));
+              } else {
+                window.location.reload();
+              }
+            }}
+          />
+
           <button 
             onClick={() => { fetchDashboardData(); fetchProfile(); }}
             className="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-slate-300 hover:text-slate-100 font-semibold"
           >
-            Refresh
+            {t('btn_refresh')}
           </button>
           <button
             onClick={() => setDarkMode(prev => !prev)}
@@ -330,7 +435,7 @@ export default function App() {
             {darkMode ? <Sun size={15} /> : <Moon size={15} />}
           </button>
           <span className={`border px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${getBadgeStyle()}`}>
-            {isSuperAdmin ? 'Super Admin' : isCommunityAdmin ? 'Community Admin' : 'Resident'}
+            {isSuperAdmin ? t('role_super_admin') : isCommunityAdmin ? t('role_community_admin') : t('role_resident')}
           </span>
         </div>
       </header>
@@ -338,15 +443,15 @@ export default function App() {
       {/* Main Container */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Menu */}
-        <aside className="w-64 bg-slate-900 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0">
+        <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-sm">
           <div className="space-y-4">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3">Navigation Menu</p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3">{t('nav_menu')}</p>
             <nav className="space-y-1">
               {sidebarItems.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition duration-150 text-xs font-semibold ${activeTab === item.id ? (isSuperAdmin ? 'bg-amber-600 text-white shadow-md shadow-amber-600/15' : 'bg-blue-600 text-white shadow-md' ) : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
+                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition duration-150 text-xs font-semibold cursor-pointer ${activeTab === item.id ? (isSuperAdmin ? 'bg-amber-600 text-white shadow-md shadow-amber-600/15' : 'bg-blue-600 text-white shadow-md' ) : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-900 dark:hover:text-slate-200'}`}
                 >
                   {item.icon}
                   <span className="flex-1 text-left">{item.label}</span>
@@ -360,13 +465,13 @@ export default function App() {
             </nav>
           </div>
 
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-950/20 hover:text-red-300 transition duration-150 text-xs font-semibold"
             >
               <LogOut size={18} />
-              Logout
+              {t('nav_logout')}
             </button>
           </div>
         </aside>
@@ -378,15 +483,25 @@ export default function App() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="animate-spin text-blue-500 mb-3" size={28} />
-              <span className="text-slate-400 text-xs font-medium">Fetching details...</span>
+              <span className="text-slate-400 text-xs font-medium">{lang === 'hi' ? 'डेटा लोड हो रहा है...' : 'Fetching details...'}</span>
             </div>
           ) : (
             <div>
               {/* Tab Switching */}
               {activeTab === 'dashboard' && (
                 isManager 
-                  ? <AdminDashboard usageLogs={usageLogs} bills={bills} apartments={apartments} households={households} users={users} isSuperAdmin={isSuperAdmin} token={token} fetchDashboardData={fetchDashboardData} />
-                  : <ResidentDashboard usageLogs={usageLogs} bills={bills} profile={profile} token={token} fetchDashboardData={fetchDashboardData} />
+                  ? <AdminDashboard usageLogs={usageLogs} bills={bills} apartments={apartments} households={households} users={users} isSuperAdmin={isSuperAdmin} token={token} fetchDashboardData={fetchDashboardData} lang={lang} t={t} />
+                  : <ResidentDashboard usageLogs={usageLogs} bills={bills} profile={profile} token={token} fetchDashboardData={fetchDashboardData} lang={lang} t={t} />
+              )}
+
+              {/* Colony Management Tab — Super Admin only */}
+              {activeTab === 'colony_management' && isSuperAdmin && (
+                <ColonyManagementTab
+                  token={token}
+                  showMessage={showMessage}
+                  fetchDashboardData={fetchDashboardData}
+                  lang={lang} t={t}
+                />
               )}
 
               {/* Households Tab */}
@@ -395,9 +510,12 @@ export default function App() {
                   token={token} 
                   apartments={apartments} 
                   households={households} 
+                  users={users}
                   showMessage={showMessage} 
                   fetchDashboardData={fetchDashboardData} 
                   isSuperAdmin={isSuperAdmin}
+                  profile={profile}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -407,11 +525,15 @@ export default function App() {
                   token={token} 
                   users={users} 
                   households={households} 
+                  apartments={apartments}
                   showMessage={showMessage} 
                   fetchDashboardData={fetchDashboardData} 
                   isSuperAdmin={isSuperAdmin}
+                  userRole={userRole}
                   pendingUsers={pendingUsers}
                   darkMode={darkMode}
+                  profile={profile}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -426,12 +548,21 @@ export default function App() {
                   fetchDashboardData={fetchDashboardData} 
                   usageLogs={usageLogs}
                   users={users}
+                  lang={lang} t={t}
                 />
               )}
 
               {/* Meter Readings / Usage History Tab */}
               {(activeTab === 'meter_readings' || activeTab === 'usage_history') && (
-                <MeterReadingsTab usageLogs={usageLogs} />
+                <MeterReadingsTab 
+                  usageLogs={usageLogs} 
+                  households={households} 
+                  apartments={apartments} 
+                  profile={profile}
+                  isAdmin={isManager}
+                  setActiveTab={setActiveTab}
+                  lang={lang} t={t} 
+                />
               )}
 
               {/* Profile Tab */}
@@ -440,8 +571,24 @@ export default function App() {
                   token={token} 
                   profile={profile} 
                   fetchProfile={fetchProfile} 
+                  fetchDashboardData={fetchDashboardData}
+                  onResetSuccess={handleLogout}
                   showMessage={showMessage} 
                   isSuperAdmin={isSuperAdmin}
+                  lang={lang} t={t}
+                />
+              )}
+
+              {/* Support Tab */}
+              {activeTab === 'support' && (
+                <SupportTab 
+                  token={token} 
+                  profile={profile}
+                  showMessage={showMessage} 
+                  isSuperAdmin={isSuperAdmin}
+                  isCommunityAdmin={isCommunityAdmin}
+                  onTicketCountChange={setOpenTicketsCount}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -452,6 +599,8 @@ export default function App() {
                   apartments={apartments} 
                   showMessage={showMessage} 
                   isSuperAdmin={isSuperAdmin}
+                  profile={profile}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -463,6 +612,8 @@ export default function App() {
                   users={users}
                   showMessage={showMessage} 
                   isSuperAdmin={isSuperAdmin}
+                  profile={profile}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -471,7 +622,10 @@ export default function App() {
                 <WaterPurchaseTab 
                   token={token} 
                   apartments={apartments} 
-                  showMessage={showMessage} 
+                  showMessage={showMessage}
+                  isSuperAdmin={isSuperAdmin}
+                  profile={profile}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -479,7 +633,8 @@ export default function App() {
               {activeTab === 'invoices' && isManager && (
                 <InvoicesTab 
                   token={token} 
-                  showMessage={showMessage} 
+                  showMessage={showMessage}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -489,22 +644,22 @@ export default function App() {
                   token={token} 
                   households={households} 
                   showMessage={showMessage} 
-                  isAdmin={true} 
+                  isAdmin={true}
+                  lang={lang} t={t}
                 />
               )}
 
               {/* Reports Tab */}
               {activeTab === 'reports' && isManager && (
-                <ReportsTab 
-                  token={token} 
-                />
+                <ReportsTab token={token} lang={lang} t={t} />
               )}
 
               {/* My Bills Tab */}
               {activeTab === 'my_bills' && !isManager && (
                 <MyBillsTab 
                   token={token} 
-                  showMessage={showMessage} 
+                  showMessage={showMessage}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -513,6 +668,7 @@ export default function App() {
                 <MyInvoicesTab 
                   token={token} 
                   showMessage={showMessage}
+                  lang={lang} t={t}
                 />
               )}
 
@@ -522,18 +678,46 @@ export default function App() {
                   token={token} 
                   households={[]} 
                   showMessage={showMessage} 
-                  isAdmin={false} 
+                  isAdmin={false}
+                  lang={lang} t={t}
                 />
               )}
 
               {/* Water Tips Tab */}
               {activeTab === 'water_tips' && !isManager && (
-                <WaterTipsTab />
+                <WaterTipsTab lang={lang} t={t} />
+              )}
+
+              {/* AquaBot Assistant Tab */}
+              {activeTab === 'chatbot' && !isManager && (
+                <ResidentChatbotTab
+                  profile={profile}
+                  usageLogs={usageLogs}
+                  bills={bills}
+                  token={token}
+                  setActiveTab={setActiveTab}
+                  lang={lang}
+                  t={t}
+                />
               )}
             </div>
           )}
         </main>
       </div>
+
+      {/* Floating AquaBot Widget for Household Residents */}
+      {!isManager && activeTab !== 'chatbot' && (
+        <AquaBotFloatingWidget
+          profile={profile}
+          usageLogs={usageLogs}
+          bills={bills}
+          token={token}
+          setActiveTab={setActiveTab}
+          lang={lang}
+          t={t}
+        />
+      )}
+
       {message.text && (
         <div className="fixed top-5 right-5 z-[9999] animate-fade-in-up">
           <div className={`p-4 rounded-xl flex items-center gap-3 border shadow-2xl text-xs backdrop-blur-md max-w-sm ${
@@ -567,10 +751,11 @@ export default function App() {
 // -------------------------------------------------------------
 // 1. ADMIN DASHBOARD VIEW
 // -------------------------------------------------------------
-function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin, token, fetchDashboardData }) {
+function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin, token, fetchDashboardData, lang, t }) {
   const [localLogs, setLocalLogs] = useState(usageLogs || []);
   const [localAlerts, setLocalAlerts] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [expandedAdmins, setExpandedAdmins] = useState({});
 
   // Sync with parent data
   useEffect(() => { setLocalLogs(usageLogs || []); }, [usageLogs]);
@@ -600,49 +785,126 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   const householdUsers = (users || []).filter(u => u.role === 'ROLE_USER');
   const totalWaterUsed = Math.round(localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0));
 
-  // Today's usage
-  const today = new Date().toISOString().split('T')[0];
+  // Today's usage (with timezone fix)
+  const getLocalDateString = () => {
+    const d = new Date();
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return (new Date(d - tzOffset)).toISOString().split('T')[0];
+  };
+  const today = getLocalDateString();
   const todayUsage = Math.round(localLogs
     .filter(l => l.date && l.date.startsWith(today))
     .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
 
-  // Build last-14-days daily chart
-  const last14Days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (13 - i));
-    return d.toISOString().split('T')[0];
-  });
-  const dailyMap = {};
-  localLogs.forEach(l => { if (l.date) dailyMap[l.date] = (dailyMap[l.date] || 0) + (l.consumptionLiters || 0); });
-  const chartData = last14Days.map(date => ({
-    label: date.substring(5).replace('-', '/'),
-    value: Math.round(dailyMap[date] || 0)
-  }));
-  const maxVal = Math.max(...chartData.map(d => d.value), 10);
+  // Helper to map a log's household to its managing Community Admin
+  const getAdminForHousehold = (logHousehold) => {
+    if (!logHousehold) return 'Unassigned';
+    const household = (households || []).find(h => h.id === logHousehold.id) || logHousehold;
+    if (!household || !household.apartment) return 'Unassigned';
+
+    const admin = communityAdmins.find(a => {
+      if (!a.managedApartment || a.managedApartment.id !== household.apartment.id) {
+        return false;
+      }
+      if (a.managedBuilding) {
+        return household.block && household.block.trim().toLowerCase() === a.managedBuilding.name.trim().toLowerCase();
+      }
+      return true;
+    });
+    return admin ? admin.name : 'Unassigned';
+  };
+
+  // Build chart data
+  let chartData = [];
+  let maxVal = 10;
+  if (isSuperAdmin) {
+    const currentMonthPrefix = new Date().toISOString().substring(0, 7);
+    const adminMonthlyUsage = {};
+    
+    // Initialize chart with all registered Community Admins (at 0) to ensure real-time representation
+    communityAdmins.forEach(admin => {
+      adminMonthlyUsage[admin.name] = 0;
+    });
+    adminMonthlyUsage['Unassigned'] = 0;
+
+    localLogs.forEach(log => {
+      if (log.date && log.date.startsWith(currentMonthPrefix)) {
+        const adminName = getAdminForHousehold(log.household);
+        adminMonthlyUsage[adminName] = (adminMonthlyUsage[adminName] || 0) + (log.consumptionLiters || 0);
+      }
+    });
+
+    for (const [name, val] of Object.entries(adminMonthlyUsage)) {
+      chartData.push({ label: name, value: Math.round(val) });
+    }
+    maxVal = Math.max(...chartData.map(d => d.value), 10);
+  } else {
+    const last14Days = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (13 - i));
+      return d.toISOString().split('T')[0];
+    });
+    const dailyMap = {};
+    localLogs.forEach(l => { if (l.date) dailyMap[l.date] = (dailyMap[l.date] || 0) + (l.consumptionLiters || 0); });
+    chartData = last14Days.map(date => ({
+      label: date.substring(5).replace('-', '/'),
+      value: Math.round(dailyMap[date] || 0)
+    }));
+    maxVal = Math.max(...chartData.map(d => d.value), 10);
+  }
 
   // Grouped by admin (for super admin)
   const groupedByAdmin = {};
+  
+  // Initialize with all community admins so they always show up
+  communityAdmins.forEach(admin => {
+    groupedByAdmin[admin.id] = {
+      adminName: admin.name,
+      adminEmail: admin.email,
+      managedApartment: admin.managedApartment,
+      users: []
+    };
+  });
+  
+  // Also add Unassigned Residents key
+  groupedByAdmin[0] = {
+    adminName: 'Unassigned Residents',
+    adminEmail: '',
+    managedApartment: null,
+    users: []
+  };
+
+  // Group household users
   householdUsers.forEach(u => {
     const key = u.managedByAdmin ? u.managedByAdmin.id : 0;
-    if (!groupedByAdmin[key]) groupedByAdmin[key] = { adminName: u.managedByAdmin ? u.managedByAdmin.name : 'Unassigned', users: [] };
+    if (!groupedByAdmin[key]) {
+      groupedByAdmin[key] = {
+        adminName: u.managedByAdmin ? u.managedByAdmin.name : 'Unassigned Residents',
+        adminEmail: u.managedByAdmin ? u.managedByAdmin.email : '',
+        managedApartment: u.managedByAdmin ? u.managedByAdmin.managedApartment : null,
+        users: []
+      };
+    }
     groupedByAdmin[key].users.push(u);
   });
 
-  const activeAlerts = localAlerts.filter(a => !a.resolved).slice(0, 5);
+  const activeAlerts = localAlerts.filter(a => !a.resolved);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">
-          {isSuperAdmin ? 'Super Admin Dashboard' : 'Community Admin Dashboard'}
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          {isSuperAdmin
+            ? (lang === 'hi' ? 'सुपर एडमिन डैशबोर्ड' : 'Super Admin Dashboard')
+            : (lang === 'hi' ? 'कम्युनिटी एडमिन डैशबोर्ड' : 'Community Admin Dashboard')}
         </h2>
         <div className="flex items-center gap-3">
           <span className="text-[9px] text-slate-500 font-mono">
-            Updated {lastUpdated.toLocaleTimeString()}
+            {lang === 'hi' ? 'अपडेट: ' : 'Updated '}{lastUpdated.toLocaleTimeString()}
           </span>
-          <span className="flex items-center gap-1.5 text-[9px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-            Live
+          <span className="flex items-center gap-1.5 text-[9px] bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse inline-block"></span>
+            {lang === 'hi' ? 'लाइव' : 'Live'}
           </span>
         </div>
       </div>
@@ -650,49 +912,59 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
       {/* Stat Cards */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isSuperAdmin && (
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-            <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Community Admins</p>
-            <p className="text-3xl font-black text-amber-400 mt-2">{communityAdmins.length}</p>
-            <p className="text-[10px] text-slate-500 mt-1">Registered managers</p>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
+            <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'कम्युनिटी एडमिन' : 'Community Admins'}</p>
+            <p className="text-3xl font-black text-amber-600 dark:text-amber-400 mt-2">{communityAdmins.length}</p>
+            <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'पंजीकृत प्रबंधक' : 'Registered managers'}</p>
           </div>
         )}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">
-            {isSuperAdmin ? 'All Residents' : 'My Residents'}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
+          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+            {isSuperAdmin ? (lang === 'hi' ? 'सभी निवासी' : 'All Residents') : (lang === 'hi' ? 'मेरे निवासी' : 'My Residents')}
           </p>
-          <p className="text-3xl font-black text-blue-400 mt-2">{householdUsers.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Active household users</p>
+          <p className="text-3xl font-black text-blue-600 dark:text-blue-400 mt-2">{householdUsers.length}</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'सक्रिय घरेलू उपभोक्ता' : 'Active household users'}</p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Total Households</p>
-          <p className="text-3xl font-black text-slate-100 mt-2">{households.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Registered flats</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
+          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'कुल उपभोक्ता' : 'Total Users'}</p>
+          <p className="text-3xl font-black text-slate-900 dark:text-slate-100 mt-2">{users?.length || 0}</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'पंजीकृत उपभोक्ता' : 'Registered users'}</p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Today's Usage</p>
-          <p className="text-3xl font-black text-cyan-400 mt-2">{todayUsage} L</p>
-          <p className="text-[10px] text-slate-500 mt-1">Total: {totalWaterUsed.toLocaleString()} L all-time</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
+          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'आज की खपत' : "Today's Usage"}</p>
+          <p className="text-3xl font-black text-cyan-600 dark:text-cyan-400 mt-2">{todayUsage} L</p>
+          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? `कुल: ${totalWaterUsed.toLocaleString()} L (सर्वकालिक)` : `Total: ${totalWaterUsed.toLocaleString()} L all-time`}</p>
         </div>
       </section>
 
       {/* 14-Day Bar Chart */}
-      <section className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm dark:shadow-xl">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase">Daily Water Consumption (Last 14 Days)</h3>
-          <span className="text-[9px] text-slate-500 font-mono">{totalWaterUsed.toLocaleString()} L total</span>
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase">
+            {isSuperAdmin
+              ? (lang === 'hi' ? 'कम्युनिटी एडमिन अनुसार मासिक खपत' : 'Monthly Consumption By Community Admin')
+              : (lang === 'hi' ? 'दैनिक जल खपत (पिछले 14 दिन)' : 'Daily Water Consumption (Last 14 Days)')}
+          </h3>
+          <span className="text-[9px] bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded text-slate-700 dark:text-slate-400 font-mono border border-slate-200 dark:border-slate-700/50 shadow-inner font-bold">{totalWaterUsed.toLocaleString()} L {lang === 'hi' ? 'कुल' : 'total'}</span>
         </div>
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={isSuperAdmin ? "#8b5cf6" : "#3b82f6"} stopOpacity={0.9}/>
+                  <stop offset="95%" stopColor={isSuperAdmin ? "#8b5cf6" : "#3b82f6"} stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} opacity={0.5} />
+              <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickMargin={8} />
+              <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickMargin={8} />
               <Tooltip 
-                cursor={{ fill: '#0f172a' }} 
-                contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
-                itemStyle={{ color: '#38bdf8' }}
+                cursor={{ fill: '#e2e8f0', opacity: 0.5 }} 
+                contentStyle={{ backgroundColor: 'rgba(2, 6, 23, 0.95)', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#f8fafc', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)' }}
+                itemStyle={{ color: isSuperAdmin ? '#a78bfa' : '#60a5fa', fontWeight: 'bold' }}
               />
-              <Bar dataKey="value" name="Liters" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" name="Liters" fill="url(#colorGradient)" radius={[6, 6, 0, 0]} barSize={isSuperAdmin ? 50 : undefined} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -701,10 +973,10 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
       {/* Apartments + Alerts row */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Apartments */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Apartment Complexes</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">{lang === 'hi' ? 'अपार्टमेंट परिसर' : 'Apartment Complexes'}</h3>
           {apartments.length === 0 ? (
-            <p className="text-slate-500 text-xs italic py-4 text-center">No apartments registered yet.</p>
+            <p className="text-slate-500 text-xs italic py-4 text-center">{lang === 'hi' ? 'अभी तक कोई अपार्टमेंट पंजीकृत नहीं है।' : 'No apartments registered yet.'}</p>
           ) : (
             <div className="space-y-2">
               {apartments.map(a => {
@@ -713,16 +985,16 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                   .filter(l => l.household?.apartment?.id === a.id || households.find(h => h.id === l.household?.id)?.apartment?.id === a.id)
                   .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
                 return (
-                  <div key={a.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg flex items-center justify-between hover:border-blue-500/50 transition">
+                  <div key={a.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-lg flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500/50 transition">
                     <div>
-                      <p className="text-xs font-bold text-slate-200">{a.name}</p>
-                      <p className="text-[10px] text-slate-500">{a.address}</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-200">{a.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{a.address}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[9px] bg-blue-500/10 border border-blue-500/25 text-blue-400 font-bold px-2 py-0.5 rounded-full uppercase block mb-1">
-                        {count} flats
+                      <span className="text-[9px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25 text-blue-700 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full uppercase block mb-1">
+                        {count} {lang === 'hi' ? 'फ्लैट्स' : 'flats'}
                       </span>
-                      <span className="text-[9px] text-slate-500">{waterUsed > 0 ? `${waterUsed.toLocaleString()} L` : '—'}</span>
+                      <span className="text-[9px] text-slate-600 dark:text-slate-500 font-semibold">{waterUsed > 0 ? `${waterUsed.toLocaleString()} L` : '—'}</span>
                     </div>
                   </div>
                 );
@@ -732,9 +1004,9 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         </div>
 
         {/* Active Alerts */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase">Active Alerts</h3>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase">{lang === 'hi' ? 'सक्रिय अलर्ट' : 'Active Alerts'}</h3>
             {activeAlerts.length > 0 && (
               <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{activeAlerts.length}</span>
             )}
@@ -742,21 +1014,21 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
           {activeAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <span className="text-2xl mb-2">✅</span>
-              <p className="text-slate-500 text-xs">No active alerts</p>
+              <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">{lang === 'hi' ? 'कोई सक्रिय अलर्ट नहीं' : 'No active alerts'}</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
               {activeAlerts.map(a => (
                 <div key={a.id} className={`p-3 rounded-lg border text-xs ${
-                  a.type === 'LEAK' ? 'bg-slate-800 border-red-500/50' :
-                  a.type === 'BILLING' ? 'bg-slate-800 border-amber-500/50' :
-                  'bg-slate-800 border-blue-500/50'
+                  a.type === 'LEAK' ? 'bg-red-50 dark:bg-slate-800 border-red-200 dark:border-red-500/50' :
+                  a.type === 'BILLING' ? 'bg-amber-50 dark:bg-slate-800 border-amber-200 dark:border-amber-500/50' :
+                  'bg-blue-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/50'
                 }`}>
-                  <p className={`font-bold ${a.type === 'LEAK' ? 'text-red-400' : a.type === 'BILLING' ? 'text-amber-400' : 'text-blue-400'}`}>
+                  <p className={`font-bold ${a.type === 'LEAK' ? 'text-red-700 dark:text-red-400' : a.type === 'BILLING' ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
                     {a.title}
                   </p>
-                  <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-2">{a.message}</p>
-                  <p className="text-slate-600 text-[9px] mt-1">{a.date}</p>
+                  <p className="text-slate-700 dark:text-slate-400 text-[10px] mt-0.5 line-clamp-2">{a.message}</p>
+                  <p className="text-slate-500 dark:text-slate-500 text-[9px] mt-1">{a.date}</p>
                 </div>
               ))}
             </div>
@@ -766,34 +1038,85 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
 
       {/* User hierarchy (super admin only) */}
       {isSuperAdmin && Object.keys(groupedByAdmin).length > 0 && (
-        <section className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Hierarchy Overview</h3>
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Hierarchy Overview</h3>
           <div className="space-y-3">
-            {Object.entries(groupedByAdmin).map(([adminId, group]) => (
-              <div key={adminId} className="bg-slate-950 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] bg-blue-500/10 border border-blue-500/25 text-blue-400 font-bold uppercase tracking-wider">
-                    {adminId === '0' ? 'Unassigned' : 'Community Admin'}
-                  </span>
-                  <span className="font-bold text-sm text-slate-200">{group.adminName}</span>
-                  <span className="text-[10px] text-slate-500">({group.users.length} users)</span>
-                </div>
-                <div className="pl-6 space-y-1">
-                  {group.users.map(u => (
-                    <div key={u.id} className="flex items-center gap-2 text-xs text-slate-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                      <span className="text-slate-300 font-medium">{u.name}</span>
-                      <span className="text-slate-600">({u.email})</span>
-                      {u.household && (
-                        <span className="text-emerald-500/70 text-[10px]">
-                          — {u.household.apartment?.name} {u.household.block}/{u.household.flatNumber}
+            {Object.entries(groupedByAdmin)
+              .filter(([adminId, group]) => !(adminId === '0' && group.users.length === 0))
+              .map(([adminId, group]) => {
+                const isOpen = !!expandedAdmins[adminId];
+                return (
+                  <div key={adminId} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-all duration-200">
+                    {/* Header */}
+                    <div 
+                      onClick={() => setExpandedAdmins(prev => ({ ...prev, [adminId]: !prev[adminId] }))}
+                      className="flex justify-between items-center cursor-pointer p-4 bg-slate-100/90 dark:bg-slate-950 hover:bg-slate-200/80 dark:hover:bg-slate-900/40 transition select-none"
+                    >
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                          adminId === '0' 
+                            ? 'bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400' 
+                            : 'bg-blue-100 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/25 text-blue-700 dark:text-blue-400'
+                        }`}>
+                          {adminId === '0' ? 'Unassigned' : 'Community Admin'}
                         </span>
-                      )}
+                        <span className="font-bold text-sm text-slate-900 dark:text-slate-200">{group.adminName}</span>
+                        {group.adminEmail && (
+                          <span className="text-[11px] text-slate-500 dark:text-slate-500 font-mono hidden md:inline">{group.adminEmail}</span>
+                        )}
+                        {adminId !== '0' && (
+                          group.managedApartment ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
+                              <Building2 size={10} /> Managing: {group.managedApartment.name}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-400 flex items-center gap-1">
+                              <ShieldAlert size={10} /> No Apartment Assigned
+                            </span>
+                          )
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs bg-slate-200 dark:bg-slate-900 px-2 py-0.5 rounded text-slate-700 dark:text-slate-400 font-semibold">
+                          {group.users.length} {group.users.length === 1 ? 'resident' : 'residents'}
+                        </span>
+                        {isOpen ? <ChevronDown size={16} className="text-slate-500 dark:text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+
+                    {/* Expandable Body */}
+                    {isOpen && (
+                      <div className="border-t border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 p-4 space-y-2.5">
+                        {group.users.length === 0 ? (
+                          <div className="text-slate-500 text-xs italic py-3 pl-2">
+                            No residents assigned to this admin.
+                          </div>
+                        ) : (
+                          group.users.map(u => (
+                            <div key={u.id} className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold uppercase shrink-0 border border-blue-300 dark:border-blue-500/20">
+                                {u.name.charAt(0)}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-slate-900 dark:text-slate-200 font-bold text-[13px]">{u.name}</span>
+                                <div className="flex items-center gap-2 text-[10px] mt-0.5">
+                                  <span className="text-slate-600 dark:text-slate-400 font-mono bg-slate-200 dark:bg-slate-950/80 px-1.5 py-0.5 rounded font-semibold">{u.email}</span>
+                                  {u.household && (
+                                    <span className="text-emerald-700 dark:text-emerald-400/80 font-bold border border-emerald-300 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                      <Home size={10} /> {u.household.apartment?.name} | Block {u.household.block} | Flat {u.household.flatNumber}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </section>
       )}
@@ -804,279 +1127,445 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
 // -------------------------------------------------------------
 // 2. RESIDENT DASHBOARD VIEW
 // -------------------------------------------------------------
+// 2. RESIDENT DASHBOARD COMPONENT (Enhanced & Real-time Synced)
+// -------------------------------------------------------------
 function ResidentDashboard({ usageLogs, bills, profile, token, fetchDashboardData }) {
   const [localLogs, setLocalLogs] = useState(usageLogs || []);
   const [localBills, setLocalBills] = useState(bills || []);
   const [localAlerts, setLocalAlerts] = useState([]);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [aptAvg, setAptAvg] = useState(0);
+  const [simAvg, setSimAvg] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
 
   useEffect(() => { setLocalLogs(usageLogs || []); }, [usageLogs]);
   useEffect(() => { setLocalBills(bills || []); }, [bills]);
-  const [aptAvg, setAptAvg] = useState(0);
-  const [simAvg, setSimAvg] = useState(0);
 
-  useEffect(() => {
-    const fetchAverages = async () => {
-      try {
-        const resApt = await fetch(`${API_BASE_URL}/api/usage/apartment-average`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (resApt.ok) {
-          const data = await resApt.json();
-          setAptAvg(data.average || 0);
-        }
-
-        const resSim = await fetch(`${API_BASE_URL}/api/usage/similar-average`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (resSim.ok) {
-          const data = await resSim.json();
-          setSimAvg(data.average || 0);
-        }
-      } catch (err) {}
-    };
-    fetchAverages();
-  }, [token]);
-
-  const fetchAlerts = async () => {
+  const fetchAveragesAndAlerts = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/alerts`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) setLocalAlerts(await res.json());
-    } catch (_) {}
+      const [resApt, resSim, resAlerts] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/usage/apartment-average`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/usage/similar-average`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/alerts`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      if (resApt.ok) {
+        const data = await resApt.json();
+        setAptAvg(data.average || 0);
+      }
+      if (resSim.ok) {
+        const data = await resSim.json();
+        setSimAvg(data.average || 0);
+      }
+      if (resAlerts.ok) {
+        const data = await resAlerts.json();
+        setLocalAlerts(data);
+      }
+      setLastSyncedAt(new Date());
+    } catch (err) {
+      console.error("Error fetching resident insights", err);
+    } finally {
+      if (isManual) setIsRefreshing(false);
+    }
   };
 
-  // Background data polling every 10 seconds
   useEffect(() => {
-    fetchAlerts();
+    fetchAveragesAndAlerts();
+    // Silent background sync every 30 seconds without parent loading spinner
     const interval = setInterval(() => {
-      if (fetchDashboardData) fetchDashboardData();
-      fetchAlerts();
-    }, 10000);
+      fetchAveragesAndAlerts();
+    }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
-  // Live clock tick
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setLastUpdated(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    if (fetchDashboardData) await fetchDashboardData();
+    await fetchAveragesAndAlerts(true);
+    setIsRefreshing(false);
+  };
 
-  // Today's usage (with timezone fix)
+  // Date helper
   const getLocalDateString = () => {
     const d = new Date();
     const tzOffset = d.getTimezoneOffset() * 60000;
     return (new Date(d - tzOffset)).toISOString().split('T')[0];
   };
   const today = getLocalDateString();
-  const todayUsage = localLogs
-    .filter(l => l.date && l.date.startsWith(today))
-    .reduce((s, l) => s + (l.consumptionLiters || 0), 0).toFixed(1);
 
-  // This week total
+  // Metrics Calculations
+  const todayLogs = localLogs.filter(l => l.date && l.date.startsWith(today));
+  const todayUsage = todayLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0);
+
+  // This Week (last 7 days)
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 6); weekStart.setHours(0,0,0,0);
-  const weekUsage = localLogs
-    .filter(l => l.date && new Date(l.date) >= weekStart)
-    .reduce((s, l) => s + (l.consumptionLiters || 0), 0).toFixed(1);
+  const weekLogs = localLogs.filter(l => l.date && new Date(l.date) >= weekStart);
+  const weekUsage = weekLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0);
 
-  // Latest bill
+  // This Month
+  const currentMonthPrefix = today.substring(0, 7);
+  const monthLogs = localLogs.filter(l => l.date && l.date.startsWith(currentMonthPrefix));
+  const monthUsage = monthLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0);
+
+  // Latest Bill
   const sortedBills = [...localBills].sort((a, b) => b.id - a.id);
   const latestBill = sortedBills[0] || null;
 
-  // Monthly bar chart — group by date
-  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 29);
+  // Helper to format local date YYYY-MM-DD
+  const formatLocalDate = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Monthly 30-Day Trend Chart
   const last30 = Array.from({ length: 30 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (29 - i));
-    return d.toISOString().split('T')[0];
+    return formatLocalDate(d);
   });
   const dailyMap = {};
-  localLogs.forEach(l => { if (l.date) dailyMap[l.date] = (dailyMap[l.date] || 0) + (l.consumptionLiters || 0); });
-  const monthlyChart = last30.map(date => ({
-    label: date.substring(8),
-    fullDate: date,
-    value: Math.round(dailyMap[date] || 0)
-  }));
-  const maxMonthlyVal = Math.max(...monthlyChart.map(d => d.value), 10);
-
-  // Weekly chart — last 7 days
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    return d.toISOString().split('T')[0];
+  localLogs.forEach(l => {
+    if (l.date) {
+      dailyMap[l.date] = (dailyMap[l.date] || 0) + (l.consumptionLiters || 0);
+    }
   });
-  const weeklyChart = last7.map(date => {
-    const d = new Date(date);
+
+  const monthlyChart = last30.map(date => {
+    const d = new Date(date + 'T00:00:00');
     return {
-      label: d.toLocaleDateString('en', { weekday: 'short' }),
-      value: Math.round(dailyMap[date] || 0)
+      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      fullDate: date,
+      value: Math.round((dailyMap[date] || 0) * 10) / 10
     };
   });
-  const maxWeeklyVal = Math.max(...weeklyChart.map(d => d.value), 10);
 
-  const activeAlerts = localAlerts.filter(a => !a.resolved).slice(0, 4);
+  // Weekly 7-Day Chart
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    return formatLocalDate(d);
+  });
+  const weeklyChart = last7.map(date => {
+    const d = new Date(date + 'T00:00:00');
+    return {
+      label: d.toLocaleDateString('en', { weekday: 'short' }),
+      value: Math.round((dailyMap[date] || 0) * 10) / 10
+    };
+  });
+
+  const activeAlerts = localAlerts.filter(a => !a.resolved);
+  const leakAlerts = activeAlerts.filter(a => a.type === 'LEAK');
+
+  // Estimate bill projection strictly adhering to tariff plan:
+  // Base: up to 15 kL @ ₹30/kL. Excess: @ ₹60/kL. + 5% tax + ₹5 platform fee.
+  const estimatedCost = useMemo(() => {
+    const baseRate = 30.0;
+    const excessRate = 60.0;
+    const baseLimitLiters = 15000;
+    let subtotal = 0;
+    if (monthUsage <= baseLimitLiters) {
+      subtotal = (monthUsage / 1000) * baseRate;
+    } else {
+      subtotal = (baseLimitLiters / 1000) * baseRate + ((monthUsage - baseLimitLiters) / 1000) * excessRate;
+    }
+    const tax = subtotal * 0.05;
+    const platformFee = 5.0;
+    return (subtotal + tax + platformFee).toFixed(2);
+  }, [monthUsage]);
+  const household = profile?.household;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Resident Dashboard</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-[9px] text-slate-500 font-mono">Updated {lastUpdated.toLocaleTimeString()}</span>
-          <span className="flex items-center gap-1.5 text-[9px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-            Live
-          </span>
+
+      {/* Hero Header Banner */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-sky-50/90 dark:from-slate-900 dark:via-indigo-950/60 dark:to-slate-900 border border-blue-200/80 dark:border-slate-800 p-6 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-500/20 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Resident Portal
+              </span>
+              {household?.hasMeter && (
+                <span className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span> Smart Meter Online
+                </span>
+              )}
+            </div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100">
+              Welcome back, {profile?.name || 'Resident'} 👋
+            </h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              {household ? `${household.apartment?.name || 'Community'} • Block ${household.block} - Flat ${household.flatNumber}` : 'Flat assignment pending'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <div className="text-right hidden sm:block">
+              <p className="text-[10px] text-slate-500">Live Sync Status</p>
+              <p className="text-[10px] font-mono text-slate-400">
+                Synced at {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </p>
+            </div>
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+              title="Refresh Dashboard"
+            >
+              <RefreshCw size={14} className={isRefreshing ? "animate-spin text-cyan-400" : "text-slate-400"} />
+              <span>{isRefreshing ? 'Syncing...' : 'Sync Data'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Today's Usage</p>
-          <p className="text-3xl font-black text-cyan-400 mt-2">{todayUsage} L</p>
-          <p className="text-[10px] text-slate-500 mt-1">{today}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">This Week</p>
-          <p className="text-3xl font-black text-blue-400 mt-2">{weekUsage} L</p>
-          <p className="text-[10px] text-slate-500 mt-1">Last 7 days</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Current Bill</p>
-          <p className="text-2xl font-black text-slate-100 mt-2">
-            {latestBill ? `₹${latestBill.amount.toFixed(2)}` : '—'}
-          </p>
-          {latestBill && (
-            <span className={`text-[10px] font-bold ${latestBill.paid ? 'text-emerald-400' : 'text-red-400'}`}>
-              {latestBill.paid ? '✓ Paid' : '⚠ Unpaid'}
-            </span>
-          )}
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">My Avg vs Apartment</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <p className="text-3xl font-black text-emerald-400">
-              {Math.round(localLogs.length ? localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0) / localLogs.length : 0)} L
-            </p>
-            <p className="text-xs text-slate-500 font-medium">/ {Math.round(aptAvg)} L</p>
+      {/* Alert Banner if leak detected */}
+      {leakAlerts.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3 animate-pulse">
+          <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={20} />
+          <div>
+            <h4 className="text-xs font-bold text-red-300 uppercase tracking-wider">Potential Water Leak Alert Detected!</h4>
+            <p className="text-xs text-red-200/80 mt-0.5">{leakAlerts[0].message}</p>
           </div>
-          <p className="text-[10px] text-slate-500 mt-1">Sim Size Avg: {Math.round(simAvg)} L</p>
+        </div>
+      )}
+
+      {/* 4 Stat Cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Today's Usage */}
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-md">
+          <div className="flex justify-between items-start">
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Today's Consumption</p>
+            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Droplets size={16} />
+            </div>
+          </div>
+          <p className="text-3xl font-black text-cyan-400 mt-3 font-mono">{todayUsage.toFixed(1)} <span className="text-sm font-normal text-slate-400">L</span></p>
+          <div className="mt-2 flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">{today}</span>
+            <span className={todayUsage > (aptAvg || 150) ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+              {todayUsage > (aptAvg || 150) ? '▲ Above Avg' : '✓ Normal'}
+            </span>
+          </div>
+        </div>
+
+        {/* This Week */}
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-md">
+          <div className="flex justify-between items-start">
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">This Week's Usage</p>
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <TrendingUp size={16} />
+            </div>
+          </div>
+          <p className="text-3xl font-black text-blue-400 mt-3 font-mono">{weekUsage.toFixed(1)} <span className="text-sm font-normal text-slate-400">L</span></p>
+          <div className="mt-2 flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Last 7 Days</span>
+            <span className="text-blue-300 font-semibold">Avg {(weekUsage / 7).toFixed(0)} L/day</span>
+          </div>
+        </div>
+
+        {/* Current Month & Est. Cost */}
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-md">
+          <div className="flex justify-between items-start">
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Monthly Consumption</p>
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Calendar size={16} />
+            </div>
+          </div>
+          <p className="text-3xl font-black text-indigo-300 mt-3 font-mono">{monthUsage.toFixed(1)} <span className="text-sm font-normal text-slate-400">L</span></p>
+          <div className="mt-2 flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Est. Usage Cost</span>
+            <span className="text-indigo-400 font-bold">~ ₹{estimatedCost}</span>
+          </div>
+        </div>
+
+        {/* Latest Bill Status */}
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-md">
+          <div className="flex justify-between items-start">
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Latest Bill</p>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <DollarSign size={16} />
+            </div>
+          </div>
+          <p className="text-3xl font-black text-slate-100 mt-3 font-mono">
+            {latestBill ? `₹${latestBill.amount.toFixed(2)}` : '₹0.00'}
+          </p>
+          <div className="mt-2 flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">{latestBill ? latestBill.billingMonth : 'Current Period'}</span>
+            {latestBill ? (
+              <span className={`font-bold px-2 py-0.5 rounded ${latestBill.paid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                {latestBill.paid ? '✓ Paid' : '⚠ Pending'}
+              </span>
+            ) : (
+              <span className="text-slate-500">No active bill</span>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* Peer Benchmarking Chart */}
-      <section className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase">Peer Benchmarking</h3>
-        </div>
-        <div className="h-40">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[
-              { name: 'My Avg', value: Math.round(localLogs.length ? localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0) / localLogs.length : 0) },
-              { name: 'Similar Flats', value: Math.round(simAvg) },
-              { name: 'Apt Avg', value: Math.round(aptAvg) }
-            ]} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={true} vertical={false} />
-              <XAxis type="number" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="name" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} width={80} />
-              <Tooltip 
-                cursor={{ fill: '#0f172a' }} 
-                contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
-                itemStyle={{ color: '#10b981' }}
-              />
-              <Bar dataKey="value" name="Liters" fill="#10b981" radius={[0, 4, 4, 0]} barSize={24} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      {/* Main Charts & Benchmarking Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      {/* 30-Day Chart */}
-      <section className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase">Monthly Consumption (Last 30 Days)</h3>
-          <span className="text-[9px] text-slate-500">{weekUsage} L this week</span>
-        </div>
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={monthlyChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val, i) => i % 5 === 0 ? val : ''} />
-              <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-              <Tooltip 
-                cursor={{ stroke: '#0ea5e9', strokeWidth: 1, strokeDasharray: '3 3' }}
-                contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
-                itemStyle={{ color: '#38bdf8' }}
-                labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
-              />
-              <Area type="monotone" dataKey="value" name="Liters" stroke="#0ea5e9" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+        {/* 30-Day Usage Trend Area Chart (2 cols) */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <Activity className="text-cyan-400" size={16} /> 30-Day Consumption Trend
+              </h3>
+              <p className="text-[10px] text-slate-500 mt-0.5">Daily recorded water usage in liters</p>
+            </div>
+            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg font-bold">
+              Total {monthUsage.toFixed(0)} L
+            </span>
+          </div>
 
-      {/* Weekly chart + Alerts */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Weekly Bar Chart */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider mb-5">Weekly Breakdown</h3>
-          <div className="h-40 mt-4">
+          <div className="h-64 pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyChart} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+              <AreaChart data={monthlyChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorValueResident" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val, i) => i % 5 === 0 ? val : ''} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  cursor={{ stroke: '#06b6d4', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}
+                  itemStyle={{ color: '#22d3ee', fontWeight: 'bold' }}
+                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                />
+                <Area type="monotone" dataKey="value" name="Liters" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#colorValueResident)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Peer Benchmarking & Comparison (1 col) */}
+        <div className="lg:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md space-y-5 flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+              <BarChart3 className="text-emerald-400" size={16} /> Peer Benchmarking
+            </h3>
+            <p className="text-[10px] text-slate-500 mt-0.5">Compare your flat with community averages</p>
+
+            <div className="h-48 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { name: 'My Avg', value: Math.round(localLogs.length ? localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0) / localLogs.length : 0) },
+                  { name: 'Similar Size', value: Math.round(simAvg) },
+                  { name: 'Colony Avg', value: Math.round(aptAvg) }
+                ]} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={true} vertical={false} />
+                  <XAxis type="number" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={75} />
+                  <Tooltip 
+                    cursor={{ fill: '#0f172a' }} 
+                    contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
+                    itemStyle={{ color: '#10b981' }}
+                  />
+                  <Bar dataKey="value" name="Daily Liters" fill="#10b981" radius={[0, 6, 6, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-slate-100/90 dark:bg-slate-950/70 p-3.5 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5 text-xs font-medium">
+            <div className="flex justify-between text-slate-700 dark:text-slate-300">
+              <span className="font-bold">Your Daily Avg:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                {Math.round(localLogs.length ? localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0) / localLogs.length : 0)} L
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-700 dark:text-slate-300">
+              <span className="font-bold">Colony Average:</span>
+              <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">{Math.round(aptAvg)} L</span>
+            </div>
+            <div className="flex justify-between text-slate-700 dark:text-slate-300">
+              <span className="font-bold">Similar Flat Avg:</span>
+              <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">{Math.round(simAvg)} L</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Weekly Breakdown & Alerts Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* Weekly Bar Breakdown */}
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Calendar className="text-blue-400" size={16} /> Weekly Breakdown (Last 7 Days)
+            </h3>
+            <span className="text-[10px] text-slate-500 font-mono">{weekUsage.toFixed(0)} L total</span>
+          </div>
+
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyChart} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                 <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
                   cursor={{ fill: '#0f172a' }} 
                   contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
-                  itemStyle={{ color: '#10b981' }}
+                  itemStyle={{ color: '#3b82f6' }}
                 />
-                <Bar dataKey="value" name="Liters" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" name="Liters" fill="#3b82f6" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Recent Alerts */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">Recent Notifications</h3>
+        {/* Notifications & System Alerts */}
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Bell className="text-amber-400" size={16} /> Notifications & System Alerts
+            </h3>
             {activeAlerts.length > 0 && (
-              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{activeAlerts.length}</span>
+              <span className="bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {activeAlerts.length} Active
+              </span>
             )}
           </div>
+
           {activeAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-6 text-center">
-              <span className="text-2xl mb-2">🔔</span>
-              <p className="text-slate-500 text-xs">No active alerts</p>
-              <p className="text-slate-600 text-[10px] mt-1">You're all clear!</p>
+            <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-100/90 dark:bg-slate-950/70 rounded-xl border border-slate-200 dark:border-slate-800/80">
+              <CheckCircle className="text-emerald-500 dark:text-emerald-400 mb-2" size={28} />
+              <p className="text-slate-900 dark:text-slate-100 text-xs font-bold antialiased">No Active Alerts</p>
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] font-medium mt-1 antialiased">Your water system is functioning normally with no leaks detected.</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
               {activeAlerts.map(a => (
-                <div key={a.id} className={`p-3 rounded-lg border text-xs ${
-                  a.type === 'LEAK' ? 'bg-slate-800 border-red-500/50' :
-                  a.type === 'BILLING' ? 'bg-slate-800 border-amber-500/50' :
-                  'bg-slate-800 border-blue-500/50'
+                <div key={a.id} className={`p-3.5 rounded-xl border text-xs ${
+                  a.type === 'LEAK' ? 'bg-red-500/10 border-red-500/30 text-red-200' :
+                  a.type === 'BILLING' ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' :
+                  'bg-blue-500/10 border-blue-500/30 text-blue-200'
                 }`}>
-                  <p className={`font-bold ${a.type === 'LEAK' ? 'text-red-400' : a.type === 'BILLING' ? 'text-amber-400' : 'text-blue-400'}`}>
-                    {a.title}
-                  </p>
-                  <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-2">{a.message}</p>
-                  <p className="text-slate-600 text-[9px] mt-1">{a.date}</p>
+                  <div className="flex justify-between items-start">
+                    <p className={`font-bold text-xs ${a.type === 'LEAK' ? 'text-red-400' : a.type === 'BILLING' ? 'text-amber-400' : 'text-blue-400'}`}>
+                      {a.title}
+                    </p>
+                    <span className="text-[9px] text-slate-500">{a.date}</span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] mt-1 leading-relaxed">{a.message}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </section>
+
+      </div>
+
     </div>
   );
 }
@@ -1085,11 +1574,21 @@ function ResidentDashboard({ usageLogs, bills, profile, token, fetchDashboardDat
 // -------------------------------------------------------------
 // 3. HOUSEHOLDS TAB
 // -------------------------------------------------------------
-function HouseholdsTab({ token, apartments, households, showMessage, fetchDashboardData, isSuperAdmin }) {
+function HouseholdsTab({ token, apartments, households, users, showMessage, fetchDashboardData, isSuperAdmin, profile }) {
   const [aptData, setAptData] = useState({ name: '', address: '' });
   const [hhData, setHhData] = useState({ apartmentId: '', block: '', flatNumber: '', hasMeter: true });
   const [loadingApt, setLoadingApt] = useState(false);
   const [loadingHh, setLoadingHh] = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin && profile) {
+      setHhData(prev => ({
+        ...prev,
+        apartmentId: profile.managedApartment ? profile.managedApartment.id.toString() : '',
+        block: profile.managedBuilding ? profile.managedBuilding.name : ''
+      }));
+    }
+  }, [isSuperAdmin, profile]);
 
   const handleAptSubmit = async (e) => {
     e.preventDefault();
@@ -1173,12 +1672,33 @@ function HouseholdsTab({ token, apartments, households, showMessage, fetchDashbo
     }
   };
 
+  const handleDeleteHousehold = async (hhId) => {
+    if (!window.confirm('Are you sure you want to delete this flat/household configuration?')) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/household/${hhId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        showMessage('success', 'Unassigned flat configuration deleted successfully.');
+        fetchDashboardData();
+      } else {
+        const txt = await response.text();
+        showMessage('error', txt || 'Failed to delete flat.');
+      }
+    } catch (err) {
+      showMessage('error', 'Network failure while deleting flat.');
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Households Directory</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Households Directory</h2>
         {!isSuperAdmin && (
-          <span className="text-[10px] bg-slate-800 px-3 py-1 rounded-full text-slate-400 font-semibold italic">
+          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full text-slate-600 dark:text-slate-400 font-semibold italic border border-slate-200 dark:border-slate-700">
             Read-only view (Super Admin privileges required to modify)
           </span>
         )}
@@ -1186,50 +1706,77 @@ function HouseholdsTab({ token, apartments, households, showMessage, fetchDashbo
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isSuperAdmin && (
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
-              <Building2 className="text-amber-500" size={16} /> Step 1: Onboard Apartment Building
-            </h3>
-            <form onSubmit={handleAptSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Building Name</label>
-                <input
-                  type="text" required placeholder="Block A, Sky Heights"
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
-                  value={aptData.name}
-                  onChange={e => setAptData({...aptData, name: e.target.value})}
-                />
+          <>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+                <Building2 className="text-amber-500" size={16} /> Step 1: Onboard Apartment Building
+              </h3>
+              <form onSubmit={handleAptSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Building Name</label>
+                  <input
+                    type="text" required placeholder="Block A, Sky Heights"
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold"
+                    value={aptData.name}
+                    onChange={e => setAptData({...aptData, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Building Address</label>
+                  <input
+                    type="text" required placeholder="7th Cross St, Tech Corridor"
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold"
+                    value={aptData.address}
+                    onChange={e => setAptData({...aptData, address: e.target.value})}
+                  />
+                </div>
+                <button
+                  type="submit" disabled={loadingApt}
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10 cursor-pointer"
+                >
+                  {loadingApt ? 'Saving...' : 'Register Building'}
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl flex flex-col max-h-[300px] shadow-sm">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+                <Building2 className="text-amber-500" size={16} /> Registered Buildings ({apartments.length})
+              </h3>
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                {apartments.length === 0 ? (
+                  <div className="text-slate-500 dark:text-slate-400 text-xs italic py-8 text-center font-medium">No buildings registered yet.</div>
+                ) : (
+                  apartments.map(apt => (
+                    <div key={apt.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 transition flex flex-col gap-0.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-900 dark:text-slate-100 text-xs font-bold">{apt.name}</span>
+                        <span className="text-[9px] bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded font-mono font-bold">ID: {apt.id}</span>
+                      </div>
+                      <span className="text-slate-600 dark:text-slate-300 text-[10.5px] font-medium flex items-center gap-1.5 mt-0.5">
+                        <MapPin size={11} className="text-amber-500 shrink-0" />
+                        {apt.address || 'No address specified'}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Building Address</label>
-                <input
-                  type="text" required placeholder="7th Cross St, Tech Corridor"
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
-                  value={aptData.address}
-                  onChange={e => setAptData({...aptData, address: e.target.value})}
-                />
-              </div>
-              <button
-                type="submit" disabled={loadingApt}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10"
-              >
-                {loadingApt ? 'Saving...' : 'Register Building'}
-              </button>
-            </form>
-          </div>
+            </div>
+          </>
         )}
 
         {!isSuperAdmin && (
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
               <Home className="text-amber-500" size={16} /> Step 2: Register Flat (Household)
             </h3>
             <form onSubmit={handleHhSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Choose Apartment</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Choose Apartment</label>
                 <select
                   required
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                  disabled={!isSuperAdmin && !!profile?.managedApartment}
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
                   value={hhData.apartmentId}
                   onChange={e => setHhData({...hhData, apartmentId: e.target.value})}
                 >
@@ -1241,37 +1788,38 @@ function HouseholdsTab({ token, apartments, households, showMessage, fetchDashbo
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Block Identifier</label>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Block Identifier</label>
                   <input
                     type="text" required placeholder="A, B, C"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                    disabled={!isSuperAdmin && !!profile?.managedBuilding}
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     value={hhData.block}
                     onChange={e => setHhData({...hhData, block: e.target.value})}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Flat Number</label>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Flat Number</label>
                   <input
                     type="text" required placeholder="101, 202"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold"
                     value={hhData.flatNumber}
                     onChange={e => setHhData({...hhData, flatNumber: e.target.value})}
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-xl">
-                <span className="text-xs text-slate-400 pl-1">Enable Water Meter Config?</span>
+              <div className="flex items-center justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                <span className="text-xs text-slate-700 dark:text-slate-400 font-medium">Enable Water Meter Config?</span>
                 <button
                   type="button"
                   onClick={() => setHhData({...hhData, hasMeter: !hhData.hasMeter})}
-                  className="p-1 text-blue-400 hover:text-blue-300 transition"
+                  className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition cursor-pointer"
                 >
-                  {hhData.hasMeter ? <ToggleRight size={24} className="text-amber-500" /> : <ToggleLeft size={24} className="text-slate-650" />}
+                  {hhData.hasMeter ? <ToggleRight size={24} className="text-amber-500" /> : <ToggleLeft size={24} className="text-slate-400 dark:text-slate-650" />}
                 </button>
               </div>
               <button
                 type="submit" disabled={loadingHh}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10"
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10 cursor-pointer"
               >
                 {loadingHh ? 'Saving...' : 'Register Flat'}
               </button>
@@ -1281,45 +1829,64 @@ function HouseholdsTab({ token, apartments, households, showMessage, fetchDashbo
       </div>
 
       {/* Household configurations Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Household Configurations & Meters</h3>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Household Configurations & Meters</h3>
         <div className="overflow-x-auto">
           {households.length === 0 ? (
             <p className="text-slate-500 text-xs italic py-4">No households registered yet.</p>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase">
                   <th className="pb-3 pl-2">ID</th>
                   <th className="pb-3">Apartment</th>
                   <th className="pb-3">Block - Flat</th>
+                  <th className="pb-3">Assigned Resident</th>
                   <th className="pb-3 text-center">Meter Active</th>
-                  {isSuperAdmin && <th className="pb-3 text-right pr-2">Action</th>}
+                  <th className="pb-3 text-right pr-2">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {households.map(h => (
-                  <tr key={h.id} className="hover:bg-slate-800/10">
-                    <td className="py-3 pl-2 font-mono text-indigo-400">HH-{h.id}</td>
-                    <td>{h.apartment?.name}</td>
-                    <td>Block {h.block} - Flat {h.flatNumber}</td>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                {households.map(h => {
+                  const resident = (users || []).find(u => u.household?.id === h.id);
+                  return (
+                  <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">HH-{h.id}</td>
+                    <td className="font-medium">{h.apartment?.name}</td>
+                    <td className="font-medium">Block {h.block} - Flat {h.flatNumber}</td>
+                    <td>
+                      {resident ? (
+                        <span className="text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-500/30 flex items-center justify-center text-[10px] uppercase font-extrabold">{resident.name.charAt(0)}</span>{resident.name}</span>
+                      ) : (
+                        <span className="text-slate-500 italic text-[11px] bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">Unassigned</span>
+                      )}
+                    </td>
                     <td className="text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${h.hasMeter ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' : 'bg-slate-950/40 border-slate-500/20 text-slate-400'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${h.hasMeter ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-500/20 text-slate-600 dark:text-slate-400'}`}>
                         {h.hasMeter ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    {isSuperAdmin && (
-                      <td className="text-right pr-2">
+                    <td className="text-right pr-2 space-x-2">
+                      {isSuperAdmin && (
                         <button
                           onClick={() => toggleMeterConfig(h.id, h.hasMeter)}
-                          className={`text-[9px] px-2.5 py-1 rounded-lg border font-semibold transition ${h.hasMeter ? 'bg-red-950/20 hover:bg-red-900/30 border-red-500/20 text-red-400' : 'bg-amber-950/20 hover:bg-amber-900/30 border-amber-500/20 text-amber-400'}`}
+                          className={`text-[9px] px-2.5 py-1 rounded-lg border font-semibold transition cursor-pointer ${h.hasMeter ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400'}`}
                         >
                           {h.hasMeter ? 'Disable Meter' : 'Enable Meter'}
                         </button>
-                      </td>
-                    )}
+                      )}
+                      {!resident && (
+                        <button
+                          onClick={() => handleDeleteHousehold(h.id)}
+                          className="text-[9px] px-2.5 py-1.5 rounded-lg border font-semibold transition bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 cursor-pointer"
+                        >
+                          Delete Flat
+                        </button>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -1332,7 +1899,7 @@ function HouseholdsTab({ token, apartments, households, showMessage, fetchDashbo
 // -------------------------------------------------------------
 // 4. RESIDENTS TAB
 // -------------------------------------------------------------
-function ResidentsTab({ token, users, households, showMessage, fetchDashboardData, isSuperAdmin, pendingUsers = [], darkMode }) {
+function ResidentsTab({ token, users, households, apartments = [], showMessage, fetchDashboardData, isSuperAdmin, userRole, pendingUsers = [], darkMode, profile }) {
   const [assignData, setAssignData] = useState({ userId: '', householdId: '' });
   const [loadingAssign, setLoadingAssign] = useState(false);
   
@@ -1349,7 +1916,18 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
 
   const [viewingDocs, setViewingDocs] = useState(null);
 
-  const isCommunityAdmin = !isSuperAdmin;
+  const isCommunityAdmin = userRole === 'ROLE_COMMUNITY_ADMIN';
+
+  // Automatically pre-fill and disable colony/apartment and block/building for Community Admins
+  useEffect(() => {
+    if (showInviteForm && isCommunityAdmin && profile) {
+      setInviteData(prev => ({
+        ...prev,
+        apartmentId: profile.managedApartment ? String(profile.managedApartment.id) : (profile.household?.apartment ? String(profile.household.apartment.id) : ''),
+        block: profile.managedBuilding ? profile.managedBuilding.name : (profile.household?.block ? profile.household.block : '')
+      }));
+    }
+  }, [showInviteForm, isCommunityAdmin, profile]);
 
   const handleAssignSubmit = async (e) => {
     e.preventDefault();
@@ -1576,6 +2154,31 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
     }
   };
 
+  const handleAssignAdminApartment = async (adminId, apartmentId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/assign-admin-apartment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          adminId: adminId,
+          apartmentId: apartmentId ? parseInt(apartmentId) : null
+        })
+      });
+      if (response.ok) {
+        showMessage('success', 'Apartment assigned to admin successfully!');
+        fetchDashboardData();
+      } else {
+        const text = await response.text();
+        showMessage('error', text || 'Assignment failed.');
+      }
+    } catch (err) {
+      showMessage('error', 'Network failure.');
+    }
+  };
+
   const communityAdmins = users.filter(u => u.role === 'ROLE_COMMUNITY_ADMIN');
   const householdUsers = users.filter(u => u.role === 'ROLE_USER');
   const assignableUsers = isSuperAdmin ? [...communityAdmins, ...householdUsers] : householdUsers;
@@ -1587,64 +2190,99 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
     !allocatedHouseholdIds.includes(h.id) || (selectedUserForAssign && selectedUserForAssign.household && selectedUserForAssign.household.id === h.id)
   );
 
-  const renderUserTable = (title, tableUsers, showAdminAssign = false) => (
-    <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl mb-6">
-      <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">{title}</h3>
+  const renderUserTable = (title, tableUsers, showAdminAssign = false, isCommunityAdminTable = false) => (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl mb-6 shadow-sm">
+      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">{title}</h3>
       <div className="overflow-x-auto">
         {tableUsers.length === 0 ? (
           <p className="text-slate-500 text-xs italic py-4">No users found.</p>
         ) : (
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                 <th className="pb-3 pl-2">User ID</th>
                 <th className="pb-3">Name</th>
                 <th className="pb-3">Email</th>
-                <th className="pb-3">Allocation</th>
+                <th className="pb-3">{isCommunityAdminTable ? "Assigned Apartment" : "Allocation"}</th>
                 {showAdminAssign && <th className="pb-3">Managed By</th>}
                 <th className="pb-3 text-right pr-2">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
               {tableUsers.map(u => (
-                <tr key={u.id} className="hover:bg-slate-800/10">
-                  <td className="py-3 pl-2 font-mono text-indigo-400">USR-{u.id}</td>
+                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                  <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">USR-{u.id}</td>
                   
                   {editingUserId === u.id ? (
                     <td colSpan={2} className="py-2 pr-2">
                       <div className="flex flex-col gap-2">
-                        <input type="text" className="px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs focus:outline-none" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
-                        <input type="email" className="px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs focus:outline-none" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} placeholder="Email" />
+                        <input type="text" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
+                        <input type="email" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} placeholder="Email" />
                       </div>
                     </td>
                   ) : (
                     <>
-                      <td className="font-bold text-slate-200">{u.name}</td>
-                      <td>{u.email}</td>
+                      <td className="font-bold text-slate-900 dark:text-slate-100">{u.name}</td>
+                      <td className="font-medium text-slate-800 dark:text-slate-200">{u.email}</td>
                     </>
                   )}
                   
                   <td>
-                    {editingUserId === u.id ? (
-                      <select
-                        className="px-2 py-1 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-                        value={editData.householdId || ''}
-                        onChange={e => setEditData({...editData, householdId: e.target.value})}
-                      >
-                        <option value="">-- Unassign Resident --</option>
-                        {households.filter(h =>
-                          !allocatedHouseholdIds.includes(h.id) || (u.household && u.household.id === h.id)
-                        ).map(h => (
-                          <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      u.household ? (
-                        <span className="text-emerald-400 font-semibold">
-                          {u.household.apartment?.name} - {u.household.block}/{u.household.flatNumber}
-                        </span>
+                    {isCommunityAdminTable ? (
+                      isSuperAdmin ? (
+                        <select
+                          className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+                          value={u.managedApartment ? u.managedApartment.id : ''}
+                          onChange={(e) => handleAssignAdminApartment(u.id, e.target.value)}
+                        >
+                          <option value="">-- Unassigned --</option>
+                          {apartments.map(apt => {
+                            const blockText = apt.buildings && apt.buildings.length > 0
+                              ? ` (${apt.buildings.map(b => b.name).join(', ')})`
+                              : '';
+                            return (
+                              <option key={apt.id} value={apt.id}>
+                                {apt.name}{blockText}
+                              </option>
+                            );
+                          })}
+                        </select>
                       ) : (
-                        <span className="text-slate-500 italic">No allocation</span>
+                        u.managedApartment ? (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                            {u.managedApartment.name}
+                            {u.managedBuilding ? ` (${u.managedBuilding.name})` : (
+                              u.managedApartment.buildings && u.managedApartment.buildings.length > 0
+                                ? ` (${u.managedApartment.buildings.map(b => b.name).join(', ')})`
+                                : ''
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic">No apartment</span>
+                        )
+                      )
+                    ) : (
+                      editingUserId === u.id ? (
+                        <select
+                          className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+                          value={editData.householdId || ''}
+                          onChange={e => setEditData({...editData, householdId: e.target.value})}
+                        >
+                          <option value="">-- Unassign Resident --</option>
+                          {households.filter(h =>
+                            !allocatedHouseholdIds.includes(h.id) || (u.household && u.household.id === h.id)
+                          ).map(h => (
+                            <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        u.household ? (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                            {u.household.apartment?.name} - Block {u.household.block} / Flat {u.household.flatNumber}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic">No allocation</span>
+                        )
                       )
                     )}
                   </td>
@@ -1652,7 +2290,7 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
                   {showAdminAssign && (
                     <td className="py-2">
                       <select
-                        className="w-full max-w-[140px] px-2 py-1 bg-slate-950 border border-slate-800 rounded text-slate-300 text-[10px] focus:outline-none"
+                        className="w-full max-w-[140px] px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-[10px] font-semibold focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
                         value={u.managedByAdmin ? u.managedByAdmin.id : ''}
                         onChange={(e) => handleAssignAdmin(u.id, e.target.value)}
                       >
@@ -1668,13 +2306,13 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
                     <div className="flex items-center justify-end gap-2">
                       {editingUserId === u.id ? (
                         <>
-                          <button onClick={() => handleUpdateUser(u.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition">Save</button>
-                          <button onClick={cancelEdit} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition">Cancel</button>
+                          <button onClick={() => handleUpdateUser(u.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Save</button>
+                          <button onClick={cancelEdit} className="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Cancel</button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(u)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition">Edit</button>
-                          <button onClick={() => handleDeleteUser(u.id)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition">Delete</button>
+                          <button onClick={() => startEdit(u)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Edit</button>
+                          <button onClick={() => handleDeleteUser(u.id)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Delete</button>
                         </>
                       )}
                     </div>
@@ -1690,13 +2328,13 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
 
   return (
     <div className="space-y-8">
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">User Management Registry</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">User Management Registry</h2>
         <div className="flex gap-2">
           {isSuperAdmin && (
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-blue-500/20"
+              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
             >
               <Plus size={16} /> Create User
             </button>
@@ -1704,7 +2342,7 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
           {!isSuperAdmin && (
             <button
               onClick={() => setShowInviteForm(!showInviteForm)}
-              className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-amber-500/20"
+              className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
             >
               <Mail size={16} /> Invite Resident
             </button>
@@ -1712,76 +2350,126 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
         </div>
       </div>
 
+      {/* Banner: Community Admin without apartment */}
+      {isCommunityAdmin && apartments.length === 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+          <div className="w-8 h-8 bg-amber-100 dark:bg-amber-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <ShieldAlert className="text-amber-600 dark:text-amber-400" size={16} />
+          </div>
+          <div>
+            <p className="text-amber-800 dark:text-amber-300 font-bold text-sm">No Apartment Assigned</p>
+            <p className="text-amber-700 dark:text-amber-400/70 text-xs mt-1 font-medium">
+              You have not been assigned to manage any apartment yet. Please contact the Super Admin to assign you to an apartment. Until then, you cannot manage any residents or households.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isCommunityAdmin && apartments.length > 0 && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-500/20 rounded-xl p-4 flex items-start gap-3">
+          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Building2 className="text-emerald-600 dark:text-emerald-400" size={16} />
+          </div>
+          <div>
+            <p className="text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+              Managing: {apartments[0]?.name} {profile?.managedBuilding ? `(${profile.managedBuilding.name})` : (profile?.household?.block ? `(Block ${profile.household.block})` : '')}
+            </p>
+            <p className="text-emerald-700 dark:text-emerald-400/70 text-xs mt-1 font-medium">
+              You are the Community Admin for <strong className="text-emerald-900 dark:text-emerald-300">{apartments[0]?.name}</strong>
+              {profile?.managedBuilding ? <> (managing <strong className="text-emerald-900 dark:text-emerald-300">{profile.managedBuilding.name}</strong> only)</> : (profile?.household?.block ? <> (managing <strong className="text-emerald-900 dark:text-emerald-300">Block {profile.household.block}</strong>)</> : '')}. 
+              You can manage residents and households for this sector only.
+            </p>
+          </div>
+        </div>
+      )}
+
       {showCreateForm && (
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Create New User</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Create New User</h3>
           <form onSubmit={handleCreateSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Name</label>
-              <input type="text" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.name} onChange={e => setCreateData({...createData, name: e.target.value})} />
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Name</label>
+              <input type="text" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.name} onChange={e => setCreateData({...createData, name: e.target.value})} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
-              <input type="email" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} />
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Email</label>
+              <input type="email" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
-              <input type="password" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.password} onChange={e => setCreateData({...createData, password: e.target.value})} />
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Password</label>
+              <input type="password" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.password} onChange={e => setCreateData({...createData, password: e.target.value})} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Role</label>
-              <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={createData.role} onChange={e => setCreateData({...createData, role: e.target.value})}>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Role</label>
+              <select required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-blue-500 focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={createData.role} onChange={e => setCreateData({...createData, role: e.target.value})}>
                 <option value="ROLE_USER">Resident (Household User)</option>
                 {isSuperAdmin && <option value="ROLE_COMMUNITY_ADMIN">Community Admin</option>}
               </select>
             </div>
             <div className="md:col-span-2 flex justify-end gap-3 mt-2">
-              <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition">Cancel</button>
-              <button type="submit" disabled={loadingCreate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">{loadingCreate ? 'Creating...' : 'Create User'}</button>
+              <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-lg text-xs font-bold transition cursor-pointer">Cancel</button>
+              <button type="submit" disabled={loadingCreate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-md">{loadingCreate ? 'Creating...' : 'Create User'}</button>
             </div>
           </form>
         </div>
       )}
       {showInviteForm && !isSuperAdmin && (
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-amber-500 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+          <h3 className="font-bold text-amber-600 dark:text-amber-500 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
             <Mail size={16} /> Invite New Resident
           </h3>
           <form onSubmit={handleInviteSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Name</label>
-                <input type="text" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.name} onChange={e => setInviteData({...inviteData, name: e.target.value})} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Name</label>
+                <input type="text" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.name} onChange={e => setInviteData({...inviteData, name: e.target.value})} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
-                <input type="email" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.email} onChange={e => setInviteData({...inviteData, email: e.target.value})} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Email</label>
+                <input type="email" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.email} onChange={e => setInviteData({...inviteData, email: e.target.value})} />
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Apartment</label>
-                <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.apartmentId} onChange={e => setInviteData({...inviteData, apartmentId: e.target.value})}>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Apartment</label>
+                <select
+                  required
+                  disabled={isCommunityAdmin && (!!profile?.managedApartment || !!profile?.household?.apartment)}
+                  className={`w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-amber-500 focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100 ${isCommunityAdmin && (profile?.managedApartment || profile?.household?.apartment) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  value={inviteData.apartmentId}
+                  onChange={e => setInviteData({...inviteData, apartmentId: e.target.value})}
+                >
                   <option value="">-- Choose --</option>
-                  {households.map(h => h.apartment).filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i).map(apt => (
+                  {apartments.map(apt => (
                     <option key={apt.id} value={apt.id}>{apt.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Block</label>
-                <input type="text" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.block} onChange={e => setInviteData({...inviteData, block: e.target.value})} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Block / Building</span>
+                  {isCommunityAdmin && <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400/90 lowercase">(locked)</span>}
+                </label>
+                <input
+                  type="text"
+                  required
+                  readOnly={isCommunityAdmin}
+                  placeholder="e.g. Block A"
+                  className={`w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-amber-500 focus:outline-none ${isCommunityAdmin ? 'opacity-80 cursor-not-allowed bg-slate-200 dark:bg-slate-900 border-amber-400/50 dark:border-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold' : ''}`}
+                  value={inviteData.block}
+                  onChange={e => setInviteData({...inviteData, block: e.target.value})}
+                />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Flat Number</label>
-                <input type="text" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.flatNumber} onChange={e => setInviteData({...inviteData, flatNumber: e.target.value})} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Flat Number</label>
+                <input type="text" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-amber-500 focus:outline-none" value={inviteData.flatNumber} onChange={e => setInviteData({...inviteData, flatNumber: e.target.value})} />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-2">
-              <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition">Cancel</button>
-              <button type="submit" disabled={loadingInvite} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2">
+              <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-lg text-xs font-bold transition cursor-pointer">Cancel</button>
+              <button type="submit" disabled={loadingInvite} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md">
                 {loadingInvite ? 'Sending...' : <><Mail size={14} /> Send Invite</>}
               </button>
             </div>
@@ -1791,33 +2479,33 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
 
 
       {pendingUsers.length > 0 && (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-900/90 border border-amber-500/20 p-5 rounded-2xl shadow-lg shadow-amber-900/5">
+        <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-500/20 p-5 rounded-2xl shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center">
-              <ShieldAlert className="text-amber-400" size={16} />
+            <div className="w-8 h-8 bg-amber-100 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/20 rounded-lg flex items-center justify-center">
+              <ShieldAlert className="text-amber-600 dark:text-amber-400" size={16} />
             </div>
             <div>
-              <h3 className="font-bold text-amber-400 text-xs tracking-wide uppercase">Pending Approvals</h3>
-              <p className="text-slate-500 text-[10px]">{pendingUsers.length} account{pendingUsers.length !== 1 ? 's' : ''} awaiting review</p>
+              <h3 className="font-bold text-amber-700 dark:text-amber-400 text-xs tracking-wide uppercase">Pending Approvals</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-[10px] font-medium">{pendingUsers.length} account{pendingUsers.length !== 1 ? 's' : ''} awaiting review</p>
             </div>
           </div>
           <div className="space-y-3">
             {pendingUsers.map(pu => (
-              <div key={pu.id} className="bg-slate-950/60 border border-slate-800/60 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-slate-700 transition">
+              <div key={pu.id} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-600 transition">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 font-bold text-sm flex-shrink-0 border border-slate-700">
+                  <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-sm flex-shrink-0 border border-slate-300 dark:border-slate-700">
                     {pu.name ? pu.name.charAt(0).toUpperCase() : '?'}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-bold text-slate-200 text-sm truncate">{pu.name}</p>
-                    <p className="text-slate-500 text-[11px] truncate">{pu.email}</p>
+                    <p className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{pu.name}</p>
+                    <p className="text-slate-500 dark:text-slate-300 text-[11px] truncate">{pu.email}</p>
                     <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
                       pu.role === 'ROLE_COMMUNITY_ADMIN' 
                         ? (darkMode 
-                            ? 'bg-violet-950/40 border-violet-800/40 text-violet-400' 
+                            ? 'bg-violet-950/40 border-violet-800/40 text-violet-300' 
                             : 'bg-violet-100 border-violet-300 text-violet-800') 
                         : (darkMode 
-                            ? 'bg-blue-950/30 border-blue-800/30 text-blue-400' 
+                            ? 'bg-blue-950/30 border-blue-800/30 text-blue-300' 
                             : 'bg-blue-100 border-blue-300 text-blue-800')
                     }`}>
                       {pu.role === 'ROLE_COMMUNITY_ADMIN' ? 'Community Admin' : 'Resident'}
@@ -1826,17 +2514,17 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {pu.documentAadhar && (
-                    <button onClick={() => setViewingDocs(pu)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1">
+                    <button onClick={() => setViewingDocs(pu)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1 cursor-pointer">
                       <FileText size={12} /> Docs
                     </button>
                   )}
-                  <button onClick={() => handleApprove(pu.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1">
+                  <button onClick={() => handleApprove(pu.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1 cursor-pointer">
                     <Check size={12} /> Approve
                   </button>
-                  <button onClick={() => handleRequestReupload(pu.id)} className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1" title="Reject documents and email user to reupload">
+                  <button onClick={() => handleRequestReupload(pu.id)} className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm flex items-center gap-1 cursor-pointer" title="Reject documents and email user to reupload">
                     <RefreshCw size={12} /> Request Reupload
                   </button>
-                  <button onClick={() => handleReject(pu.id)} className="bg-rose-700/80 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm" title="Permanently reject and delete">
+                  <button onClick={() => handleReject(pu.id)} className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] shadow-sm cursor-pointer" title="Permanently reject and delete">
                     Reject
                   </button>
                 </div>
@@ -1848,14 +2536,14 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Assignment panel */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl h-fit md:col-span-1">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
-            <UserCheck className="text-amber-500" size={16} /> Flat Allocation
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit md:col-span-1 shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+            <UserCheck className="text-amber-600 dark:text-amber-500" size={16} /> Flat Allocation
           </h3>
           <form onSubmit={handleAssignSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Household Resident</label>
-              <select required className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs" value={assignData.userId} onChange={e => setAssignData({...assignData, userId: e.target.value})}>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Household Resident</label>
+              <select required className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.userId} onChange={e => setAssignData({...assignData, userId: e.target.value})}>
                 <option value="">-- Choose User --</option>
                 {assignableUsers.map(u => (
                   <option key={u.id} value={u.id}>{u.name} ({u.email}){u.role === 'ROLE_COMMUNITY_ADMIN' ? ' [Admin]' : ''}</option>
@@ -1863,15 +2551,15 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Household Flat</label>
-              <select className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs" value={assignData.householdId} onChange={e => setAssignData({...assignData, householdId: e.target.value})}>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Household Flat</label>
+              <select className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.householdId} onChange={e => setAssignData({...assignData, householdId: e.target.value})}>
                 <option value="">-- Unassign Resident --</option>
                 {availableHouseholdsForForm.map(h => (
                   <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
                 ))}
               </select>
             </div>
-            <button type="submit" disabled={loadingAssign} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10">
+            <button type="submit" disabled={loadingAssign} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md cursor-pointer">
               {loadingAssign ? 'Updating...' : 'Assign Flat'}
             </button>
           </form>
@@ -1879,32 +2567,32 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
 
         {/* Residents Tables Container */}
         <div className="md:col-span-2">
-          {isSuperAdmin && renderUserTable("Community Admins Registry", communityAdmins, false)}
-          {renderUserTable(isSuperAdmin ? "Household Users Registry" : "My Household Users", householdUsers, isSuperAdmin)}
+          {isSuperAdmin && renderUserTable("Community Admins Registry", communityAdmins, false, true)}
+          {renderUserTable(isSuperAdmin ? "Household Users Registry" : "My Household Users", householdUsers, isSuperAdmin, false)}
         </div>
 
         {/* Document Verification Modal */}
         {viewingDocs && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-              <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <UserCheck className="text-amber-500" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-4xl p-6 shadow-2xl overflow-y-auto max-h-[90vh] text-slate-900 dark:text-slate-100">
+              <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <UserCheck className="text-amber-600 dark:text-amber-500" />
                   Document Verification for {viewingDocs.name}
                 </h2>
-                <button onClick={() => setViewingDocs(null)} className="text-slate-400 hover:text-slate-200 transition">
+                <button onClick={() => setViewingDocs(null)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 transition cursor-pointer">
                   <X size={24} />
                 </button>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                  <h3 className="font-bold text-slate-400 text-xs tracking-wide uppercase mb-4">Aadhar / PAN Card</h3>
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                  <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs tracking-wide uppercase mb-4">Aadhar / PAN Card</h3>
                   {viewingDocs.documentAadhar ? (
                     viewingDocs.documentAadhar.startsWith('data:application/pdf') || viewingDocs.documentAadhar.includes('application/pdf') ? (
                       <object data={viewingDocs.documentAadhar} type="application/pdf" className="w-full h-[400px] rounded-lg">
                         <iframe src={viewingDocs.documentAadhar} className="w-full h-[400px] border-0 rounded-lg" title="Aadhar PDF">
-                          <p>Alternate link: <a href={viewingDocs.documentAadhar} download="document.pdf" className="text-blue-400 underline">Download PDF</a></p>
+                          <p>Alternate link: <a href={viewingDocs.documentAadhar} download="document.pdf" className="text-blue-600 dark:text-blue-400 underline">Download PDF</a></p>
                         </iframe>
                       </object>
                     ) : (
@@ -1915,8 +2603,8 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
                   )}
                 </div>
                 
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                  <h3 className="font-bold text-slate-400 text-xs tracking-wide uppercase mb-4">Recent Photo</h3>
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                  <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs tracking-wide uppercase mb-4">Recent Photo</h3>
                   {viewingDocs.documentPhoto ? (
                     <img src={viewingDocs.documentPhoto} alt="User Photo" className="max-w-full h-auto rounded-lg mx-auto" style={{ maxHeight: '400px' }} />
                   ) : (
@@ -1925,8 +2613,8 @@ function ResidentsTab({ token, users, households, showMessage, fetchDashboardDat
                 </div>
               </div>
               
-              <div className="mt-8 flex justify-end gap-4 border-t border-slate-800 pt-6">
-                <button onClick={() => setViewingDocs(null)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition">
+              <div className="mt-8 flex justify-end gap-4 border-t border-slate-200 dark:border-slate-800 pt-6">
+                <button onClick={() => setViewingDocs(null)} className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-bold rounded-xl transition cursor-pointer">
                   Close
                 </button>
                 <button 
@@ -1955,7 +2643,28 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
   const [file, setFile] = useState(null);
   const [savingManual, setSavingManual] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateMode, setTemplateMode] = useState('month'); // 'month' or 'range'
+  const [templateMonth, setTemplateMonth] = useState(
+    new Date().toISOString().slice(0, 7) // e.g. "2026-07"
+  );
+  const [customRange, setCustomRange] = useState({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Sync customRange whenever templateMonth changes if in month mode
+  useEffect(() => {
+    if (templateMode === 'month' && templateMonth) {
+      const [year, month] = templateMonth.split('-').map(Number);
+      const startDate = `${templateMonth}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${templateMonth}-${String(lastDay).padStart(2, '0')}`;
+      setCustomRange({ startDate, endDate });
+    }
+  }, [templateMonth, templateMode]);
 
   useEffect(() => {
     if (!isAdmin && profile?.household) {
@@ -2026,84 +2735,162 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
     }
   };
 
-  // Filter usage logs for the resident's household
-  const householdLogs = !isAdmin && profile?.household
-    ? usageLogs.filter(l => l.household?.id === profile.household.id)
+  const handleDownloadTemplate = async (e) => {
+    e.preventDefault();
+    let startDate = customRange.startDate;
+    let endDate = customRange.endDate;
+
+    if (templateMode === 'month') {
+      if (!templateMonth) {
+        showMessage('error', 'Please select a billing month.');
+        return;
+      }
+      const [year, month] = templateMonth.split('-').map(Number);
+      startDate = `${templateMonth}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      endDate = `${templateMonth}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      if (!startDate || !endDate) {
+        showMessage('error', 'Please select both start and end dates.');
+        return;
+      }
+      if (endDate < startDate) {
+        showMessage('error', 'End date cannot be before start date.');
+        return;
+      }
+    }
+
+    setDownloadingTemplate(true);
+    try {
+      const params = new URLSearchParams({ startDate, endDate });
+      const response = await fetch(`${API_BASE_URL}/api/usage/bulk-template?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        showMessage('error', text || 'Failed to generate template.');
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      let filenameLabel = `${startDate}_to_${endDate}`;
+      if (templateMode === 'month') {
+        const [year, month] = templateMonth.split('-').map(Number);
+        const monthLabel = new Date(year, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+        filenameLabel = monthLabel.replace(' ', '_');
+      }
+      link.download = `meter_readings_${filenameLabel}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showMessage('success', `Template for period (${startDate} to ${endDate}) downloaded. Fill in the readingLiters column and upload.`);
+      setShowTemplateModal(false);
+    } catch (err) {
+      showMessage('error', 'Network error while downloading template.');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  // Filter usage logs for the resident's household, sorted chronologically ASC for delta computation
+  const householdLogsAsc = !isAdmin && profile?.household
+    ? [...usageLogs]
+        .filter(l => l.household?.id === profile.household.id)
+        .sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id)
     : [];
 
-  const latestReading = householdLogs.length > 0 ? householdLogs[0] : null;
+  // Compute proper delta-consumption per row (in case old DB data has consumptionLiters == readingLiters)
+  const householdLogs = householdLogsAsc.map((log, idx) => {
+    const prevReading = idx === 0 ? 0 : (householdLogsAsc[idx - 1].readingLiters || 0);
+    return {
+      ...log,
+      computedConsumption: Math.max(0, (log.readingLiters || 0) - prevReading)
+    };
+  }).reverse(); // Show most recent at top
+
+  // Current reading = the log with the highest readingLiters value (actual meter position)
+  const latestReading = householdLogsAsc.length > 0
+    ? householdLogsAsc.reduce((max, l) => (l.readingLiters || 0) > (max.readingLiters || 0) ? l : max, householdLogsAsc[0])
+    : null;
 
   return (
     <div className="space-y-8">
       <div className="border-b border-slate-800 pb-3">
         <h2 className="text-xl font-bold tracking-tight text-slate-100">
-          {isAdmin ? 'Log Water Consumption' : 'My Water Consumption'}
+          {isAdmin ? 'Log Cumulative Meter Readings' : 'My Water Consumption'}
         </h2>
       </div>
 
       {isAdmin ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Manual Widget */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
-              <Plus className="text-emerald-500" size={16} /> Manual Log Entry
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+              <Plus className="text-emerald-600 dark:text-emerald-500" size={16} /> Manual Meter Reading Entry
             </h3>
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Household</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Household</label>
                 <select
                   required
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
                   value={logData.householdId}
                   onChange={e => setLogData({...logData, householdId: e.target.value})}
                 >
                   <option value="">-- Choose Flat --</option>
-                  {households.filter(h => users.some(u => u.household?.id === h.id)).map(h => {
+                  {households.map(h => {
                     const resident = users.find(u => u.household?.id === h.id);
                     return (
                       <option key={h.id} value={h.id}>
-                        {resident ? resident.name : 'No Resident'} - {h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}
+                        {resident ? resident.name : 'No Resident'} - {h.apartment?.name ? h.apartment.name + ' - ' : ''}Block {h.block} - Flat {h.flatNumber}
                       </option>
                     );
                   })}
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Date</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Date</label>
                 <input
                   type="date" required max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
                   value={logData.date}
                   onChange={e => setLogData({...logData, date: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Cumulative Meter (Liters)</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Cumulative Meter Reading (Liters)</label>
                 <input
-                  type="number" required step="0.1" min="0" placeholder="e.g. 14200.5"
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                  type="number" required step="0.1" min="0" placeholder="e.g. 14200.5 (Cumulative value from dial)"
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
                   value={logData.readingLiters}
                   onChange={e => setLogData({...logData, readingLiters: e.target.value})}
                 />
+                <p className="text-[10px] text-amber-600 dark:text-amber-400/90 mt-1 italic font-medium">
+                  * Enter the cumulative meter dial value (NOT daily consumption). Delta consumption is calculated automatically.
+                </p>
               </div>
               <button
                 type="submit" disabled={savingManual}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-lg"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md cursor-pointer"
               >
-                {savingManual ? 'Saving...' : 'Submit Entry'}
+                {savingManual ? 'Saving...' : 'Submit Reading Entry'}
               </button>
             </form>
           </div>
 
           {/* CSV Widget */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl flex flex-col justify-between shadow-sm">
             <div>
-              <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
-                <FileSpreadsheet className="text-purple-500" size={16} /> Bulk Upload Uploader
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+                <FileSpreadsheet className="text-purple-600 dark:text-purple-500" size={16} /> Bulk CSV Meter Reading Uploader
               </h3>
               <form onSubmit={handleBulkUpload} className="space-y-4">
                 <div 
-                  className="border border-dashed border-slate-800 rounded-xl p-6 text-center bg-slate-950/20 hover:bg-slate-950/40 transition cursor-pointer"
+                  className="border border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-6 text-center bg-slate-50 dark:bg-slate-950/20 hover:bg-slate-100 dark:hover:bg-slate-950/40 transition cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
@@ -2113,89 +2900,133 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
                     }
                   }}
                 >
-                  <Upload size={28} className="mx-auto text-slate-500 mb-2" />
-                  <p className="text-xs font-semibold text-slate-300">Choose CSV or drop here</p>
+                  <Upload size={28} className="mx-auto text-slate-400 dark:text-slate-500 mb-2" />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Choose CSV or drop here</p>
                   <input
                     type="file" accept=".csv" className="hidden" ref={fileInputRef}
                     onChange={e => setFile(e.target.files[0])}
                   />
                 </div>
                 {file && (
-                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">
+                  <div className="bg-slate-100 dark:bg-slate-950/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-400 flex justify-between items-center">
                     <span className="truncate">{file.name}</span>
-                    <button type="button" onClick={() => setFile(null)} className="text-red-400 font-bold">&times;</button>
+                    <button type="button" onClick={() => setFile(null)} className="text-red-500 font-bold cursor-pointer">&times;</button>
                   </div>
                 )}
                 <button
                   type="submit" disabled={!file || savingBulk}
-                  className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-lg"
+                  className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md cursor-pointer disabled:opacity-50"
                 >
                   {savingBulk ? 'Uploading...' : 'Process Upload'}
                 </button>
               </form>
             </div>
-            <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800 mt-4 text-[10px] text-slate-500 flex justify-between items-center">
-              <span>Format: householdId, date, readingLiters</span>
+            <div className="bg-slate-100 dark:bg-slate-950/40 p-3 rounded-lg border border-slate-200 dark:border-slate-800 mt-4 text-[10px] text-slate-500 flex justify-between items-center">
+              <span>Format: householdId, date, readingLiters (Cumulative Meter Reading)</span>
               <button 
                 type="button"
-                onClick={() => {
-                  const csvContent = "data:text/csv;charset=utf-8,householdId,date,readingLiters\n1,2026-07-15,350\n2,2026-07-15,420\n";
-                  const encodedUri = encodeURI(csvContent);
-                  const link = document.createElement("a");
-                  link.setAttribute("href", encodedUri);
-                  link.setAttribute("download", "water_usage_template.csv");
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
-                className="text-purple-400 hover:text-purple-300 font-bold underline cursor-pointer transition text-[9px] uppercase tracking-wider"
+                onClick={() => setShowTemplateModal(true)}
+                className="text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 font-bold underline cursor-pointer transition text-[9px] uppercase tracking-wider flex items-center gap-1"
               >
-                Download Template
+                <Download size={10} /> Download Template
               </button>
+            </div>
+          </div>
+
+          {/* Admin Recent Community Logs Table */}
+          <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wider uppercase flex items-center gap-2">
+                <Activity className="text-blue-600 dark:text-blue-500" size={16} /> Recent Community Water Logs
+              </h3>
+              <span className="text-[10px] text-slate-500 font-mono">Total {usageLogs.length} logs recorded</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              {usageLogs.length === 0 ? (
+                <div className="py-10 text-center space-y-2">
+                  <p className="text-slate-500 text-xs italic">No water consumption logs recorded yet in your community.</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-600">Use the manual log entry or bulk CSV upload above to add meter readings.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                      <th className="pb-3 pl-1">Date</th>
+                      <th className="pb-3">Household / Resident</th>
+                      <th className="pb-3">Flat Details</th>
+                      <th className="pb-3">Cumulative Reading</th>
+                      <th className="pb-3 text-right">Logged Consumption</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {usageLogs.slice(0, 10).map(l => {
+                      const resident = users.find(u => u.household?.id === l.household?.id);
+                      return (
+                        <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition">
+                          <td className="py-3 pl-1 font-mono text-slate-500 dark:text-slate-400">{l.date}</td>
+                          <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
+                            {resident ? resident.name : (l.household?.residentName || 'Unassigned Resident')}
+                          </td>
+                          <td className="py-3 text-slate-600 dark:text-slate-400">
+                            {l.household ? `Block ${l.household.block} - Flat ${l.household.flatNumber}` : '-'}
+                          </td>
+                          <td className="py-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                            {l.readingLiters != null ? `${l.readingLiters.toLocaleString()} L` : '-'}
+                          </td>
+                          <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
+                            {l.consumptionLiters != null ? `+${l.consumptionLiters.toLocaleString()} L` : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Side: Household Meter Card */}
-          <div className="lg:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6 shadow-md flex flex-col justify-between">
+          <div className="lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6 shadow-sm flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
                   <Home size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-200">Household Meter</h3>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Allocation Status</p>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">Household Meter</h3>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Allocation Status</p>
                 </div>
               </div>
 
               {profile?.household ? (
                 <div className="space-y-3 pt-2 text-xs">
-                  <div className="flex justify-between border-b border-slate-800 pb-2">
-                    <span className="text-slate-455">Apartment</span>
-                    <span className="font-semibold text-slate-300">{profile.household.apartment?.name || 'Assigned'}</span>
+                  <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Apartment</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-300">{profile.household.apartment?.name || 'Assigned'}</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800 pb-2">
-                    <span className="text-slate-455">Flat Details</span>
-                    <span className="font-semibold text-slate-300">Block {profile.household.block} - Flat {profile.household.flatNumber}</span>
+                  <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Flat Details</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-300">Block {profile.household.block} - Flat {profile.household.flatNumber}</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800 pb-2">
-                    <span className="text-slate-455">Meter Installed</span>
-                    <span className={`font-semibold ${profile.household.hasMeter ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Meter Installed</span>
+                    <span className={`font-semibold ${profile.household.hasMeter ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                       {profile.household.hasMeter ? 'Yes' : 'No'}
                     </span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800 pb-2">
-                    <span className="text-slate-455">Current Reading</span>
-                    <span className="font-mono font-bold text-slate-200">
+                  <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Current Reading</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-slate-200">
                       {latestReading ? `${latestReading.readingLiters.toLocaleString()} L` : '0 L'}
                     </span>
                   </div>
                   {latestReading && (
                     <div className="flex justify-between">
-                      <span className="text-slate-455">Last Checked</span>
-                      <span className="text-slate-400">{latestReading.date}</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Last Checked</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">{latestReading.date}</span>
                     </div>
                   )}
                 </div>
@@ -2204,44 +3035,44 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
               )}
             </div>
 
-            <div className="bg-slate-950/40 p-4 border border-slate-850 rounded-xl mt-4 flex items-start gap-2.5">
-              <Info size={16} className="text-slate-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-slate-500 leading-relaxed">
+            <div className="bg-slate-50 dark:bg-slate-950/40 p-4 border border-slate-200 dark:border-slate-800 rounded-xl mt-4 flex items-start gap-2.5">
+              <Info size={16} className="text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
                 As a resident, you have view-only access. To update or correct readings, please contact your community admin.
               </p>
             </div>
           </div>
 
           {/* Right Side: Usage Log Table */}
-          <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md">
-            <h3 className="font-bold text-slate-200 text-xs tracking-wider uppercase mb-4 flex items-center gap-2">
-              <Activity className="text-blue-500" size={16} /> Recent Usage Logs
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wider uppercase mb-4 flex items-center gap-2">
+              <Activity className="text-blue-600 dark:text-blue-500" size={16} /> Recent Usage Logs
             </h3>
 
             <div className="overflow-x-auto">
               {householdLogs.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <p className="text-slate-500 text-xs italic">No consumption logs recorded yet.</p>
-                  <p className="text-[10px] text-slate-600">Your logged readings will show up here once updated by an admin.</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">Your logged readings will show up here once updated by an admin.</p>
                 </div>
               ) : (
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                       <th className="pb-3 pl-1">Log ID</th>
                       <th className="pb-3">Date</th>
                       <th className="pb-3">Cumulative Value</th>
                       <th className="pb-3 text-right">Consumption</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                     {householdLogs.slice(0, 5).map(l => (
-                      <tr key={l.id} className="hover:bg-slate-800/10">
-                        <td className="py-3 pl-1 font-mono text-indigo-400">LOG-{l.id}</td>
-                        <td className="py-3">{l.date}</td>
-                        <td className="py-3 font-mono">{l.readingLiters.toLocaleString()} L</td>
-                        <td className="py-3 font-mono text-blue-400 font-bold text-right">
-                          +{l.consumptionLiters.toLocaleString()} L
+                      <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                        <td className="py-3 pl-1 font-mono text-indigo-600 dark:text-indigo-400 font-bold">LOG-{l.id}</td>
+                        <td className="py-3 font-medium text-slate-800 dark:text-slate-300">{l.date}</td>
+                        <td className="py-3 font-mono font-medium text-slate-800 dark:text-slate-300">{l.readingLiters.toLocaleString()} L</td>
+                        <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
+                          +{(l.computedConsumption ?? l.consumptionLiters ?? 0).toLocaleString()} L
                         </td>
                       </tr>
                     ))}
@@ -2252,6 +3083,179 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
           </div>
         </div>
       )}
+
+      {/* ===== Download Template Modal ===== */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in text-slate-900 dark:text-slate-100">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center">
+                  <FileSpreadsheet className="text-purple-600 dark:text-purple-400" size={18} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Download CSV Template</h2>
+                  <p className="text-[10px] text-slate-500 mt-0.5 font-medium">Pre-filled with all community residents</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleDownloadTemplate} className="p-6 space-y-5">
+
+              {/* Mode Toggle Switcher */}
+              <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setTemplateMode('month')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    templateMode === 'month'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Month Cycle (Default)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTemplateMode('range')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    templateMode === 'range'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Custom Date Range
+                </button>
+              </div>
+
+              {/* Month Picker View */}
+              {templateMode === 'month' ? (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    Billing Cycle Month
+                  </label>
+                  <input
+                    type="month"
+                    required
+                    max={new Date().toISOString().slice(0, 7)}
+                    value={templateMonth}
+                    onChange={e => setTemplateMonth(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 transition cursor-pointer"
+                  />
+                  {templateMonth && (() => {
+                    const [y, m] = templateMonth.split('-').map(Number);
+                    const lastDay = new Date(y, m, 0).getDate();
+                    const monthLabel = new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+                    return (
+                      <div className="mt-2.5 bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 flex-shrink-0"></span>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">
+                          Billing period: <span className="text-purple-700 dark:text-purple-300 font-bold">{monthLabel}</span>
+                          <span className="text-slate-400 dark:text-slate-600 mx-1">•</span>
+                          <span className="font-mono text-slate-700 dark:text-slate-400 font-semibold">{templateMonth}-01 → {templateMonth}-{String(lastDay).padStart(2, '0')}</span>
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                /* Custom Date Range View */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        max={new Date().toISOString().split('T')[0]}
+                        value={customRange.startDate}
+                        onChange={e => setCustomRange({ ...customRange, startDate: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                        End Date (Reading Date)
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        max={new Date().toISOString().split('T')[0]}
+                        value={customRange.endDate}
+                        onChange={e => setCustomRange({ ...customRange, endDate: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                      />
+                    </div>
+                  </div>
+                  {customRange.startDate && customRange.endDate && (
+                    <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 flex-shrink-0"></span>
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">
+                        Selected Range: <span className="font-mono text-purple-700 dark:text-purple-300 font-bold">{customRange.startDate} → {customRange.endDate}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Info Box */}
+              <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3">What the template contains</p>
+                <ul className="space-y-2">
+                  {[
+                    { label: 'One row per metered household in your community', color: 'text-emerald-600 dark:text-emerald-400' },
+                    { label: `Pre-filled: Household ID, reading date (${templateMode === 'month' ? 'end of month' : 'end date'}), resident & flat details`, color: 'text-emerald-600 dark:text-emerald-400' },
+                    { label: 'Previous meter reading shown for reference', color: 'text-emerald-600 dark:text-emerald-400' },
+                    { label: 'Only enter Cumulative Reading in the readingLiters column (NOT daily consumption)', color: 'text-amber-600 dark:text-amber-400' },
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[10px] text-slate-600 dark:text-slate-400 font-medium">
+                      <span className={`${item.color} mt-0.5 flex-shrink-0 font-bold`}>✓</span>
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(false)}
+                  className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-bold rounded-xl transition text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={downloadingTemplate || (templateMode === 'month' ? !templateMonth : (!customRange.startDate || !customRange.endDate))}
+                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                >
+                  {downloadingTemplate ? (
+                    <>
+                      <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} /> Download Template
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2259,55 +3263,348 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
 // -------------------------------------------------------------
 // 6. METER READINGS LIST TAB
 // -------------------------------------------------------------
-function MeterReadingsTab({ usageLogs }) {
+function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], profile, isAdmin, setActiveTab }) {
+  const [expandedApts, setExpandedApts] = useState({});
+  const [expandedHH, setExpandedHH]     = useState({});
+
+  // Fallback: If households array is empty (e.g. resident view), extract household directly from profile or usageLogs
+  const effectiveHouseholds = useMemo(() => {
+    if (households && households.length > 0) return households;
+    const map = {};
+    if (profile?.household?.id) {
+      map[profile.household.id] = profile.household;
+    }
+    (usageLogs || []).forEach(log => {
+      const hh = log.household || (log.householdId ? { id: log.householdId, block: 'Main', flatNumber: 'Unit' } : null);
+      if (hh && hh.id && !map[hh.id]) {
+        map[hh.id] = hh;
+      }
+    });
+    return Object.values(map);
+  }, [households, usageLogs, profile]);
+
+  // Group logs by householdId, sorted newest first
+  const logsByHH = useMemo(() => {
+    const map = {};
+    // Sort all logs oldest → newest so delta is computed correctly
+    const sorted = [...(usageLogs || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
+    sorted.forEach((log) => {
+      const hhId = log.household?.id ?? log.householdId ?? (profile?.household?.id);
+      if (!hhId) return;
+      if (!map[hhId]) map[hhId] = [];
+      const prev = map[hhId].length > 0 ? map[hhId][map[hhId].length - 1].readingLiters : null;
+      const delta = prev !== null ? Math.max(0, log.readingLiters - prev) : (log.consumptionLiters || 0);
+      map[hhId].push({ ...log, delta });
+    });
+    // Reverse each so newest is first for display
+    Object.keys(map).forEach(k => map[k].reverse());
+    return map;
+  }, [usageLogs, profile]);
+
+  // Group households by apartmentId
+  const hhByApt = useMemo(() => {
+    const map = {};
+    effectiveHouseholds.forEach(hh => {
+      const aptId = hh.apartment?.id ?? hh.apartmentId ?? 1;
+      if (!map[aptId]) map[aptId] = [];
+      map[aptId].push(hh);
+    });
+    return map;
+  }, [effectiveHouseholds]);
+
+  // Auto expand when there is only 1 apartment or household
+  useEffect(() => {
+    if (effectiveHouseholds.length > 0) {
+      const aptMap = {};
+      const hhMap = {};
+      effectiveHouseholds.forEach(hh => {
+        const aptId = hh.apartment?.id ?? hh.apartmentId ?? 1;
+        aptMap[aptId] = true;
+        hhMap[hh.id] = true;
+      });
+      setExpandedApts(prev => ({ ...aptMap, ...prev }));
+      setExpandedHH(prev => ({ ...hhMap, ...prev }));
+    }
+  }, [effectiveHouseholds]);
+
+  const toggleApt = (id) => setExpandedApts(p => ({ ...p, [id]: !p[id] }));
+  const toggleHH  = (id) => setExpandedHH(p  => ({ ...p, [id]: !p[id]  }));
+
+  const aptList = apartments.length > 0 ? apartments : Object.keys(hhByApt).map(id => {
+    const sampleHh = hhByApt[id]?.[0];
+    const name = sampleHh?.apartment?.name || `Apartment ${id}`;
+    return { id: Number(id) || id, name };
+  });
+
+  const isResident = !isAdmin;
+
+  // Compute Resident Summary Stats
+  const residentLogs = usageLogs || [];
+  const latestReading = residentLogs.length > 0 ? residentLogs[0].readingLiters : 0;
+  const totalConsumption = residentLogs.reduce((sum, l) => sum + (l.consumptionLiters || 0), 0);
+
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Usage Meter Readings</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            {isResident ? 'My Usage History' : 'Meter Readings'}
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            {isResident 
+              ? 'Complete history of your submitted meter readings and daily water consumption'
+              : 'Browse readings grouped by apartment and household'}
+          </p>
+        </div>
+
+        {isResident && setActiveTab && (
+          <button
+            onClick={() => setActiveTab('my_usage')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-900/20"
+          >
+            <Plus size={16} /> Log New Reading
+          </button>
+        )}
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div className="overflow-x-auto">
-          {usageLogs.length === 0 ? (
-            <p className="text-slate-500 text-xs italic py-4 text-center">No meter readings logged yet.</p>
-          ) : (
+      {/* Resident Summary Header Cards */}
+      {isResident && residentLogs.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-3 shadow-sm dark:shadow-md">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+              <Activity size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Total Readings</p>
+              <p className="text-lg font-black text-slate-900 dark:text-slate-100">{residentLogs.length}</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-3 shadow-sm dark:shadow-md">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold">
+              <Droplets size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Latest Reading</p>
+              <p className="text-lg font-black text-cyan-600 dark:text-cyan-400 font-mono">{latestReading.toLocaleString()} L</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-3 shadow-sm dark:shadow-md">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Total Water Used</p>
+              <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">{Math.round(totalConsumption).toLocaleString()} L</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {residentLogs.length === 0 && aptList.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-10 text-center space-y-4 max-w-md mx-auto my-8 shadow-md dark:shadow-xl">
+          <div className="w-16 h-16 bg-blue-500/10 text-blue-500 dark:text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/20">
+            <Activity size={32} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Usage History Found</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mt-1">
+              You haven't logged any meter readings yet. Click below to submit your current meter reading and start tracking your water consumption.
+            </p>
+          </div>
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('my_usage')}
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-900/30 inline-flex items-center gap-2"
+            >
+              <Plus size={16} /> Log Water Reading
+            </button>
+          )}
+        </div>
+      ) : isResident ? (
+        /* Resident Direct Table View */
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/50 flex justify-between items-center">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Consumption Logs History</h3>
+            <span className="text-[10px] text-slate-500 font-semibold">{residentLogs.length} Entries Recorded</span>
+          </div>
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
-                  <th className="pb-3 pl-2">Log ID</th>
-                  <th className="pb-3">Household Address</th>
-                  <th className="pb-3">Date</th>
-                  <th className="pb-3">Cumulative Value</th>
-                  <th className="pb-3">Consumption</th>
+                <tr className="bg-slate-100/90 dark:bg-slate-950/80 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                  <th className="py-3 px-4">Log ID</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Cumulative Reading</th>
+                  <th className="py-3 px-4 text-right">Water Consumed</th>
+                  <th className="py-3 px-4 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {usageLogs.map(l => (
-                  <tr key={l.id} className="hover:bg-slate-800/10">
-                    <td className="py-3 pl-2 font-mono text-indigo-400">LOG-{l.id}</td>
-                    <td>
-                      {l.household 
-                        ? `${l.household.apartment?.name || 'Apt'} - Block ${l.household.block} / Flat ${l.household.flatNumber}`
-                        : `HH-${l.householdId}`}
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                {residentLogs.map((log, idx) => (
+                  <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                    <td className="py-3 px-4 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">LOG-{log.id}</td>
+                    <td className="py-3 px-4 text-slate-800 dark:text-slate-200 font-medium">{log.date}</td>
+                    <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100 font-bold">{(log.readingLiters || 0).toLocaleString()} L</td>
+                    <td className="py-3 px-4 font-mono text-right">
+                      {log.consumptionLiters > 0 ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{Math.round(log.consumptionLiters).toLocaleString()} L</span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500">0 L</span>
+                      )}
                     </td>
-                    <td>{l.date}</td>
-                    <td className="font-mono">{l.readingLiters.toLocaleString()} L</td>
-                    <td className="font-mono text-blue-400 font-bold">{l.consumptionLiters.toLocaleString()} L</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-[10px] bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Recorded</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Admin Accordion View */
+        <div className="space-y-4">
+          {aptList.map(apt => {
+            const aptHouseholds = hhByApt[apt.id] || [];
+            const totalReadings = aptHouseholds.reduce((s, hh) => s + (logsByHH[hh.id]?.length || 0), 0);
+            const isAptOpen = !!expandedApts[apt.id];
+
+            return (
+              <div key={apt.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-md">
+                {/* Apartment Header */}
+                <button
+                  onClick={() => toggleApt(apt.id)}
+                  className="w-full flex items-center justify-between px-5 py-4 bg-slate-50/80 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-500/30">
+                      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-slate-900 dark:text-slate-100 font-bold text-sm">{apt.name}</p>
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">{aptHouseholds.length} household{aptHouseholds.length !== 1 ? 's' : ''} · {totalReadings} readings</p>
+                    </div>
+                  </div>
+                  <svg className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform ${isAptOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Households */}
+                {isAptOpen && (
+                  <div className="border-t border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800/60">
+                    {aptHouseholds.length === 0 ? (
+                      <p className="text-slate-500 text-xs italic py-4 px-6">No households in this apartment.</p>
+                    ) : (
+                      aptHouseholds.map(hh => {
+                        const logs = logsByHH[hh.id] || [];
+                        const isHHOpen = !!expandedHH[hh.id];
+                        const latestReading = logs.length > 0 ? logs[0].readingLiters : null;
+                        const totalConsumption = logs.reduce((s, l) => s + (l.delta || 0), 0);
+                        const residentName = hh.resident?.name || hh.residentName || null;
+
+                        return (
+                          <div key={hh.id} className="bg-slate-50/50 dark:bg-slate-950/30">
+                            {/* Household Row */}
+                            <button
+                              onClick={() => toggleHH(hh.id)}
+                              className="w-full flex items-center justify-between px-6 py-3.5 hover:bg-slate-100/80 dark:hover:bg-slate-800/20 transition-colors text-left cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-md bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center flex-shrink-0 border border-emerald-200 dark:border-emerald-500/30">
+                                  <svg className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <p className="text-slate-900 dark:text-slate-200 font-bold text-xs">
+                                    Block {hh.block} / Flat {hh.flatNumber}
+                                    {residentName && <span className="ml-2 text-slate-600 dark:text-slate-400 font-normal">— {residentName}</span>}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-0.5">
+                                    <span className="text-[10px] text-slate-600 dark:text-slate-500 font-medium">{logs.length} reading{logs.length !== 1 ? 's' : ''}</span>
+                                    {latestReading !== null && (
+                                      <span className="text-[10px] text-cyan-700 dark:text-cyan-400 font-mono font-bold">Latest: {latestReading.toLocaleString()} L</span>
+                                    )}
+                                    {totalConsumption > 0 && (
+                                      <span className="text-[10px] text-blue-700 dark:text-blue-400 font-mono font-bold">Total used: {Math.round(totalConsumption).toLocaleString()} L</span>
+                                    )}
+                                    {hh.hasMeter ? (
+                                      <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Metered</span>
+                                    ) : (
+                                      <span className="text-[9px] bg-slate-200 dark:bg-slate-700/60 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Unmetered</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <svg className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 transition-transform ${isHHOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+
+                            {/* Meter Readings Table */}
+                            {isHHOpen && (
+                              <div className="px-6 pb-4">
+                                {logs.length === 0 ? (
+                                  <p className="text-slate-500 text-[11px] italic py-3">No readings recorded for this household.</p>
+                                ) : (
+                                  <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-100/90 dark:bg-slate-800/60 text-slate-700 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                                          <th className="py-2.5 px-4">Log ID</th>
+                                          <th className="py-2.5 px-4">Date</th>
+                                          <th className="py-2.5 px-4">Meter Reading</th>
+                                          <th className="py-2.5 px-4 text-right">Consumption</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300 bg-white dark:bg-slate-900">
+                                        {logs.map((log, idx) => (
+                                          <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                                            <td className="py-2.5 px-4 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">LOG-{log.id}</td>
+                                            <td className="py-2.5 px-4 text-slate-800 dark:text-slate-300 font-medium">{log.date}</td>
+                                            <td className="py-2.5 px-4 font-mono text-slate-900 dark:text-slate-100 font-bold">{(log.readingLiters || 0).toLocaleString()} L</td>
+                                            <td className="py-2.5 px-4 font-mono text-right">
+                                              {idx === logs.length - 1 ? (
+                                                <span className="text-slate-500 text-[10px]">— (first entry)</span>
+                                              ) : log.delta > 0 ? (
+                                                <span className="text-blue-600 dark:text-blue-400 font-bold">+{Math.round(log.delta).toLocaleString()} L</span>
+                                              ) : (
+                                                <span className="text-slate-400 dark:text-slate-500">0 L</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
+
 // -------------------------------------------------------------
 // 7. PROFILE TAB
 // -------------------------------------------------------------
-function ProfileTab({ token, profile, fetchProfile, showMessage }) {
+function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, onResetSuccess, showMessage }) {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', gender: '', mobileNo: '+91 ' });
   const [updating, setUpdating] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -2361,8 +3658,15 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ password: resetPassword })
       });
-      if (res.ok) { showMessage('success', 'Database cleared successfully!'); setResetPassword(''); setShowResetConfirm(false); }
-      else { const txt = await res.text(); showMessage('error', txt || 'Failed to reset database.'); }
+      const txt = await res.text();
+      if (res.ok) { 
+        showMessage('success', 'Database reset successful! Logging you out to refresh your session...');
+        setResetPassword('');
+        setShowResetConfirm(false);
+        // Auto-logout after 2.5s so admin gets a fresh session
+        setTimeout(() => { if (onResetSuccess) onResetSuccess(); }, 2500);
+      }
+      else { showMessage('error', txt || 'Failed to reset database.'); }
     } catch { showMessage('error', 'Network failure.'); }
     finally { setResettingDb(false); }
   };
@@ -2377,14 +3681,38 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Profile Settings</h2>
+      {/* ── PROFILE HERO BANNER & HEADER ───────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-slate-900/60 border border-blue-500/20 p-6 shadow-lg backdrop-blur-md">
+        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shadow-inner">
+              <User size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold tracking-tight text-slate-100">Profile Settings</h2>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Verified Account
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Manage your personal credentials, contact details, and account security.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="px-3.5 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-right">
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Access Level</div>
+              <div className="text-xs font-extrabold text-blue-400">{roleColor.label}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
         {/* ── UIVERSE-INSPIRED PROFILE CARD ────────────── */}
-        <div className="md:col-span-1 flex justify-center">
+        <div className="lg:col-span-1 flex justify-center w-full">
           <div className="profile-card">
             {/* Glowing blobs on hover */}
             <div className="profile-card-blob profile-card-blob-left" />
@@ -2393,37 +3721,110 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
             {/* Inner card-info panel */}
             <div className="profile-card-info">
 
-              {/* Avatar */}
+              {/* Smart Avatar matching Gender */}
               <span className="profile-card-avatar-wrap">
                 {profile?.gender?.toLowerCase() === 'female' ? (
-                  /* Female SVG avatar */
+                  /* Female Smart SVG Avatar */
                   <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="50" fill="#1e3a5f"/>
-                    <ellipse cx="50" cy="38" rx="18" ry="20" fill="#fddbb8"/>
-                    <path d="M32 38 Q28 20 50 16 Q72 20 68 38" fill="#5c2e91"/>
-                    <path d="M28 42 Q24 34 32 30 Q30 38 32 38Z" fill="#5c2e91"/>
-                    <path d="M72 42 Q76 34 68 30 Q70 38 68 38Z" fill="#5c2e91"/>
-                    <ellipse cx="50" cy="72" rx="22" ry="16" fill="#7c3aed"/>
-                    <ellipse cx="50" cy="38" rx="18" ry="20" fill="#fddbb8"/>
-                    <circle cx="50" cy="40" r="8" fill="#f9c9a0"/>
-                    <path d="M44 44 Q50 48 56 44" stroke="#e8956d" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-                    <circle cx="45.5" cy="39" r="1.5" fill="#3d2000"/>
-                    <circle cx="54.5" cy="39" r="1.5" fill="#3d2000"/>
-                    <path d="M34 58 Q50 52 66 58 Q66 80 50 88 Q34 80 34 58Z" fill="#7c3aed"/>
-                    <path d="M42 56 Q50 60 58 56 L60 70 Q50 75 40 70Z" fill="#a78bfa"/>
+                    <defs>
+                      <linearGradient id="femBg" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#4c1d95" />
+                        <stop offset="50%" stopColor="#7c3aed" />
+                        <stop offset="100%" stopColor="#db2777" />
+                      </linearGradient>
+                      <linearGradient id="femHair" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#31103f" />
+                        <stop offset="100%" stopColor="#581c87" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="50" fill="url(#femBg)" />
+                    {/* Background long hair */}
+                    <path d="M 24 45 C 20 65, 26 85, 34 95 L 66 95 C 74 85, 80 65, 76 45 Z" fill="url(#femHair)" />
+                    {/* Neck */}
+                    <path d="M 44 60 L 56 60 L 56 72 L 44 72 Z" fill="#fbcfe8" />
+                    {/* Face */}
+                    <ellipse cx="50" cy="46" rx="17" ry="20" fill="#fde047" opacity="0.1" />
+                    <ellipse cx="50" cy="45" rx="16" ry="19" fill="#fde68a" />
+                    {/* Front hair style & bangs */}
+                    <path d="M 32 38 C 30 20, 70 20, 68 38 C 62 26, 38 26, 32 38 Z" fill="url(#femHair)" />
+                    <path d="M 34 32 C 40 22, 50 24, 52 35 C 50 25, 36 26, 34 32 Z" fill="#6b21a8" />
+                    {/* Eyes */}
+                    <ellipse cx="44" cy="44" rx="2" ry="2.5" fill="#1e1b4b" />
+                    <ellipse cx="56" cy="44" rx="2" ry="2.5" fill="#1e1b4b" />
+                    <circle cx="44.8" cy="43.2" r="0.7" fill="#ffffff" />
+                    <circle cx="56.8" cy="43.2" r="0.7" fill="#ffffff" />
+                    {/* Eyelashes */}
+                    <path d="M 41 42 Q 44 40 47 42" stroke="#31103f" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+                    <path d="M 53 42 Q 56 40 59 42" stroke="#31103f" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+                    {/* Cheeks */}
+                    <circle cx="41" cy="48" r="3" fill="#f43f5e" opacity="0.35" />
+                    <circle cx="59" cy="48" r="3" fill="#f43f5e" opacity="0.35" />
+                    {/* Smile */}
+                    <path d="M 45 52 Q 50 56 55 52" stroke="#e11d48" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                    {/* Modern Top Attire */}
+                    <path d="M 28 85 C 32 70, 68 70, 72 85 L 75 100 L 25 100 Z" fill="#ec4899" />
+                    <path d="M 40 70 L 50 82 L 60 70 Z" fill="#be185d" />
+                    {/* Smart Earrings */}
+                    <circle cx="33" cy="49" r="2" fill="#facc15" />
+                    <circle cx="67" cy="49" r="2" fill="#facc15" />
+                  </svg>
+                ) : profile?.gender?.toLowerCase() === 'male' ? (
+                  /* Male Smart SVG Avatar */
+                  <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="maleBg" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#0f172a" />
+                        <stop offset="50%" stopColor="#1e3a8a" />
+                        <stop offset="100%" stopColor="#0284c7" />
+                      </linearGradient>
+                      <linearGradient id="maleHair" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#0f172a" />
+                        <stop offset="100%" stopColor="#334155" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="50" fill="url(#maleBg)" />
+                    {/* Neck */}
+                    <path d="M 44 60 L 56 60 L 56 72 L 44 72 Z" fill="#fde68a" />
+                    {/* Face */}
+                    <ellipse cx="50" cy="44" rx="16" ry="19" fill="#fef3c7" />
+                    {/* Smart haircut */}
+                    <path d="M 32 38 C 30 18, 70 18, 68 38 C 64 24, 36 24, 32 38 Z" fill="url(#maleHair)" />
+                    <path d="M 34 32 L 42 22 L 58 24 L 66 32 Z" fill="#1e293b" />
+                    {/* Eyebrows */}
+                    <path d="M 40 38 Q 44 36 47 38" stroke="#0f172a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                    <path d="M 53 38 Q 56 36 60 38" stroke="#0f172a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                    {/* Eyes */}
+                    <circle cx="44" cy="43" r="2" fill="#0f172a" />
+                    <circle cx="56" cy="43" r="2" fill="#0f172a" />
+                    <circle cx="44.6" cy="42.4" r="0.6" fill="#ffffff" />
+                    <circle cx="56.6" cy="42.4" r="0.6" fill="#ffffff" />
+                    {/* Nose */}
+                    <path d="M 50 43 L 49 48 L 52 48" stroke="#d97706" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.6" />
+                    {/* Smile */}
+                    <path d="M 45 52 Q 50 55 55 52" stroke="#b45309" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                    {/* Smart Suit / Collar */}
+                    <path d="M 26 88 C 32 68, 68 68, 74 88 L 78 100 L 22 100 Z" fill="#1e293b" />
+                    <path d="M 42 68 L 50 82 L 58 68 Z" fill="#3b82f6" />
+                    <path d="M 48 74 L 50 100 L 52 74 Z" fill="#0284c7" />
                   </svg>
                 ) : (
-                  /* Male / default SVG avatar */
+                  /* Neutral / Other / Default Smart Avatar */
                   <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="50" fill="#1e3a5f"/>
-                    <ellipse cx="50" cy="38" rx="18" ry="20" fill="#fddbb8"/>
-                    <path d="M32 35 Q32 18 50 16 Q68 18 68 35 Q66 28 50 26 Q34 28 32 35Z" fill="#1e3a5f"/>
-                    <ellipse cx="50" cy="40" rx="8" ry="9" fill="#f9c9a0"/>
-                    <path d="M44 44 Q50 48 56 44" stroke="#e8956d" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-                    <circle cx="45.5" cy="39" r="1.5" fill="#1a1a2e"/>
-                    <circle cx="54.5" cy="39" r="1.5" fill="#1a1a2e"/>
-                    <path d="M34 58 Q50 52 66 58 Q66 80 50 88 Q34 80 34 58Z" fill="#1d4ed8"/>
-                    <path d="M42 56 Q50 60 58 56 L60 70 Q50 75 40 70Z" fill="#3b82f6"/>
+                    <defs>
+                      <linearGradient id="otherBg" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#065f46" />
+                        <stop offset="50%" stopColor="#0d9488" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="50" fill="url(#otherBg)" />
+                    {/* Futuristic Geometric Inner Ring */}
+                    <circle cx="50" cy="50" r="42" stroke="#5eead4" strokeWidth="1.5" fill="none" strokeDasharray="4 2" opacity="0.7" />
+                    {/* Avatar Initials or Universal Avatar Icon */}
+                    <text x="50" y="58" fontSize="28" fontWeight="900" fill="#ffffff" textAnchor="middle" letterSpacing="1" style={{ fontFamily: 'sans-serif' }}>
+                      {initials}
+                    </text>
+                    <circle cx="50" cy="24" r="3" fill="#a7f3d0" />
                   </svg>
                 )}
               </span>
@@ -2448,7 +3849,7 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
                 </div>
                 <div className="profile-card-row">
                   <span className="profile-card-label">Email</span>
-                  <span className="profile-card-value profile-card-mono">{profile?.email || '—'}</span>
+                  <span className="profile-card-value profile-card-mono text-[11px] select-all">{profile?.email || '—'}</span>
                 </div>
                 {profile?.household && <>
                   <div className="profile-card-row">
@@ -2460,6 +3861,12 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
                     <span className="profile-card-value">Block {profile.household.block} / {profile.household.flatNumber}</span>
                   </div>
                 </>}
+                {profile?.managedApartment && (
+                  <div className="profile-card-row">
+                    <span className="profile-card-label">Society</span>
+                    <span className="profile-card-value">{profile.managedApartment.name}</span>
+                  </div>
+                )}
               </div>
 
               {/* Household ID chip (residents only) */}
@@ -2481,35 +3888,48 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
         </div>
 
         {/* ── Edit Form ─────────────────────────────────── */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl md:col-span-2 space-y-6">
+        <div className="bg-slate-900 border border-slate-800/90 p-4 sm:p-6 rounded-2xl lg:col-span-2 w-full space-y-6 shadow-xl backdrop-blur-sm">
           <div>
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Update Profile Details</h3>
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-5">
+              <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase flex items-center gap-2">
+                <Edit3 size={15} className="text-blue-400" /> Update Profile Details
+              </h3>
+              <span className="text-[10px] text-slate-500 font-medium">Keep your credentials up to date</span>
+            </div>
+
+            <form onSubmit={handleUpdate} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <User size={12} className="text-slate-400" /> Full Name
+                  </label>
                   <input
                     type="text" required
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs transition shadow-sm"
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Mail size={12} className="text-slate-400" /> Email Address
+                  </label>
                   <input
                     type="email" required
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs transition shadow-sm"
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Gender</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <UserCheck size={12} className="text-slate-400" /> Gender
+                  </label>
                   <select
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs cursor-pointer"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs cursor-pointer transition shadow-sm"
                     value={formData.gender}
                     onChange={e => setFormData({ ...formData, gender: e.target.value })}
                   >
@@ -2520,30 +3940,39 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Mobile Number</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Building2 size={12} className="text-slate-400" /> Mobile Number
+                  </label>
                   <input
                     type="tel" placeholder="+91 XXXXX XXXXX"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs transition shadow-sm"
                     value={formData.mobileNo}
                     onChange={e => setFormData({ ...formData, mobileNo: e.target.value })}
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Change Password (Leave blank to keep current)</label>
+
+              <div className="pt-2">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <KeyRound size={12} className="text-amber-400" /> Change Password <span className="text-[9px] text-slate-500 font-normal lowercase">(leave blank to keep current)</span>
+                </label>
                 <input
                   type="password" placeholder="••••••••"
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs transition shadow-sm"
                   value={formData.password}
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
                 />
               </div>
-              <button
-                type="submit" disabled={updating}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition duration-205 text-xs cursor-pointer shadow-md"
-              >
-                {updating ? 'Saving...' : 'Save Profile Changes'}
-              </button>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit" disabled={updating}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition duration-200 text-xs cursor-pointer shadow-lg hover:shadow-blue-500/25 flex items-center gap-2"
+                >
+                  {updating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {updating ? 'Saving Changes...' : 'Save Profile Changes'}
+                </button>
+              </div>
             </form>
           </div>
 
@@ -2594,19 +4023,301 @@ function ProfileTab({ token, profile, fetchProfile, showMessage }) {
 }
 
 // -------------------------------------------------------------
+// COLONY & BUILDINGS MANAGEMENT TAB (SUPER ADMIN ONLY)
+// -------------------------------------------------------------
+function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
+  const [colonies, setColonies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [colonyName, setColonyName] = useState('');
+  const [colonyAddress, setColonyAddress] = useState('');
+  const [blocksInput, setBlocksInput] = useState(''); // comma separated
+  const [selectedColony, setSelectedColony] = useState(null);
+  const [newBuildingName, setNewBuildingName] = useState('');
+  const [buildings, setBuildings] = useState([]);
+  const [loadingBuildings, setLoadingBuildings] = useState(false);
+
+  const fetchColonies = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/apartments`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setColonies(data);
+      }
+    } catch (err) {
+      showMessage('error', 'Failed to fetch colonies.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchBuildings = async (colonyId) => {
+    setLoadingBuildings(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/colony/${colonyId}/buildings`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBuildings(data);
+      }
+    } catch (err) {
+      showMessage('error', 'Failed to fetch buildings.');
+    } finally {
+      setLoadingBuildings(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchColonies();
+  }, []);
+
+  const handleCreateColony = async (e) => {
+    e.preventDefault();
+    if (!colonyName.trim() || !colonyAddress.trim()) {
+      return showMessage('error', 'Colony Name and Address are required.');
+    }
+    const blocksList = blocksInput
+      .split(',')
+      .map(b => b.trim())
+      .filter(b => b.length > 0);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/colony`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: colonyName,
+          address: colonyAddress,
+          buildings: blocksList
+        })
+      });
+      if (res.ok) {
+        showMessage('success', 'Colony created successfully.');
+        setColonyName('');
+        setColonyAddress('');
+        setBlocksInput('');
+        fetchColonies();
+        fetchDashboardData();
+      } else {
+        const txt = await res.text();
+        showMessage('error', txt || 'Failed to create colony.');
+      }
+    } catch (err) {
+      showMessage('error', 'Network error.');
+    }
+  };
+
+  const handleAddBuilding = async (e) => {
+    e.preventDefault();
+    if (!newBuildingName.trim()) return;
+    if (!selectedColony || !selectedColony.id) {
+      return showMessage('error', 'Please select a colony first.');
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/colony/${selectedColony.id}/building`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: newBuildingName })
+      });
+      if (res.ok) {
+        showMessage('success', 'Building added.');
+        setNewBuildingName('');
+        fetchBuildings(selectedColony.id);
+        if (fetchDashboardData) fetchDashboardData();
+      } else {
+        const txt = await res.text();
+        showMessage('error', txt || `Failed to add building (HTTP ${res.status}).`);
+      }
+    } catch (err) {
+      showMessage('error', 'Network error while adding building.');
+    }
+  };
+
+  const handleDeleteBuilding = async (buildingId) => {
+    if (!confirm('Are you sure you want to delete this building?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/building/${buildingId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showMessage('success', 'Building deleted successfully.');
+        fetchBuildings(selectedColony.id);
+        fetchDashboardData();
+      } else {
+        const txt = await res.text();
+        showMessage('error', txt || 'Failed to delete building.');
+      }
+    } catch (err) {
+      showMessage('error', 'Network error.');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Colony & Buildings</h2>
+          <p className="text-xs text-slate-600 dark:text-slate-500">Add communities, colonies or areas, and manage their associated building blocks.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Create Colony Form */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">Add New Colony</h3>
+          <form onSubmit={handleCreateColony} className="space-y-3.5">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Colony / Apartment Name</label>
+              <input
+                type="text" required placeholder="e.g. Green Meadows"
+                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
+                value={colonyName}
+                onChange={e => setColonyName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Address</label>
+              <input
+                type="text" required placeholder="e.g. Sector 4, HSR Layout"
+                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
+                value={colonyAddress}
+                onChange={e => setColonyAddress(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Initial Buildings / Blocks (Comma separated)</label>
+              <input
+                type="text" placeholder="e.g. Block A, Block B, Tower C"
+                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
+                value={blocksInput}
+                onChange={e => setBlocksInput(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition text-xs shadow-md cursor-pointer"
+            >
+              Register Colony
+            </button>
+          </form>
+        </div>
+
+        {/* Colony List */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl md:col-span-2 space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">Registered Colonies</h3>
+          {loading ? (
+            <div className="text-center py-6 text-slate-500 text-xs">Loading...</div>
+          ) : colonies.length === 0 ? (
+            <div className="text-center py-6 text-slate-500 text-xs">No colonies found.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {colonies.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => { setSelectedColony(c); fetchBuildings(c.id); }}
+                  className={`p-4 rounded-xl border cursor-pointer transition ${
+                    selectedColony?.id === c.id
+                      ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-500 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <h4 className="font-bold text-slate-900 dark:text-slate-200 text-xs">{c.name}</h4>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{c.address}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Buildings list under Selected Colony */}
+      {selectedColony && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6 shadow-sm">
+          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">
+                Manage Buildings under: <span className="text-blue-600 dark:text-blue-400 font-extrabold normal-case">{selectedColony.name}</span>
+              </h3>
+              <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">Add or remove building blocks/towers in this colony.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Add Building Form */}
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-xl space-y-3">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Add Building / Block</h4>
+              <form onSubmit={handleAddBuilding} className="space-y-3">
+                <input
+                  type="text" required placeholder="e.g. Block D"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
+                  value={newBuildingName}
+                  onChange={e => setNewBuildingName(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition text-xs shadow-sm cursor-pointer"
+                >
+                  Add Building
+                </button>
+              </form>
+            </div>
+
+            {/* Buildings List */}
+            <div className="md:col-span-2 space-y-3">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Buildings / Blocks</h4>
+              {loadingBuildings ? (
+                <div className="text-slate-500 text-xs">Loading buildings...</div>
+              ) : buildings.length === 0 ? (
+                <div className="text-slate-500 text-xs">No buildings in this colony.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {buildings.map(b => (
+                    <div key={b.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center justify-between group">
+                      <span className="text-xs text-slate-900 dark:text-slate-300 font-bold">{b.name}</span>
+                      <button
+                        onClick={() => handleDeleteBuilding(b.id)}
+                        className="text-rose-600 hover:text-rose-500 dark:text-rose-500 dark:hover:text-rose-400 text-[10px] uppercase font-bold tracking-wider opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
 // PLACEHOLDER TAB FOR LATER WEEKS (3-8)
+// -------------------------------------------------------------
+// NEW AND IMPLEMENTED TABS (TARIFFS, BILLING, TANKERS, INVOICES, ALERTS, CALCULATOR)
 // -------------------------------------------------------------
 function PlaceholderTab({ tabName }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center space-y-3">
-      <div className="bg-slate-950/65 border border-slate-800 p-4 rounded-full w-14 h-14 flex items-center justify-center mx-auto text-blue-400 shadow-md">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center space-y-3 shadow-sm">
+      <div className="bg-blue-50 dark:bg-slate-950/65 border border-blue-200 dark:border-slate-800 p-4 rounded-full w-14 h-14 flex items-center justify-center mx-auto text-blue-600 dark:text-blue-400 shadow-md">
         <Activity size={24} />
       </div>
       <div>
-        <h3 className="font-bold text-slate-100 text-sm tracking-wide uppercase capitalize">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm tracking-wide uppercase capitalize">
           {tabName.replace('_', ' ')} Panel
         </h3>
-        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-2">
+        <p className="text-xs text-slate-600 dark:text-slate-500 max-w-sm mx-auto mt-2 font-medium">
           This feature is scheduled for implementation in a later module cycle (Weeks 3 to 8). Week 1-2 core REST APIs and client views are fully functional.
         </p>
       </div>
@@ -2615,1154 +4326,54 @@ function PlaceholderTab({ tabName }) {
 }
 
 // -------------------------------------------------------------
-// WATER GRID NETWORK BACKGROUND ANIMATION
-// -------------------------------------------------------------
-function WaterGridCanvas() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
-
-    const particleCount = 35;
-    const particles = [];
-
-    for (let i = 0; i < particleCount; i++) {
-      particles.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        radius: Math.random() * 2 + 1,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw lines
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i < particleCount; i++) {
-        const p1 = particles[i];
-        for (let j = i + 1; j < particleCount; j++) {
-          const p2 = particles[j];
-          const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-          if (dist < 120) {
-            const alpha = (1 - dist / 120) * 0.18;
-            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // Draw points
-      for (let i = 0; i < particleCount; i++) {
-        const p = particles[i];
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Update positions
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // Bounce boundaries
-        if (p.x < 0 || p.x > width) p.vx *= -1;
-        if (p.y < 0 || p.y > height) p.vy *= -1;
-      }
-
-      animationFrameId = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-70 animate-fade-in"
-    />
-  );
-}
-
-function BubblesCanvas() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
-
-    const bubbleCount = 25;
-    const bubbles = [];
-
-    for (let i = 0; i < bubbleCount; i++) {
-      bubbles.push({
-        x: Math.random() * width,
-        y: height + Math.random() * 100,
-        radius: Math.random() * 8 + 3,
-        speed: Math.random() * 0.8 + 0.3,
-        opacity: Math.random() * 0.2 + 0.05,
-        wobbleSpeed: Math.random() * 0.02 + 0.01,
-        wobbleRange: Math.random() * 1.5 + 0.5,
-        angle: Math.random() * Math.PI,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      for (let i = 0; i < bubbleCount; i++) {
-        const b = bubbles[i];
-        ctx.strokeStyle = `rgba(56, 189, 248, ${b.opacity})`;
-        ctx.fillStyle = `rgba(56, 189, 248, ${b.opacity * 0.4})`;
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        ctx.arc(b.x + Math.sin(b.angle) * b.wobbleRange, b.y, b.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Update position
-        b.y -= b.speed;
-        b.angle += b.wobbleSpeed;
-
-        // Recycle
-        if (b.y < -b.radius * 2) {
-          b.y = height + Math.random() * 100;
-          b.x = Math.random() * width;
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-80 animate-fade-in"
-    />
-  );
-}
-
-function RaindropsCanvas() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
-
-    const dropCount = 45;
-    const drops = [];
-
-    for (let i = 0; i < dropCount; i++) {
-      drops.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        length: Math.random() * 15 + 10,
-        speed: Math.random() * 4 + 2,
-        opacity: Math.random() * 0.15 + 0.05,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1;
-
-      for (let i = 0; i < dropCount; i++) {
-        const d = drops[i];
-        ctx.globalAlpha = d.opacity;
-        ctx.beginPath();
-        ctx.moveTo(d.x, d.y);
-        ctx.lineTo(d.x + 1, d.y + d.length);
-        ctx.stroke();
-
-        // Update position
-        d.y += d.speed;
-        d.x += 0.2; // light diagonal wind
-
-        // Loop around
-        if (d.y > height) {
-          d.y = -d.length;
-          d.x = Math.random() * width;
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-80 animate-fade-in"
-    />
-  );
-}
-
-// -------------------------------------------------------------
-function InviteVerificationView({ inviteToken, showMessage, darkMode, toggleDarkMode }) {
-  const [formData, setFormData] = useState({ gender: 'Male', mobileNo: '+91 ', alternateNo: '' });
-  const [invitationDetails, setInvitationDetails] = useState(null);
-  const [docs, setDocs] = useState({ documentAadhar: null, documentPhoto: null });
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [completed, setCompleted] = useState(false);
-
-  useEffect(() => {
-    const fetchInviteDetails = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/invitation/${inviteToken}`);
-        if (response.ok) {
-          const data = await response.json();
-          setInvitationDetails(data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch invitation details.');
-      }
-    };
-    if (inviteToken) fetchInviteDetails();
-  }, [inviteToken]);
-
-  const handleFileChange = (e, field) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-         showMessage('error', 'File size exceeds 10MB limit. Please choose a smaller file.');
-         return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (file.type.startsWith('image/')) {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 1000;
-            const MAX_HEIGHT = 1000;
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            setDocs(prev => ({ ...prev, [field]: dataUrl }));
-          };
-          img.src = reader.result;
-        } else {
-          setDocs(prev => ({ ...prev, [field]: reader.result }));
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleRegistration = async (e) => {
-    e.preventDefault();
-    if (!formData.mobileNo || formData.mobileNo.replace(/\\D/g, '').length < 12) {
-      return showMessage('error', 'Please enter a valid mobile number with country code (e.g. +91 9876543210).');
-    }
-    if (!docs.documentAadhar || !docs.documentPhoto) {
-      return showMessage('error', 'Please upload both Aadhar/PAN and a recent photo.');
-    }
-    if (password.length < 6) {
-      return showMessage('error', 'Password must be at least 6 characters.');
-    }
-
-    setLoading(true);
-    try {
-      // Step 1: Submit Documents & Details
-      const verifyRes = await fetch(`${API_BASE_URL}/api/auth/verify-invitation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: inviteToken,
-          ...docs,
-          ...formData
-        })
-      });
-
-      if (!verifyRes.ok) {
-        const text = await verifyRes.text();
-        throw new Error(text || 'Document verification failed.');
-      }
-
-      // Step 2: Set password & complete registration
-      const registerRes = await fetch(`${API_BASE_URL}/api/auth/register-invited`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: inviteToken,
-          password: password
-        })
-      });
-
-      if (!registerRes.ok) {
-        const text = await registerRes.text();
-        throw new Error(text || 'Registration password save failed.');
-      }
-
-      showMessage('success', 'Registration completed successfully!');
-      setCompleted(true);
-    } catch (err) {
-      showMessage('error', err.message || 'Network failure.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (completed) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 p-6 relative overflow-hidden">
-        <BubblesCanvas />
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 p-10 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl relative z-10 animate-fade-in-up">
-          <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-            <CheckCircle2 size={40} />
-          </div>
-          <h2 className="text-3xl font-black bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">Welcome Home!</h2>
-          <p className="text-slate-400 text-sm leading-relaxed">Your account has been successfully set up and is now pending admin approval. You can log in to check your status.</p>
-          <button onClick={() => window.location.href = '/'} className="w-full py-4 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 p-6 relative overflow-y-auto">
-      <WaterGridCanvas />
-      
-      <div className="bg-slate-900/70 backdrop-blur-2xl border border-slate-800/60 p-8 rounded-[2rem] max-w-lg w-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative z-10 my-8 transition-all duration-500">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner border border-amber-500/20">
-            <UserPlus size={32} />
-          </div>
-          <h2 className="text-3xl font-black bg-gradient-to-r from-amber-200 via-orange-300 to-amber-500 bg-clip-text text-transparent mb-2">Register Yourself</h2>
-          <p className="text-slate-400 text-xs">Please complete your details to register</p>
-        </div>
-
-        <form onSubmit={handleRegistration} className="space-y-6">
-          
-          {/* Section 0: Invitation Details (Read-only) */}
-          {invitationDetails && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-amber-400 border-b border-slate-800 pb-2 uppercase tracking-wider">Pre-filled Invitation Details</h3>
-              <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Name</p>
-                    <input type="text" readOnly disabled value={invitationDetails.name} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-800/80 rounded-lg text-slate-400 text-xs cursor-not-allowed" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Email</p>
-                    <input type="text" readOnly disabled value={invitationDetails.email} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-800/80 rounded-lg text-slate-400 text-xs cursor-not-allowed truncate" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Apartment / Flat</p>
-                  <input type="text" readOnly disabled value={`${invitationDetails.apartmentName}, Block ${invitationDetails.block}, Flat ${invitationDetails.flatNumber}`} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-800/80 rounded-lg text-slate-400 text-xs cursor-not-allowed" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 1: Personal Info */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-amber-400 border-b border-slate-800 pb-2 uppercase tracking-wider">1. Personal Information</h3>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
-              <div className="flex bg-slate-950/50 p-1.5 rounded-xl border border-slate-800/80">
-                {['Male', 'Female', 'Other'].map(g => (
-                  <button
-                    key={g} type="button"
-                    onClick={() => setFormData({...formData, gender: g})}
-                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition ${formData.gender === g ? 'bg-slate-800 text-amber-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mobile Number</label>
-                <input
-                  type="tel" required placeholder="9876543210" pattern="(\+[0-9]{1,3}\s?)?[0-9]{10}"
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                  value={formData.mobileNo}
-                  onChange={e => setFormData({...formData, mobileNo: e.target.value})}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Alternate No</label>
-                <input
-                  type="tel" placeholder="Optional"
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                  value={formData.alternateNo}
-                  onChange={e => setFormData({...formData, alternateNo: e.target.value})}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Verification Documents */}
-          <div className="space-y-5">
-            <h3 className="text-xs font-bold text-amber-400 border-b border-slate-800 pb-2 uppercase tracking-wider">2. Identity Verification</h3>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Govt ID (Aadhar / PAN)</label>
-                <div className={`relative overflow-hidden border-2 border-dashed ${docs.documentAadhar ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-slate-700 bg-slate-900/50'} rounded-2xl p-5 text-center cursor-pointer hover:border-amber-500/50 hover:bg-slate-800/50 transition-all duration-300 group shadow-inner h-44 flex flex-col items-center justify-center`}>
-                  <input type="file" accept="image/*,.pdf" onChange={e => handleFileChange(e, 'documentAadhar')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                  <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full">
-                    {docs.documentAadhar ? (
-                      docs.documentAadhar.startsWith('data:image') ? (
-                        <div className="relative w-full h-full flex flex-col items-center justify-center">
-                          <img src={docs.documentAadhar} className="w-full h-20 object-contain rounded-lg drop-shadow-[0_5px_15px_rgba(16,185,129,0.15)] mb-2" />
-                          <span className="bg-emerald-500/20 text-emerald-400 text-[10px] py-1 px-3 rounded-full font-semibold inline-flex items-center gap-1"><CheckCircle2 size={12}/> Verified</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center">
-                          <FileText className="text-emerald-400 mb-2 drop-shadow-md" size={40} />
-                          <span className="text-emerald-300 text-xs font-bold">PDF Selected</span>
-                          <span className="text-[10px] text-emerald-500/80 mt-1 font-medium">Click to replace</span>
-                        </div>
-                      )
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 bg-slate-800/80 rounded-full flex items-center justify-center group-hover:bg-amber-500/20 group-hover:scale-110 transition-all duration-300 mb-3 shadow-md">
-                          <UploadCloud className="text-slate-400 group-hover:text-amber-400 transition-colors" size={24} />
-                        </div>
-                        <span className="text-slate-300 text-sm font-bold group-hover:text-amber-300">Upload ID Document</span>
-                        <span className="text-slate-500 text-[10px] mt-1">JPEG, PNG, or PDF</span>
-                        <span className="text-slate-600 text-[9px] mt-0.5">Max size 10MB</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Recent Photo</label>
-                <div className={`relative overflow-hidden border-2 border-dashed ${docs.documentPhoto ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-slate-700 bg-slate-900/50'} rounded-2xl p-5 text-center cursor-pointer hover:border-amber-500/50 hover:bg-slate-800/50 transition-all duration-300 group shadow-inner h-44 flex flex-col items-center justify-center`}>
-                  <input type="file" accept="image/*" onChange={e => handleFileChange(e, 'documentPhoto')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                  <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full">
-                    {docs.documentPhoto ? (
-                      <div className="relative w-full h-full flex flex-col items-center justify-center">
-                        <img src={docs.documentPhoto} className="w-20 h-20 object-cover rounded-full border-2 border-emerald-500/50 drop-shadow-[0_5px_15px_rgba(16,185,129,0.15)] mb-2" />
-                        <span className="bg-emerald-500/20 text-emerald-400 text-[10px] py-1 px-3 rounded-full font-semibold inline-flex items-center gap-1"><CheckCircle2 size={12}/> Verified</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 bg-slate-800/80 rounded-full flex items-center justify-center group-hover:bg-amber-500/20 group-hover:scale-110 transition-all duration-300 mb-3 shadow-md">
-                          <Camera className="text-slate-400 group-hover:text-amber-400 transition-colors" size={24} />
-                        </div>
-                        <span className="text-slate-300 text-sm font-bold group-hover:text-amber-300">Upload Selfie</span>
-                        <span className="text-slate-500 text-[10px] mt-1">JPEG or PNG</span>
-                        <span className="text-slate-600 text-[9px] mt-0.5">Max size 10MB</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Password */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-amber-400 border-b border-slate-800 pb-2 uppercase tracking-wider">3. Secure Your Account</h3>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Create Password</label>
-              <div className="relative">
-                <KeyRound size={16} className="absolute left-4 top-3.5 text-slate-500" />
-                <input
-                  type="password" required placeholder="••••••••" minLength={6}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          
-          <button type="submit" disabled={loading} className="w-full py-4 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white font-bold rounded-xl text-sm transition duration-300 shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2">
-            {loading ? 'Registering...' : <>Complete Registration & Submit <ChevronRight size={18} /></>}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
-// COMMUNITY ADMIN DOCUMENT VERIFICATION VIEW
-// -------------------------------------------------------------
-function CommunityAdminVerifyView({ userId, showMessage, onComplete, darkMode }) {
-  const [formData, setFormData] = useState({ gender: 'Male', mobileNo: '+91 ', alternateNo: '' });
-  const [docs, setDocs] = useState({ documentAadhar: null, documentPhoto: null });
-  const [loading, setLoading] = useState(false);
-  const [completed, setCompleted] = useState(false);
-
-  const handleFileChange = (e, field) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { showMessage('error', 'File too large (max 10MB).'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (file.type.startsWith('image/')) {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX = 1000;
-          let w = img.width, h = img.height;
-          if (w > MAX) { h = h * MAX / w; w = MAX; }
-          if (h > MAX) { w = w * MAX / h; h = MAX; }
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          setDocs(prev => ({ ...prev, [field]: canvas.toDataURL('image/jpeg', 0.7) }));
-        };
-        img.src = reader.result;
-      } else {
-        setDocs(prev => ({ ...prev, [field]: reader.result }));
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.mobileNo || formData.mobileNo.replace(/\\D/g, '').length < 12) return showMessage('error', 'Please enter a valid mobile number with country code (e.g. +91 9876543210).');
-    if (!docs.documentAadhar || !docs.documentPhoto) return showMessage('error', 'Please upload both Aadhar/PAN and photograph.');
-    
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/verify-admin-docs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: String(userId), ...docs, ...formData })
-      });
-      if (res.ok) { 
-        setCompleted(true); 
-        showMessage('success', 'Documents submitted! Awaiting Super Admin approval.'); 
-      } else { 
-        const txt = await res.text(); 
-        showMessage('error', txt || 'Submission failed.'); 
-      }
-    } catch { 
-      showMessage('error', 'Network error.'); 
-    } finally { 
-      setLoading(false); 
-    }
-  };
-
-  if (completed) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
-      <BubblesCanvas />
-      <div className="relative z-10 bg-slate-900/80 backdrop-blur-2xl border border-violet-500/20 p-10 rounded-3xl max-w-md w-full text-center space-y-5 shadow-2xl">
-        <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto"><CheckCircle2 size={40} className="text-emerald-400" /></div>
-        <h2 className="text-3xl font-black bg-gradient-to-r from-emerald-300 to-teal-200 bg-clip-text text-transparent">All Done!</h2>
-        <p className="text-slate-400 text-sm leading-relaxed">Your documents have been submitted. A Super Admin will review and approve your account. You'll be notified by email once approved.</p>
-        <button onClick={onComplete} className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 text-white font-bold rounded-xl transition">Go to Login</button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-y-auto text-slate-100">
-      <WaterGridCanvas />
-      
-      <div className="relative z-10 bg-slate-900/70 backdrop-blur-2xl border border-violet-500/20 p-8 rounded-[2rem] max-w-lg w-full my-8 shadow-[0_20px_60px_rgba(109,40,217,0.15)] animate-fade-in">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-violet-600/20 to-indigo-500/10 border border-violet-500/20 text-violet-400 rounded-2xl flex items-center justify-center mx-auto mb-5"><ShieldAlert size={32} /></div>
-          <h2 className={`text-3xl font-black bg-gradient-to-r bg-clip-text text-transparent mb-2 ${darkMode ? 'from-violet-200 via-indigo-300 to-violet-400' : 'from-violet-700 via-indigo-700 to-violet-800'}`}>Admin Verification</h2>
-          <p className="text-slate-400 text-xs">Please submit your details for verification</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* Section 1: Personal Info */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-violet-400 border-b border-slate-800 pb-2 uppercase tracking-wider">1. Personal Information</h3>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
-              <div className="flex bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
-                {['Male', 'Female', 'Other'].map(g => (
-                  <button key={g} type="button" onClick={() => setFormData({...formData, gender: g})}
-                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition ${formData.gender === g ? 'bg-violet-800/60 text-violet-300 border border-violet-700/50' : 'text-slate-500 hover:text-slate-300'}`}>{g}</button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mobile Number *</label>
-                <input type="tel" required placeholder="9876543210" pattern="(\+[0-9]{1,3}\s?)?[0-9]{10}"
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                  value={formData.mobileNo} onChange={e => setFormData({...formData, mobileNo: e.target.value})} />
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Alternate No</label>
-                <input type="tel" placeholder="Optional"
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800/80 focus:border-violet-500/50 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                  value={formData.alternateNo} onChange={e => setFormData({...formData, alternateNo: e.target.value})} />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Identity Documents */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-violet-400 border-b border-slate-800 pb-2 uppercase tracking-wider">2. Identity Documents</h3>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Govt ID — Aadhar / PAN</label>
-              <div className={`relative overflow-hidden border-2 border-dashed ${docs.documentAadhar ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-slate-700 bg-slate-950/40'} rounded-2xl p-6 text-center cursor-pointer hover:border-violet-500/50 transition group`}>
-                <input type="file" accept="image/*,.pdf" onChange={e => handleFileChange(e, 'documentAadhar')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                <div className="flex flex-col items-center justify-center pointer-events-none">
-                  {docs.documentAadhar ? (
-                    docs.documentAadhar.startsWith('data:image') ? (
-                      <div className="relative"><img src={docs.documentAadhar} className="w-32 h-24 object-cover rounded-xl border border-emerald-500/40 mb-2 mx-auto" /><div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full"><Check size={12}/></div></div>
-                    ) : <><FileText className="text-emerald-400 mb-2" size={36}/><span className="text-emerald-300 text-xs font-bold">PDF Uploaded ✓</span></>
-                  ) : <><UploadCloud className="text-slate-500 group-hover:text-violet-400 mb-3 transition" size={36}/><span className="text-slate-300 text-sm font-bold group-hover:text-violet-300">Upload ID Document</span><span className="text-slate-500 text-[10px] mt-1">JPEG, PNG or PDF — Max 10MB</span></>}
-                  {docs.documentAadhar && <span className="text-[10px] text-emerald-500/70 mt-3">Click to replace</span>}
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Recent Photograph</label>
-              <div className={`relative overflow-hidden border-2 border-dashed ${docs.documentPhoto ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-slate-700 bg-slate-950/40'} rounded-2xl p-6 text-center cursor-pointer hover:border-violet-500/50 transition group`}>
-                <input type="file" accept="image/*" onChange={e => handleFileChange(e, 'documentPhoto')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                <div className="flex flex-col items-center justify-center pointer-events-none">
-                  {docs.documentPhoto ? (
-                    <div className="relative"><img src={docs.documentPhoto} className="w-24 h-24 object-cover rounded-full border-2 border-emerald-500/40 mb-2 mx-auto" /><div className="absolute bottom-0 right-0 bg-emerald-500 text-white p-1 rounded-full"><Check size={12}/></div></div>
-                  ) : <><Camera className="text-slate-500 group-hover:text-violet-400 mb-3 transition" size={36}/><span className="text-slate-300 text-sm font-bold group-hover:text-violet-300">Upload Selfie / Photo</span><span className="text-slate-500 text-[10px] mt-1">JPEG or PNG — Max 10MB</span></>}
-                  {docs.documentPhoto && <span className="text-[10px] text-emerald-500/70 mt-3">Click to replace</span>}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className={`border rounded-xl p-4 text-[11px] leading-relaxed ${darkMode ? 'bg-violet-900/10 border-violet-500/20 text-violet-300/80' : 'bg-violet-100 border-violet-200 text-violet-800'}`}>
-            <strong className={darkMode ? 'text-violet-300' : 'text-violet-900'}>Account Safety:</strong> Document verification ensures platforms integrity. Your details are secured and are only shared with platform developers for account vetting.
-          </div>
-
-          <button type="submit" disabled={loading} className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 text-white font-bold rounded-xl text-sm transition shadow-lg flex items-center justify-center gap-2">
-            {loading ? 'Submitting...' : <>Submit for Review <ChevronRight size={18} /></>}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
-// AUTH REGISTER & LOGIN VIEW COMPONENT
-// -------------------------------------------------------------
-function AuthView({ setToken, message, showMessage, darkMode, toggleDarkMode }) {
-  const [view, setView] = useState('landing'); // 'landing', 'login', 'register', 'admin_verify'
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'ROLE_COMMUNITY_ADMIN', gender: '', mobileNo: '+91 ' });
-  const [loading, setLoading] = useState(false);
-  const [waterFill, setWaterFill] = useState(55);
-  const [bgAnimation, setBgAnimation] = useState('bubbles');
-  const [adminVerifyUserId, setAdminVerifyUserId] = useState(null);
-
-  useEffect(() => {
-    let tick = 0;
-    const interval = setInterval(() => {
-      tick += 0.04;
-      // Oscillate smoothly between 42% and 78%
-      const value = Math.round(60 + Math.sin(tick) * 18);
-      setWaterFill(value);
-    }, 120);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const endpoint = view === 'login' ? '/api/auth/login' : '/api/auth/register';
-    const bodyPayload = view === 'login' 
-      ? { email: formData.email, password: formData.password }
-      : { name: formData.name, email: formData.email, password: formData.password, role: formData.role, gender: formData.gender, mobileNo: formData.mobileNo };
-
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
-
-      if (response.ok) {
-        if (view === 'login') {
-          const data = await response.json();
-          localStorage.setItem('jwt_token', data.token);
-          setToken(data.token);
-          showMessage('success', 'Successfully authenticated!');
-        } else {
-          const data = await response.json().catch(() => null);
-          // Community admin registration requires doc verification
-          if (data && data.requiresVerification && data.userId) {
-            setAdminVerifyUserId(data.userId);
-            setView('admin_verify');
-            showMessage('success', 'Account created! Please upload your verification documents.');
-          } else {
-            showMessage('success', 'Registration completed successfully! Please sign in.');
-            setView('login');
-          }
-        }
-      } else {
-        const errorText = await response.text();
-        if (response.status === 403 || errorText.toLowerCase().includes("pending approval")) {
-          showMessage('info', 'Your registration is complete! Please wait until the community admin reviews and approves your document verification.');
-        } else {
-          showMessage('error', errorText || 'Verification failed.');
-        }
-      }
-    } catch (err) {
-      showMessage('error', 'Could not establish connection to the Spring Boot REST server.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Render Community Admin doc verification view
-  if (view === 'admin_verify' && adminVerifyUserId) {
-    return <CommunityAdminVerifyView userId={adminVerifyUserId} showMessage={showMessage} onComplete={() => setView('login')} darkMode={darkMode} />;
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-y-auto text-slate-100 font-sans">
-      
-      {/* Inline styles for circular wave animations */}
-      <style>{`
-        @keyframes waveLeft {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes waveRight {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(50%); }
-        }
-      `}</style>
-
-      {/* Dynamic Background Animation Canvas Overlay */}
-      {bgAnimation === 'grid' && <WaterGridCanvas />}
-      {bgAnimation === 'bubbles' && <BubblesCanvas />}
-      {bgAnimation === 'rain' && <RaindropsCanvas />}
-
-      {/* Header Banner inspired by FlowReporter (Premium Dark Slate with thin Amber/Blue edge) */}
-      <header className="bg-slate-900 border-b border-blue-500/20 px-6 py-4 flex items-center justify-between z-10 shadow-lg relative">
-        <div className="flex items-center gap-3.5">
-          <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/10">
-            <Droplets size={26} className="animate-pulse" />
-          </div>
-          <div className="flex items-center gap-0.5">
-            <span className="text-xl font-black tracking-tight text-slate-100">Aqua</span>
-            <span className="text-xl font-black tracking-tight bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">Track</span>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest font-bold text-slate-500 hidden sm:block">
-          <span>Smart Water Solutions</span>
-        </div>
-        <button
-          onClick={toggleDarkMode}
-          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-slate-100 transition"
-        >
-          {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-      </header>
-
-      {/* Dynamic Animated Background Blobs for Glass Refraction */}
-      <div className="liquid-blob blob-blue top-[10%] left-[5%]"></div>
-      <div className="liquid-blob blob-cyan bottom-[15%] right-[10%]"></div>
-      <div className="liquid-blob blob-indigo top-[40%] left-[35%]"></div>
-
-      {/* Main Container splits into Left (Info) and Right (Visuals/Form) */}
-      <div className="flex-grow max-w-6xl w-full mx-auto flex flex-col md:flex-row items-center justify-center px-6 py-16 md:py-24 gap-12 md:gap-16 z-10">
-        
-        {/* Left Side: Intelligent Water Management Info Panel */}
-        <div className="flex-1 space-y-6 text-center md:text-left max-w-lg">
-          <div className="flex items-center gap-3.5 justify-center md:justify-start">
-            <div className="bg-blue-600/20 p-3 rounded-2xl border border-blue-500/20">
-              <Droplets size={38} className="text-blue-400 animate-bounce" />
-            </div>
-            <h2 className="text-4xl font-black tracking-tight text-slate-100 flex items-center gap-0.5">
-              Aqua<span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent font-black">Track</span>
-            </h2>
-          </div>
-
-          <h3 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
-            <span className="text-intelligent-gradient font-black">Intelligent</span>
-            <span className="text-slate-100"> Water Management</span>
-          </h3>
-          
-          <p className="text-slate-400 text-sm leading-relaxed">
-            AquaTrack lets you monitor and control your water consumption, track meter readings, and manage community allocation from anywhere in the world.
-          </p>
-          {/* Premium styled Feature Cards */}
-          <div className="space-y-3.5 pl-1">
-            <div className="glass-liquid-card p-3.5 rounded-2xl flex items-start gap-3.5">
-              <div className="p-2 rounded-xl text-blue-400 bg-blue-950/40 border border-blue-800/20 shrink-0">
-                <ShieldAlert size={16} />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Real-Time Leak Alerts</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">Powered by advanced sensors to detect abnormal water flows instantly.</p>
-              </div>
-            </div>
-
-            <div className="glass-liquid-card p-3.5 rounded-2xl flex items-start gap-3.5">
-              <div className="p-2 rounded-xl text-blue-400 bg-blue-950/40 border border-blue-800/20 shrink-0">
-                <Activity size={16} />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Remote Consumption Tracker</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">Track multi-location flat water usage seamlessly in one central hub.</p>
-              </div>
-            </div>
-
-            <div className="glass-liquid-card p-3.5 rounded-2xl flex items-start gap-3.5">
-              <div className="p-2 rounded-xl text-blue-400 bg-blue-950/40 border border-blue-800/20 shrink-0">
-                <DollarSign size={16} />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Automated Smart Valve</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">Custom configurations to help you <span className="text-blue-400 font-semibold">save money</span> and mitigate water damage.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Wave Circle Visuals OR Form Cards */}
-        <div className="w-full max-w-sm flex flex-col items-center">
-          {view === 'landing' ? (
-            <div className="space-y-8 w-full text-center">
-              
-              {/* Circular Water Visual (matching FlowReporter) */}
-              <div className="relative w-56 h-56 mx-auto group">
-                {/* Glowing drop shadow behind circle */}
-                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl opacity-30 group-hover:opacity-50 transition-all duration-500 group-hover:scale-105"></div>
-                
-                {/* Image Container with premium smart-meter device bezel frame */}
-                <div className="relative w-full h-full bg-white rounded-full border-[10px] border-slate-900 shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:scale-105 group-hover:ring-8 group-hover:ring-blue-500/20">
-                  {/* FlowReporter GIF Visual */}
-                  <img 
-                    src="https://flowreporter.com/images/fr_landing_water.gif" 
-                    alt="Animated Fluid Circle" 
-                    className="w-full h-full rounded-full object-cover select-none pointer-events-none"
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons matching FlowReporter layout */}
-              <div className="space-y-3.5 w-full">
-                <button
-                  onClick={() => setView('login')}
-                  className="w-full py-3.5 btn-liquid-secondary border rounded-xl font-bold text-xs cursor-pointer shadow-md active:scale-98"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => setView('register')}
-                  className="w-full py-3.5 btn-liquid-primary text-white font-bold rounded-xl text-xs cursor-pointer shadow-lg active:scale-98"
-                >
-                  Create your account
-                </button>
-              </div>
-
-              <div className="text-xs text-slate-500">
-                Don't have a device?{' '}
-                <a href="mailto:rahulamp2003@gmail.com?subject=AquaTrack%20Device%20Inquiry" className="text-blue-400 hover:text-blue-300 font-medium underline">
-                  Contact us to discover more.
-                </a>
-              </div>
-
-            </div>
-          ) : (
-            // Glassmorphic Auth Form Wrapper
-            <div className="glass-liquid-card p-8 rounded-[2rem] w-full shadow-[0_20px_50px_rgba(0,0,0,0.15)]">
-              <div className="flex flex-col items-center mb-6">
-                <h3 className="text-xl font-black bg-gradient-to-r from-sky-400 via-sky-300 to-blue-200 bg-clip-text text-transparent">
-                  {view === 'login' ? 'Sign In' : 'Register Account'}
-                </h3>
-                <p className="text-[9px] uppercase tracking-wider text-slate-500 mt-1">
-                  {view === 'login' ? 'Enter credentials' : 'Choose security role'}
-                </p>
-              </div>
-
-              {message && message.text && (
-                <div className={`p-4 rounded-xl border mb-5 flex items-start gap-3 text-xs leading-relaxed ${
-                  message.type === 'error' 
-                    ? (darkMode 
-                        ? 'bg-rose-950/20 border-rose-500/30 text-rose-200' 
-                        : 'bg-rose-50 border-rose-200 text-rose-800') 
-                    : message.type === 'info'
-                      ? (darkMode 
-                          ? 'bg-blue-950/30 border-blue-500/30 text-blue-200' 
-                          : 'bg-blue-50 border-blue-200 text-blue-800')
-                      : (darkMode 
-                          ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' 
-                          : 'bg-emerald-50 border-emerald-200 text-emerald-800')
-                }`}>
-                  {message.type === 'error' ? (
-                    <AlertCircle size={18} className={darkMode ? "text-rose-400 shrink-0 mt-0.5" : "text-rose-700 shrink-0 mt-0.5"} />
-                  ) : message.type === 'info' ? (
-                    <Info size={18} className={darkMode ? "text-blue-400 shrink-0 mt-0.5" : "text-blue-700 shrink-0 mt-0.5"} />
-                  ) : (
-                    <CheckCircle2 size={18} className={darkMode ? "text-emerald-400 shrink-0 mt-0.5" : "text-emerald-700 shrink-0 mt-0.5"} />
-                  )}
-                  <span className="font-bold flex-1">{message.text}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {view === 'register' && (
-                  <div className="space-y-1.5">
-                    <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Full Name</label>
-                    <div className="relative">
-                      <User size={15} className="absolute left-3.5 top-3.5 text-slate-500" />
-                      <input
-                        type="text" required placeholder="John Doe"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                        value={formData.name}
-                        onChange={e => setFormData({...formData, name: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {view === 'register' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Gender</label>
-                      <select
-                        className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl text-slate-350 text-xs focus:outline-none cursor-pointer"
-                        value={formData.gender}
-                        onChange={e => setFormData({...formData, gender: e.target.value})}
-                      >
-                        <option value="">Select gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Mobile No.</label>
-                      <input
-                        type="tel" placeholder="+91 XXXXX XXXXX"
-                        className="w-full px-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                        value={formData.mobileNo}
-                        onChange={e => setFormData({...formData, mobileNo: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Email Address</label>
-                  <div className="relative">
-                    <Mail size={15} className="absolute left-3.5 top-3.5 text-slate-500" />
-                    <input
-                      type="email" required placeholder="you@example.com"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                      value={formData.email}
-                      onChange={e => setFormData({...formData, email: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Password</label>
-                  <div className="relative">
-                    <KeyRound size={15} className="absolute left-3.5 top-3.5 text-slate-500" />
-                    <input
-                      type="password" required placeholder="••••••••"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-blue-550 focus:ring-1 focus:ring-blue-500 rounded-xl text-slate-200 placeholder-slate-650 focus:outline-none transition text-xs"
-                      value={formData.password}
-                      onChange={e => setFormData({...formData, password: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                {view === 'register' && (
-                  <div className="space-y-1.5">
-                    <label className="block text-[9px] font-bold text-slate-455 uppercase tracking-wider pl-1">Account Role</label>
-                    <select
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl text-slate-350 text-xs focus:outline-none cursor-pointer"
-                      value={formData.role}
-                      onChange={e => setFormData({...formData, role: e.target.value})}
-                    >
-                      <option value="ROLE_COMMUNITY_ADMIN">Community Admin</option>
-                      <option value="ROLE_ADMIN">Super Admin</option>
-                    </select>
-                  </div>
-                )}
-
-                <button
-                  type="submit" disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-655 hover:from-blue-550 hover:to-indigo-550 text-white font-bold py-3.5 rounded-xl transition duration-350 text-xs flex justify-center items-center shadow-lg cursor-pointer"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={16} /> : (view === 'login' ? 'Sign In' : 'Create Account')}
-                </button>
-              </form>
-
-              {/* Navigation buttons inside Form Panel */}
-              <div className="mt-5 flex flex-col gap-3 text-center border-t border-slate-800/80 pt-4">
-                <button
-                  onClick={() => setView(view === 'login' ? 'register' : 'login')}
-                  className="text-xs text-blue-400 font-bold hover:text-blue-300 transition"
-                >
-                  {view === 'login' ? 'Need an account? Register here' : 'Already registered? Sign in here'}
-                </button>
-                <button
-                  onClick={() => setView('landing')}
-                  className="text-[11px] text-slate-500 font-semibold hover:text-slate-400 transition"
-                >
-                  ← Back to landing page
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Premium Footer at the very bottom */}
-      <footer className="w-full bg-slate-900/60 backdrop-blur-md border-t border-blue-500/10 py-10 px-6 mt-auto z-10 relative shrink-0">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
-          {/* Brand Col */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-center md:justify-start gap-2">
-              <Droplets size={20} className="text-blue-400" />
-              <span className="font-black tracking-tight text-slate-100">Aqua<span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent font-black">Track</span></span>
-            </div>
-            <p className="text-xs text-slate-500 max-w-xs mx-auto md:mx-0">
-              Smart community water management and remote consumption tracking. Ensuring water efficiency for modern societies.
-            </p>
-          </div>
-          
-          {/* Quick Links Col */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-widest">Solutions</h4>
-            <div className="flex flex-col gap-2 text-xs text-slate-500">
-              <span>Automatic Leak Detection</span>
-              <span>Individual Flat Billing</span>
-              <span>Community Allocations</span>
-            </div>
-          </div>
-          
-          {/* Contact Col */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-widest">Contact & Support</h4>
-            <div className="text-xs text-slate-500 space-y-1.5">
-              <p>Email: <a href="mailto:support@aquatrack.com" className="text-blue-400 hover:underline">rahulamp2003@gmail.com</a></p>
-              <p>Device Queries: <a href="mailto:rahulamp2003@gmail.com" className="text-blue-400 hover:underline">Inquiry Center</a></p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="max-w-6xl mx-auto border-t border-slate-800/80 mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-          <p>© 2026 AquaTrack Inc. All rights reserved.</p>
-          <p className="flex items-center gap-1.5">
-            <Droplets size={12} className="text-blue-400 animate-pulse" /> Every Drop Counts
-          </p>
-        </div>
-      </footer>
-
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
 // NEW AND IMPLEMENTED TABS (TARIFFS, BILLING, TANKERS, INVOICES, ALERTS, CALCULATOR)
 // -------------------------------------------------------------
 
-function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
+function TariffPlansTab({ token, apartments = [], showMessage, isSuperAdmin, profile }) {
   const [tariffs, setTariffs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ apartmentId: '', baseRate: '', excessRate: '', baseLimitKl: '' });
+  const [formData, setFormData] = useState({ apartmentId: '', baseRate: '', excessRate: '', baseLimitKl: '', baseLimitDays: 30 });
+
+  const loadTariffForApartment = async (apartmentId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tariffs/list`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTariffs(data);
+        const existing = data.find(t => t.apartment && t.apartment.id.toString() === apartmentId.toString());
+        if (existing) {
+          setFormData({
+            apartmentId: apartmentId.toString(),
+            baseRate: existing.baseRate != null ? existing.baseRate.toString() : '',
+            excessRate: existing.excessRate != null ? existing.excessRate.toString() : '',
+            baseLimitKl: existing.baseLimitKl != null ? existing.baseLimitKl.toString() : '',
+            baseLimitDays: existing.baseLimitDays != null ? existing.baseLimitDays.toString() : 30
+          });
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            apartmentId: apartmentId.toString(),
+            baseLimitDays: 30
+          }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    let targetId = profile?.managedApartment?.id || (apartments && apartments.length > 0 ? apartments[0].id : null);
+    if (!isSuperAdmin && targetId) {
+      const val = targetId.toString();
+      setFormData(prev => ({ ...prev, apartmentId: val }));
+      loadTariffForApartment(val);
+    } else {
+      fetchTariffs();
+    }
+  }, [isSuperAdmin, profile?.managedApartment?.id, apartments?.length]);
 
   const fetchTariffs = async () => {
     setLoading(true);
@@ -3781,16 +4392,33 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
     }
   };
 
-  useEffect(() => {
-    fetchTariffs();
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isSuperAdmin) {
-      showMessage('error', 'Only Super Admins can save tariff plans.');
+    let targetAptId = formData.apartmentId;
+    if (!targetAptId && profile?.managedApartment?.id) {
+      targetAptId = profile.managedApartment.id.toString();
+    } else if (!targetAptId && apartments.length > 0) {
+      targetAptId = apartments[0].id.toString();
+    }
+
+    if (!targetAptId) {
+      showMessage('error', 'Please select an apartment block.');
       return;
     }
+
+    if (!isSuperAdmin && profile?.managedApartment && profile.managedApartment.id.toString() !== targetAptId.toString()) {
+      showMessage('error', 'You can only configure tariff plans for your managed apartment.');
+      return;
+    }
+
+    const payload = {
+      apartmentId: targetAptId,
+      baseRate: formData.baseRate !== '' ? formData.baseRate : '0',
+      excessRate: formData.excessRate !== '' ? formData.excessRate : '0',
+      baseLimitKl: formData.baseLimitKl !== '' ? formData.baseLimitKl : '0',
+      baseLimitDays: formData.baseLimitDays ? formData.baseLimitDays : 30
+    };
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/tariffs/save`, {
         method: 'POST',
@@ -3798,11 +4426,17 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         showMessage('success', 'Tariff plan saved successfully!');
-        setFormData({ apartmentId: '', baseRate: '', excessRate: '', baseLimitKl: '', baseLimitDays: 30 });
+        setFormData({
+          apartmentId: targetAptId,
+          baseRate: payload.baseRate,
+          excessRate: payload.excessRate,
+          baseLimitKl: payload.baseLimitKl,
+          baseLimitDays: payload.baseLimitDays
+        });
         fetchTariffs();
       } else {
         const text = await res.text();
@@ -3815,20 +4449,26 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Tariff Configurations</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Tariff Configurations</h2>
       </div>
 
-      {isSuperAdmin && (
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Set Tariff Rates</h3>
+      {(isSuperAdmin || profile?.managedApartment) && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-2">Set Tariff Rates</h3>
+          {!isSuperAdmin && profile?.managedApartment && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400/80 mb-3 font-medium">
+              ⚙️ You are configuring the tariff plan for <span className="font-bold text-amber-600 dark:text-amber-400">{profile.managedApartment.name}</span>. This will override any super admin-defined rates for your apartment.
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
               <select
                 required
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.apartmentId}
+                disabled={!isSuperAdmin}
                 onChange={e => {
                   const aptId = e.target.value;
                   const existing = tariffs.find(t => t.apartment && t.apartment.id.toString() === aptId.toString());
@@ -3851,45 +4491,45 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Base Rate (₹/L)</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Base Rate (₹/kL)</label>
               <input
-                type="number" step="0.01" required placeholder="1.50"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                type="number" step="0.01" required placeholder="30.00"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.baseRate}
                 onChange={e => setFormData({ ...formData, baseRate: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Base Limit (kL)</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Base Limit (kL)</label>
               <input
-                type="number" step="1" required placeholder="10"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                type="number" step="1" required placeholder="15"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.baseLimitKl}
                 onChange={e => setFormData({ ...formData, baseLimitKl: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cycle Length (Days)</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Cycle Length (Days)</label>
               <input
                 type="number" step="1" required placeholder="30"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.baseLimitDays || ''}
                 onChange={e => setFormData({ ...formData, baseLimitDays: e.target.value })}
               />
             </div>
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Excess Rate (₹/L)</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Excess Rate (₹/kL)</label>
                 <input
-                  type="number" step="0.01" required placeholder="3.00"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  type="number" step="0.01" required placeholder="60.00"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                   value={formData.excessRate}
                   onChange={e => setFormData({ ...formData, excessRate: e.target.value })}
                 />
               </div>
               <button
                 type="submit"
-                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-lg text-xs transition h-fit shrink-0"
+                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-lg text-xs transition h-fit shrink-0 cursor-pointer shadow-md"
               >
                 Save
               </button>
@@ -3898,30 +4538,30 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
         </div>
       )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Active Tariff Rates Table</h3>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Active Tariff Rates Table</h3>
         <div className="overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-xs py-4 text-center">Loading tariffs...</p>
           ) : tariffs.length === 0 ? (
-            <p className="text-slate-555 text-xs italic py-4 text-center">No tariff plans defined. Default rates (1.50 base, 3.00 excess, 10000L limit) will apply.</p>
+            <p className="text-slate-500 text-xs italic py-4 text-center">No tariff plans defined. Default rates (₹30.00 base, ₹60.00 excess, 15000L limit) will apply.</p>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                   <th className="pb-3 pl-2">Apartment Name</th>
-                  <th className="pb-3">Base Rate (per L)</th>
+                  <th className="pb-3">Base Rate (per kL)</th>
                   <th className="pb-3">Base Limit (Liters)</th>
-                  <th className="pb-3">Excess Rate (per L)</th>
+                  <th className="pb-3">Excess Rate (per kL)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                 {tariffs.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-800/10">
-                    <td className="py-3 pl-2 font-bold">{t.apartment?.name}</td>
-                    <td>₹{t.baseRate.toFixed(2)}</td>
-                    <td>{t.baseLimitKl * 1000} Liters</td>
-                    <td className="text-blue-400 font-bold">₹{t.excessRate.toFixed(2)}</td>
+                  <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                    <td className="py-3 pl-2 font-bold text-slate-900 dark:text-slate-100">{t.apartment?.name}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">₹{t.baseRate.toFixed(2)}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">{t.baseLimitKl * 1000} Liters</td>
+                    <td className="text-blue-600 dark:text-blue-400 font-bold">₹{t.excessRate.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -3933,7 +4573,7 @@ function TariffPlansTab({ token, apartments, showMessage, isSuperAdmin }) {
   );
 }
 
-function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
+function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAdmin, profile }) {
   const [cycles, setCycles] = useState([]);
   const [tariffs, setTariffs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -3941,6 +4581,35 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
   const [finalizingId, setFinalizingId] = useState(null);
   const [formData, setFormData] = useState({ apartmentId: '', startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], endDate: '', totalBulkCost: '' });
   
+  // Auto pre-select apartment for Community Admin / single apartment view and sync cost with Tariff Plan
+  useEffect(() => {
+    let targetAptId = formData.apartmentId;
+    if (!targetAptId && apartments && apartments.length > 0) {
+      const defaultApt = profile?.managedApartment ? profile.managedApartment : apartments[0];
+      targetAptId = defaultApt.id.toString();
+    }
+
+    if (targetAptId) {
+      const existingTariff = tariffs.find(t => t.apartment && t.apartment.id.toString() === targetAptId.toString());
+      if (existingTariff && existingTariff.baseRate != null) {
+        const tariffCost = existingTariff.baseRate.toString();
+        setFormData(prev => {
+          if (prev.totalBulkCost !== tariffCost || prev.apartmentId !== targetAptId) {
+            return { ...prev, apartmentId: targetAptId, totalBulkCost: tariffCost };
+          }
+          return prev;
+        });
+      } else {
+        setFormData(prev => {
+          if (prev.apartmentId !== targetAptId) {
+            return { ...prev, apartmentId: targetAptId };
+          }
+          return prev;
+        });
+      }
+    }
+  }, [apartments, tariffs, profile, formData.apartmentId]);
+
   // For Super Admin creating a direct Admin Bill
   const [adminBillData, setAdminBillData] = useState({ targetUserId: '', billingCycleId: '', amount: '', description: '' });
   const [creatingAdminBill, setCreatingAdminBill] = useState(false);
@@ -4002,7 +4671,8 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
       });
       if (res.ok) {
         showMessage('success', 'Billing cycle created successfully!');
-        setFormData({ apartmentId: '', startDate: '', endDate: '', totalBulkCost: '' });
+        const defaultAptId = (apartments && apartments.length > 0) ? (profile?.managedApartment ? profile.managedApartment.id.toString() : apartments[0].id.toString()) : '';
+        setFormData({ apartmentId: defaultAptId, startDate: '', endDate: '', totalBulkCost: '' });
         fetchCycles();
       } else {
         const text = await res.text();
@@ -4014,6 +4684,8 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
       setCreating(false);
     }
   };
+
+  const [deletingId, setDeletingId] = useState(null);
 
   const handleFinalize = async (cycleId) => {
     setFinalizingId(cycleId);
@@ -4033,6 +4705,28 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
       showMessage('error', 'Network failure.');
     } finally {
       setFinalizingId(null);
+    }
+  };
+
+  const handleDeleteCycle = async (cycleId) => {
+    if (!window.confirm("Are you sure you want to delete this unfinalized billing cycle?")) return;
+    setDeletingId(cycleId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/billing/cycle/${cycleId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showMessage('success', 'Billing cycle deleted successfully!');
+        fetchCycles();
+      } else {
+        const text = await res.text();
+        showMessage('error', text || 'Failed to delete billing cycle.');
+      }
+    } catch (err) {
+      showMessage('error', 'Network failure.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -4137,41 +4831,65 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-4 flex flex-col gap-2">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Billing Operations</h2>
-        <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
-          Manage and monitor billing cycles for each apartment block. Open new billing cycles to start tracking water consumption and associated costs. Once the cycle period is complete, finalize it to automatically calculate charges based on tariff plans and generate invoices for all registered households.
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col gap-2">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{isSuperAdmin ? 'Billing History' : 'Billing Operations'}</h2>
+        <p className="text-xs text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
+          {isSuperAdmin ? 'View and monitor past billing cycles and invoices.' : 'Manage and monitor billing cycles for each apartment block. Open new billing cycles to start tracking water consumption and associated costs. Once the cycle period is complete, finalize it to automatically calculate charges based on tariff plans and generate invoices for all registered households.'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-6 lg:col-span-1">
+        {!isSuperAdmin && <div className="space-y-6 lg:col-span-1">
           {/* Create Cycle Panel */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Open Billing Cycle</h3>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Open Billing Cycle</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
-                <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.apartmentId} onChange={e => {
-                  setFormData({ ...formData, apartmentId: e.target.value });
-                }}>
-                  <option value="">-- Choose Apartment --</option>
-                  {apartments.map(a => <option key={a.id} value={a.id}>{a.name} — {a.address}</option>)}
-                </select>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
+                {(!isSuperAdmin || apartments.length === 1) ? (
+                  <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-semibold flex items-center justify-between">
+                    <span className="truncate">
+                      {apartments.find(a => a.id.toString() === formData.apartmentId?.toString())?.name || profile?.managedApartment?.name || apartments[0]?.name || 'Assigned Apartment'}
+                      {(apartments.find(a => a.id.toString() === formData.apartmentId?.toString())?.address || profile?.managedApartment?.address || apartments[0]?.address) && (
+                        <span className="text-slate-500 dark:text-slate-400 font-normal"> — {apartments.find(a => a.id.toString() === formData.apartmentId?.toString())?.address || profile?.managedApartment?.address || apartments[0]?.address}</span>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <select required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.apartmentId} onChange={e => {
+                    const aptId = e.target.value;
+                    const existingTariff = tariffs.find(t => t.apartment && t.apartment.id.toString() === aptId.toString());
+                    const defaultCost = (existingTariff && existingTariff.baseRate != null) ? existingTariff.baseRate.toString() : '';
+                    setFormData({ ...formData, apartmentId: aptId, totalBulkCost: defaultCost });
+                  }}>
+                    {apartments.length > 1 && <option value="">-- Choose Apartment --</option>}
+                    {apartments.map(a => <option key={a.id} value={a.id}>{a.name} — {a.address}</option>)}
+                  </select>
+                )}
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
-                <input type="date" required max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
+                <input type="date" required max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
-                <input type="date" required max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">End Date</label>
+                <input type="date" required max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cost (₹)</label>
-                <input type="number" step="0.01" placeholder="0.00" className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.totalBulkCost} onChange={e => setFormData({ ...formData, totalBulkCost: e.target.value })} />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Cost (₹)</label>
+                  {(() => {
+                    const activeTariff = tariffs.find(t => t.apartment && t.apartment.id.toString() === formData.apartmentId?.toString());
+                    return activeTariff && activeTariff.baseRate != null ? (
+                      <span className="text-[9px] text-blue-700 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-950/50 border border-blue-300 dark:border-blue-800/40 px-1.5 py-0.2 rounded">
+                        Synced with Tariff: ₹{activeTariff.baseRate}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <input type="number" step="0.01" placeholder="0.00" className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none" value={formData.totalBulkCost} onChange={e => setFormData({ ...formData, totalBulkCost: e.target.value })} />
               </div>
-              <button type="submit" disabled={creating} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg text-xs transition">
+              <button type="submit" disabled={creating} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg text-xs transition shadow-md cursor-pointer">
                 {creating ? 'Opening...' : 'Create Cycle'}
               </button>
             </form>
@@ -4179,50 +4897,50 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
 
           {/* Admin Bill Panel (Super Admin Only) */}
           {isSuperAdmin && (
-            <div className="bg-slate-900 border border-amber-800/50 p-6 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.05)]">
-              <h3 className="font-bold text-amber-500 text-xs tracking-wide uppercase mb-4">Generate Admin Bill</h3>
+            <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800/50 p-6 rounded-xl shadow-sm">
+              <h3 className="font-bold text-amber-600 dark:text-amber-500 text-xs tracking-wide uppercase mb-4">Generate Admin Bill</h3>
               <form onSubmit={handleCreateAdminBill} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Community Admin</label>
-                  <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none" value={adminBillData.targetUserId} onChange={e => setAdminBillData({ ...adminBillData, targetUserId: e.target.value })}>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Community Admin</label>
+                  <select required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none" value={adminBillData.targetUserId} onChange={e => setAdminBillData({ ...adminBillData, targetUserId: e.target.value })}>
                     <option value="">-- Select Admin --</option>
                     {communityAdmins.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Billing Cycle</label>
-                  <select required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none" value={adminBillData.billingCycleId} onChange={e => setAdminBillData({ ...adminBillData, billingCycleId: e.target.value })}>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Billing Cycle</label>
+                  <select required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none" value={adminBillData.billingCycleId} onChange={e => setAdminBillData({ ...adminBillData, billingCycleId: e.target.value })}>
                     <option value="">-- Select Cycle --</option>
                     {cycles.map(c => <option key={c.id} value={c.id}>{c.startDate} ({c.apartment?.name})</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Amount (₹)</label>
-                  <input type="number" step="0.01" required className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none" value={adminBillData.amount} onChange={e => setAdminBillData({ ...adminBillData, amount: e.target.value })} />
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Amount (₹)</label>
+                  <input type="number" step="0.01" required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:outline-none" value={adminBillData.amount} onChange={e => setAdminBillData({ ...adminBillData, amount: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</label>
-                  <input type="text" className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none" value={adminBillData.description} onChange={e => setAdminBillData({ ...adminBillData, description: e.target.value })} placeholder="e.g. Infrastructure Maintenance" />
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                  <input type="text" className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none" value={adminBillData.description} onChange={e => setAdminBillData({ ...adminBillData, description: e.target.value })} placeholder="e.g. Infrastructure Maintenance" />
                 </div>
-                <button type="submit" disabled={creatingAdminBill} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 rounded-lg text-xs transition">
+                <button type="submit" disabled={creatingAdminBill} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 rounded-lg text-xs transition cursor-pointer shadow-md">
                   {creatingAdminBill ? 'Generating...' : 'Issue Admin Bill'}
                 </button>
               </form>
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl lg:col-span-2 h-fit">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Billing Cycles Directory</h3>
+        <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit shadow-sm ${isSuperAdmin ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Billing Cycles Directory</h3>
           <div className="overflow-x-auto">
             {loading ? (
               <p className="text-slate-500 text-xs py-4 text-center">Loading cycles...</p>
             ) : cycles.length === 0 ? (
-              <p className="text-slate-555 text-xs italic py-4 text-center">No billing cycles opened yet.</p>
+              <p className="text-slate-500 text-xs italic py-4 text-center">No billing cycles opened yet.</p>
             ) : (
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                     <th className="pb-3 pl-2">Apartment</th>
                     <th className="pb-3">Period</th>
                     <th className="pb-3">Cost</th>
@@ -4230,17 +4948,17 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
                     <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                   {cycles.map(c => (
-                    <tr key={c.id} className="hover:bg-slate-800/10">
+                    <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
                       <td className="py-3 pl-2">
-                        <div className="font-bold text-slate-200">{c.apartment?.name}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{c.apartment?.address}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-200">{c.apartment?.name}</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{c.apartment?.address}</div>
                       </td>
-                      <td>{c.startDate} to {c.endDate}</td>
-                      <td>₹{c.totalBulkCost?.toFixed(2) || '0.00'}</td>
+                      <td className="font-medium text-slate-800 dark:text-slate-300">{c.startDate} to {c.endDate}</td>
+                      <td className="font-bold text-slate-900 dark:text-slate-100">₹{c.totalBulkCost?.toFixed(2) || '0.00'}</td>
                       <td>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${c.finalized ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400' : 'bg-slate-800/50 border-slate-700 text-slate-400'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${c.finalized ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400'}`}>
                           {c.finalized ? 'Finalized' : 'Active'}
                         </span>
                       </td>
@@ -4249,18 +4967,29 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
                         {c.finalized ? (
                           <button
                             onClick={() => viewInvoices(c.id)}
-                            className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 px-2.5 py-1 rounded-lg font-bold text-[10px] transition"
+                            className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 px-2.5 py-1 rounded-lg font-bold text-[10px] transition shadow-sm cursor-pointer"
                           >
                             View Invoices
                           </button>
                         ) : (
-                          <button
-                            disabled={finalizingId === c.id}
-                            onClick={() => handleFinalize(c.id)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] transition disabled:opacity-50"
-                          >
-                            {finalizingId === c.id ? 'Running...' : 'Finalize & Bill'}
-                          </button>
+                          !isSuperAdmin && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                disabled={deletingId === c.id || finalizingId === c.id}
+                                onClick={() => handleDeleteCycle(c.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-red-500 transition cursor-pointer disabled:opacity-50"
+                              >
+                                {deletingId === c.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                              <button
+                                disabled={finalizingId === c.id || deletingId === c.id}
+                                onClick={() => handleFinalize(c.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-emerald-500 transition cursor-pointer disabled:opacity-50"
+                              >
+                                {finalizingId === c.id ? 'Running...' : 'Finalize & Bill'}
+                              </button>
+                            </div>
+                          )
                         )}
                         </div>
                       </td>
@@ -4274,10 +5003,10 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
       </div>
 
       {selectedCycleBills && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mt-6 shadow-lg shadow-black/20">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 mt-6 shadow-md">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase">Calculated Invoices for Selected Cycle</h3>
-            <button onClick={() => setSelectedCycleBills(null)} className="text-xs text-red-400 font-bold hover:underline">Close List</button>
+            <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase">Calculated Invoices for Selected Cycle</h3>
+            <button onClick={() => setSelectedCycleBills(null)} className="text-xs text-red-600 dark:text-red-400 font-bold hover:underline cursor-pointer">Close List</button>
           </div>
           <div className="overflow-x-auto">
             {selectedCycleBills.length === 0 ? (
@@ -4285,7 +5014,7 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
             ) : (
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                     <th className="pb-3 pl-2">Invoice No</th>
                     <th className="pb-3">Target</th>
                     <th className="pb-3">Consumption</th>
@@ -4294,41 +5023,41 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
                     <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                   {selectedCycleBills.map(b => {
                     const cycleId = b.billingCycle?.id;
                     const isTargetAdmin = !!b.targetUser;
                     return (
-                      <tr key={b.id} className="hover:bg-slate-800/10 transition-colors">
-                        <td className="py-2 pl-2 font-mono text-indigo-400 text-[10px]">{b.invoiceNumber}</td>
+                      <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition-colors">
+                        <td className="py-2 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[10px]">{b.invoiceNumber}</td>
                         <td className="py-2">
                           {isTargetAdmin ? (
-                            <span className="text-amber-400 font-bold">Admin: {b.targetUser?.name}</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-bold">Admin: {b.targetUser?.name}</span>
                           ) : (
                             <div>
-                              <span className="font-bold text-slate-200">Block {b.household?.block} - Flat {b.household?.flatNumber}</span>
-                              <div className="text-[10px] text-slate-500 mt-0.5">{getResidentName(b.household?.id)}</div>
+                              <span className="font-bold text-slate-900 dark:text-slate-200">Block {b.household?.block} - Flat {b.household?.flatNumber}</span>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{getResidentName(b.household?.id)}</div>
                             </div>
                           )}
                         </td>
-                        <td className="py-2">
-                          {isTargetAdmin ? <span className="text-slate-500 italic">N/A</span> : `${b.consumptionLiters.toLocaleString()} L`}
+                        <td className="py-2 font-medium">
+                          {isTargetAdmin ? <span className="text-slate-400 italic">N/A</span> : `${b.consumptionLiters.toLocaleString()} L`}
                         </td>
-                        <td className="py-2">
+                        <td className="py-2 font-bold">
                           {editingBillId === b.id ? (
-                            <input type="number" step="0.01" className="w-20 px-1 py-0.5 bg-slate-950 border border-slate-700 rounded text-xs" value={editBillData.amount} onChange={(e) => setEditBillData({...editBillData, amount: e.target.value})} />
+                            <input type="number" step="0.01" className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.amount} onChange={(e) => setEditBillData({...editBillData, amount: e.target.value})} />
                           ) : (
-                            <span className="font-bold text-slate-100">₹{b.amount.toFixed(2)}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</span>
                           )}
                         </td>
                         <td className="py-2">
                           {editingBillId === b.id ? (
-                            <select className="w-20 px-1 py-0.5 bg-slate-950 border border-slate-700 rounded text-xs" value={editBillData.paid} onChange={(e) => setEditBillData({...editBillData, paid: e.target.value === 'true'})}>
+                            <select className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.paid} onChange={(e) => setEditBillData({...editBillData, paid: e.target.value === 'true'})}>
                               <option value="false">Unpaid</option>
                               <option value="true">Paid</option>
                             </select>
                           ) : (
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'}`}>
                               {b.paid ? 'Paid' : 'Unpaid'}
                             </span>
                           )}
@@ -4336,13 +5065,13 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
                         <td className="text-right py-2">
                           {editingBillId === b.id ? (
                             <div className="flex justify-end gap-2">
-                              <button onClick={() => handleUpdateBill(b.id, cycleId)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold">Save</button>
-                              <button onClick={cancelEditBill} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded shadow text-[10px] font-bold">Cancel</button>
+                              <button onClick={() => handleUpdateBill(b.id, cycleId)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Save</button>
+                              <button onClick={cancelEditBill} className="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Cancel</button>
                             </div>
                           ) : (
                             <div className="flex justify-end gap-2">
-                              <button onClick={() => startEditBill(b)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold">Edit</button>
-                              <button onClick={() => handleDeleteBill(b.id, cycleId)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold">Delete</button>
+                              {!isSuperAdmin && <button onClick={() => startEditBill(b)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Edit</button>}
+                              {!isSuperAdmin && <button onClick={() => handleDeleteBill(b.id, cycleId)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Delete</button>}
                             </div>
                           )}
                         </td>
@@ -4359,11 +5088,18 @@ function BillingTab({ token, apartments, users, showMessage, isSuperAdmin }) {
   );
 }
 
-function WaterPurchaseTab({ token, apartments, showMessage }) {
+function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, profile }) {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ apartmentId: '', date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
+
+  useEffect(() => {
+    if (apartments && apartments.length > 0 && !formData.apartmentId) {
+      const defaultApt = profile?.managedApartment ? profile.managedApartment : apartments[0];
+      setFormData(prev => ({ ...prev, apartmentId: defaultApt.id.toString() }));
+    }
+  }, [apartments, profile]);
 
   const fetchPurchases = async () => {
     setLoading(true);
@@ -4400,7 +5136,8 @@ function WaterPurchaseTab({ token, apartments, showMessage }) {
       });
       if (res.ok) {
         showMessage('success', 'Bulk water tanker purchase logged successfully!');
-        setFormData({ apartmentId: '', date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
+        const defaultAptId = (apartments && apartments.length > 0) ? (profile?.managedApartment ? profile.managedApartment.id.toString() : apartments[0].id.toString()) : '';
+        setFormData({ apartmentId: defaultAptId, date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
         fetchPurchases();
       } else {
         const text = await res.text();
@@ -4415,91 +5152,100 @@ function WaterPurchaseTab({ token, apartments, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Log Bulk Water Purchase (Tankers)</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Log Bulk Water Purchase (Tankers)</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl h-fit">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Log Tanker Delivery</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Log Tanker Delivery</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
-              <select
-                required
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
-                value={formData.apartmentId}
-                onChange={e => setFormData({ ...formData, apartmentId: e.target.value })}
-              >
-                <option value="">-- Choose Apartment --</option>
-                {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
+              {(!isSuperAdmin || apartments.length === 1) ? (
+                <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-semibold flex items-center justify-between">
+                  <span className="truncate">
+                    {apartments.find(a => a.id.toString() === formData.apartmentId?.toString())?.name || profile?.managedApartment?.name || apartments[0]?.name || 'Assigned Apartment'}
+                  </span>
+                  <span className="text-[9px] bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-500/30 px-2 py-0.5 rounded uppercase font-bold flex-shrink-0 ml-2">Managed</span>
+                </div>
+              ) : (
+                <select
+                  required
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                  value={formData.apartmentId}
+                  onChange={e => setFormData({ ...formData, apartmentId: e.target.value })}
+                >
+                  {apartments.length > 1 && <option value="">-- Choose Apartment --</option>}
+                  {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              )}
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Delivery Date</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Delivery Date</label>
               <input
                 type="date" required max={new Date().toISOString().split('T')[0]}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Quantity (Liters)</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Quantity (Liters)</label>
               <input
                 type="number" step="1" required placeholder="e.g. 10000"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
                 value={formData.liters}
                 onChange={e => setFormData({ ...formData, liters: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Price (₹)</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Price (₹)</label>
               <input
                 type="number" step="0.01" required placeholder="e.g. 150.00"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
                 value={formData.cost}
                 onChange={e => setFormData({ ...formData, cost: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Supplier / Tanker Provider</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Supplier / Tanker Provider</label>
               <input
                 type="text" required placeholder="Metro Water Supply"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
                 value={formData.supplierName}
                 onChange={e => setFormData({ ...formData, supplierName: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Invoice / Receipt No</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Invoice / Receipt No</label>
               <input
                 type="text" placeholder="TXN-984394"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
                 value={formData.invoiceNumber}
                 onChange={e => setFormData({ ...formData, invoiceNumber: e.target.value })}
               />
             </div>
             <button
               type="submit" disabled={saving}
-              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 rounded-lg text-xs transition"
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 rounded-lg text-xs transition shadow-md cursor-pointer"
             >
               {saving ? 'Saving...' : 'Record Purchase'}
             </button>
           </form>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl lg:col-span-2">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Tanker Deliveries History</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl lg:col-span-2 shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Tanker Deliveries History</h3>
           <div className="overflow-x-auto">
             {loading ? (
               <p className="text-slate-500 text-xs py-4 text-center">Loading purchases...</p>
             ) : purchases.length === 0 ? (
-              <p className="text-slate-555 text-xs italic py-4 text-center">No purchases recorded.</p>
+              <p className="text-slate-500 text-xs italic py-4 text-center">No purchases recorded.</p>
             ) : (
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                     <th className="pb-3 pl-2">Date</th>
                     <th className="pb-3">Apartment</th>
                     <th className="pb-3">Quantity</th>
@@ -4508,15 +5254,15 @@ function WaterPurchaseTab({ token, apartments, showMessage }) {
                     <th className="pb-3">Invoice No</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                   {purchases.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-800/10">
-                      <td className="py-3 pl-2">{p.date}</td>
-                      <td className="font-bold">{p.apartment?.name}</td>
-                      <td>{p.liters.toLocaleString()} L</td>
-                      <td className="font-bold text-emerald-400">₹{p.cost.toFixed(2)}</td>
-                      <td>{p.supplierName}</td>
-                      <td className="font-mono text-purple-400">{p.invoiceNumber || 'N/A'}</td>
+                    <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                      <td className="py-3 pl-2 text-slate-800 dark:text-slate-300 font-medium">{p.date}</td>
+                      <td className="font-bold text-slate-900 dark:text-slate-100">{p.apartment?.name}</td>
+                      <td className="font-medium text-slate-800 dark:text-slate-300">{p.liters.toLocaleString()} L</td>
+                      <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{p.cost.toFixed(2)}</td>
+                      <td className="text-slate-800 dark:text-slate-300 font-medium">{p.supplierName}</td>
+                      <td className="font-mono text-purple-600 dark:text-purple-400 font-bold">{p.invoiceNumber || 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -4557,21 +5303,21 @@ function InvoicesTab({ token, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Invoices & Surcharges</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Invoices & Surcharges</h2>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4 font-sans">System Generated Invoices</h3>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 font-sans">System Generated Invoices</h3>
         <div className="overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-xs py-4 text-center">Loading invoices...</p>
           ) : bills.length === 0 ? (
-            <p className="text-slate-555 text-xs italic py-4 text-center">No invoices found. Generate them by finalizing billing cycles.</p>
+            <p className="text-slate-500 text-xs italic py-4 text-center">No invoices found. Generate them by finalizing billing cycles.</p>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                   <th className="pb-3 pl-2">Invoice ID</th>
                   <th className="pb-3">Resident / Flat</th>
                   <th className="pb-3">Billing Cycle</th>
@@ -4581,26 +5327,26 @@ function InvoicesTab({ token, showMessage }) {
                   <th className="pb-3 text-right">Receipt</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                 {bills.map(b => (
-                  <tr key={b.id} className="hover:bg-slate-800/10">
-                    <td className="py-3 pl-2 font-mono text-indigo-400">{b.invoiceNumber}</td>
+                  <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
                     <td>
-                      <p className="font-bold">{b.household?.apartment?.name}</p>
-                      <p className="text-[10px] text-slate-500">Block {b.household?.block} - Flat {b.household?.flatNumber}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100">{b.household?.apartment?.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Block {b.household?.block} - Flat {b.household?.flatNumber}</p>
                     </td>
-                    <td>{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
-                    <td>{b.consumptionLiters.toLocaleString()} Liters</td>
-                    <td className="font-bold">₹{b.amount.toFixed(2)}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
+                    <td className="font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</td>
                     <td>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${b.paid ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400' : 'bg-red-950/20 border-red-500/20 text-red-400'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/20 border-red-300 dark:border-red-500/20 text-red-700 dark:text-red-400'}`}>
                         {b.paid ? 'Paid' : 'Unpaid'}
                       </span>
                     </td>
                     <td className="text-right py-2">
                       <button
                         onClick={() => setActiveInvoice(b)}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-semibold transition"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer shadow-sm"
                       >
                         Print/View
                       </button>
@@ -4858,26 +5604,44 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
 function ReportsTab({ token }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fixingData, setFixingData] = useState(false);
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/reports/summary`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSummary(data);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+  const fetchSummary = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/reports/summary`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data);
       }
-    };
-    fetchSummary();
-  }, []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!window.confirm('This will recalculate all historical consumption values as proper meter deltas. Proceed?')) return;
+    setFixingData(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/usage/recalculate-consumption`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const msg = await res.text();
+      alert(msg);
+      fetchSummary();
+    } catch (err) {
+      alert('Failed to recalculate: ' + err.message);
+    } finally {
+      setFixingData(false);
+    }
+  };
+
+  useEffect(() => { fetchSummary(); }, []);
 
   if (loading) {
     return <p className="text-slate-500 text-xs text-center py-10">Compiling report statistics...</p>;
@@ -4894,8 +5658,15 @@ function ReportsTab({ token }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
+      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
         <h2 className="text-xl font-bold tracking-tight text-slate-100">System Performance Metrics</h2>
+        <button
+          onClick={handleRecalculate}
+          disabled={fixingData}
+          className="text-[10px] bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/40 text-amber-400 px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide transition disabled:opacity-50"
+        >
+          {fixingData ? '⟳ Fixing...' : '🔧 Recalculate Consumption'}
+        </button>
       </div>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -5232,21 +6003,21 @@ function MyInvoicesTab({ token, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">My Paid Receipts</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">My Paid Receipts</h2>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Invoice Downloads</h3>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Invoice Downloads</h3>
         <div className="overflow-x-auto">
           {loading ? (
             <p className="text-slate-500 text-xs py-4 text-center">Loading paid receipts...</p>
           ) : bills.length === 0 ? (
-            <p className="text-slate-555 text-xs italic py-4 text-center">No paid receipts found.</p>
+            <p className="text-slate-500 text-xs italic py-4 text-center">No paid receipts found.</p>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                   <th className="pb-3 pl-2">Invoice No</th>
                   <th className="pb-3">Period</th>
                   <th className="pb-3">Volume Used</th>
@@ -5254,24 +6025,24 @@ function MyInvoicesTab({ token, showMessage }) {
                   <th className="pb-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
                 {bills.map(b => (
-                  <tr key={b.id}>
-                    <td className="py-3 pl-2 font-mono text-indigo-400">{b.invoiceNumber}</td>
-                    <td>{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
-                    <td>{b.consumptionLiters.toLocaleString()} Liters</td>
-                    <td className="font-bold text-emerald-400">₹{b.amount.toFixed(2)}</td>
+                  <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
+                    <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{b.amount.toFixed(2)}</td>
                     <td className="text-right py-1">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => setActiveInvoice(b)}
-                          className="bg-slate-800 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg font-bold text-[10px]"
+                          className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 border border-slate-300 dark:border-slate-700 px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer transition"
                         >
                           View Receipt
                         </button>
                         <button
                           onClick={() => handleDownloadPdf(b.id, token, showMessage)}
-                          className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] transition"
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] transition cursor-pointer shadow-xs"
                         >
                           Download PDF
                         </button>
@@ -5330,29 +6101,29 @@ function WaterTipsTab() {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">Water Conservation Hub</h2>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Water Conservation Hub</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl h-fit">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Household Water Footprint Calculator</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Household Water Footprint Calculator</h3>
           <form onSubmit={calculateFootprint} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Family Members</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Family Members</label>
                 <input
                   type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   value={calculator.familySize}
                   onChange={e => setCalculator({ ...calculator, familySize: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Avg Shower Duration (Mins)</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Avg Shower Duration (Mins)</label>
                 <input
                   type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   value={calculator.showerTime}
                   onChange={e => setCalculator({ ...calculator, showerTime: e.target.value })}
                 />
@@ -5360,25 +6131,25 @@ function WaterTipsTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Toilet Flushes per Day / Person</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Toilet Flushes per Day / Person</label>
                 <input
                   type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   value={calculator.flushCount}
                   onChange={e => setCalculator({ ...calculator, flushCount: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Washing Machine Loads / Week</label>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Washing Machine Loads / Week</label>
                 <input
                   type="number" min="0" required
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   value={calculator.washingLoads}
                   onChange={e => setCalculator({ ...calculator, washingLoads: e.target.value })}
                 />
               </div>
             </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-xs transition">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-xs transition cursor-pointer shadow-md">
               Calculate Consumption Rating
             </button>
           </form>
@@ -5390,35 +6161,35 @@ function WaterTipsTab() {
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-current uppercase">{result.score}</span>
               </div>
               <p className="text-3xl font-black">{result.total.toLocaleString()} L/day</p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] opacity-80 font-medium">
                 This equals approx <span className="font-bold">{result.perCapita} Liters</span> per member daily. (Target: &lt; 90L)
               </p>
             </div>
           )}
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase mb-4">Everyday Conservation Tips</h3>
-          <div className="space-y-4 text-xs leading-relaxed text-slate-300">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Everyday Conservation Tips</h3>
+          <div className="space-y-4 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
             <div className="flex gap-3">
-              <span className="bg-blue-950 text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
               <div>
-                <h4 className="font-bold text-slate-200">Fix Taps Promptly</h4>
-                <p className="text-slate-400 mt-0.5">A single dripping tap can waste more than 15 liters of fresh water a day.</p>
+                <h4 className="font-bold text-slate-900 dark:text-slate-200">Fix Taps Promptly</h4>
+                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">A single dripping tap can waste more than 15 liters of fresh water a day.</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="bg-blue-950 text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
               <div>
-                <h4 className="font-bold text-slate-200">Full Washing Cycles Only</h4>
-                <p className="text-slate-400 mt-0.5">Run clothes washer and dishwasher machines only when they are fully loaded to save up to 100L/week.</p>
+                <h4 className="font-bold text-slate-900 dark:text-slate-200">Full Washing Cycles Only</h4>
+                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Run clothes washer and dishwasher machines only when they are fully loaded to save up to 100L/week.</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="bg-blue-950 text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
+              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
               <div>
-                <h4 className="font-bold text-slate-200">Aerated Taps</h4>
-                <p className="text-slate-400 mt-0.5">Installing low-flow aerators on bathroom and kitchen taps can reduce faucet water consumption by 50% without affecting pressure.</p>
+                <h4 className="font-bold text-slate-900 dark:text-slate-200">Aerated Taps</h4>
+                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Installing low-flow aerators on bathroom and kitchen taps can reduce faucet water consumption by 50% without affecting pressure.</p>
               </div>
             </div>
           </div>
@@ -5428,130 +6199,443 @@ function WaterTipsTab() {
   );
 }
 
-function InvoiceModal({ invoice, onClose, allowPay = false, onPay, payingId, onDownload }) {
-  if (!invoice) return null;
-  const amount = invoice.amount.toFixed(2);
+// -------------------------------------------------------------
+// X. SUPPORT TAB
+// -------------------------------------------------------------
+function SupportTab({ token, profile, showMessage, isSuperAdmin, isCommunityAdmin, onTicketCountChange }) {
+  const [tickets, setTickets] = useState({ raisedByMe: [], assignedToMe: [] });
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('ALL'); // ALL | OPEN | IN_PROGRESS | RESOLVED
+  const [section, setSection] = useState('assigned'); // 'assigned' | 'raised'
+  
+  const [formData, setFormData] = useState({ title: '', description: '', attachment: '' });
+  const [resolveData, setResolveData] = useState({ status: 'RESOLVED', resolutionNotes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  
+  const isManager = isSuperAdmin || isCommunityAdmin;
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showMessage('error', 'Image size must be less than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData({ ...formData, attachment: reader.result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const fetchTickets = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/support/tickets`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTickets(data);
+        // Count open tickets for badge
+        const allOpen = [
+          ...(data.assignedToMe || []).filter(t => t.status === 'OPEN'),
+          ...(data.raisedByMe || []).filter(t => t.status === 'OPEN')
+        ].length;
+        if (onTicketCountChange) onTicketCountChange(allOpen);
+      }
+    } catch (err) {
+      console.error('Error fetching tickets', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, [token]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/support/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        showMessage('success', 'Support ticket raised successfully!');
+        setFormData({ title: '', description: '', attachment: '' });
+        setShowModal(false);
+        fetchTickets();
+      } else {
+        const text = await res.text();
+        showMessage('error', text || 'Failed to raise ticket');
+      }
+    } catch (err) {
+      showMessage('error', 'Network error');
+    }
+    setSubmitting(false);
+  };
+
+  const handleUpdateStatus = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/support/tickets/${selectedTicket.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status: resolveData.status, resolutionNotes: resolveData.resolutionNotes })
+      });
+      if (res.ok) {
+        showMessage('success', 'Ticket updated successfully');
+        setResolveModalOpen(false);
+        setSelectedTicket(null);
+        setResolveData({ status: 'RESOLVED', resolutionNotes: '' });
+        fetchTickets();
+      } else {
+        const text = await res.text();
+        showMessage('error', text || 'Failed to update status');
+      }
+    } catch (err) {
+      showMessage('error', 'Network error');
+    }
+    setSubmitting(false);
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'RESOLVED':   return { cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', dot: 'bg-emerald-400' };
+      case 'IN_PROGRESS': return { cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20', dot: 'bg-blue-400' };
+      default:           return { cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20', dot: 'bg-amber-400' };
+    }
+  };
+
+  const allTickets = [
+    ...(tickets.assignedToMe || []).map(t => ({ ...t, _isAssigned: true })),
+    ...(tickets.raisedByMe || []).map(t => ({ ...t, _isAssigned: false }))
+  ];
+  
+  const currentList = isManager
+    ? (section === 'assigned' ? (tickets.assignedToMe || []).map(t => ({ ...t, _isAssigned: true })) : (tickets.raisedByMe || []).map(t => ({ ...t, _isAssigned: false })))
+    : (tickets.raisedByMe || []).map(t => ({ ...t, _isAssigned: false }));
+
+  const filtered = filterStatus === 'ALL' ? currentList : currentList.filter(t => t.status === filterStatus);
+
+  const countByStatus = (list, status) => status === 'ALL' ? list.length : list.filter(t => t.status === status).length;
+
+  const openTicketRow = (t) => {
+    setSelectedTicket(t);
+    setDetailModalOpen(true);
+  };
+
+  const statusFilters = [
+    { key: 'ALL', label: 'All' },
+    { key: 'OPEN', label: 'Open' },
+    { key: 'IN_PROGRESS', label: 'In Progress' },
+    { key: 'RESOLVED', label: 'Resolved' }
+  ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden relative">
-        <div className="bg-slate-950 p-5 border-b border-slate-800 flex justify-between items-center">
-          <div>
-            <h3 className="text-slate-100 font-black text-lg">Invoice Details</h3>
-            <p className="text-slate-400 text-[10px] font-mono mt-0.5">#{invoice.invoiceNumber}</p>
-          </div>
-          <div className="flex items-center">
-            {onDownload && (
-              <button onClick={() => onDownload(invoice.id)} className="text-blue-400 hover:text-blue-300 transition mr-4" title="Download PDF">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              </button>
-            )}
-            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <LifeBuoy size={22} className="text-blue-600 dark:text-blue-500" />
+            Support Tickets
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
+            {!isManager ? 'Raise issues to your community admin.' : (isCommunityAdmin ? 'Manage resident tickets & raise issues to super admin.' : 'Manage tickets raised by community admins.')}
+          </p>
+        </div>
+        {!isSuperAdmin && (
+          <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs transition flex items-center gap-2 shadow-md shrink-0 cursor-pointer">
+            <LifeBuoy size={15} /> Raise Ticket
+          </button>
+        )}
+      </div>
+
+      {/* Section Tabs (manager only) */}
+      {isManager && (
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-xl p-1 w-fit shadow-xs">
+          {[
+            { key: 'assigned', label: 'Assigned to Me', count: (tickets.assignedToMe || []).filter(t => t.status === 'OPEN').length },
+            { key: 'raised', label: 'Raised by Me', count: 0 }
+          ].map(s => (
+            <button
+              key={s.key}
+              onClick={() => { setSection(s.key); setFilterStatus('ALL'); }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${section === s.key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
+            >
+              {s.label}
+              {s.count > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">{s.count}</span>}
             </button>
+          ))}
+        </div>
+      )}
+
+      {/* Status Filter Dropdown */}
+      <div className="flex items-center gap-3">
+        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider shrink-0">Filter by Status</label>
+        <div className="relative">
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="appearance-none bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold pl-3 pr-8 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all cursor-pointer shadow-sm"
+          >
+            {statusFilters.map(f => (
+              <option key={f.key} value={f.key}>
+                {f.label} ({countByStatus(currentList, f.key)})
+              </option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
+            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         </div>
+        {filterStatus !== 'ALL' && (
+          <button
+            onClick={() => setFilterStatus('ALL')}
+            className="text-[10px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-semibold transition-colors"
+          >
+            Clear ×
+          </button>
+        )}
+      </div>
 
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <span className="block text-slate-500 uppercase tracking-wide font-bold text-[9px] mb-1">Billing Period</span>
-              <span className="text-slate-200">{invoice.billingCycle?.startDate} to {invoice.billingCycle?.endDate}</span>
-            </div>
-            <div>
-              <span className="block text-slate-500 uppercase tracking-wide font-bold text-[9px] mb-1">Consumption</span>
-              <span className="text-slate-200">{invoice.consumptionLiters?.toLocaleString()} Liters</span>
-            </div>
+      {/* Ticket List */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <RefreshCw size={22} className="animate-spin text-blue-500" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900/30 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-12 text-center shadow-sm">
+          <LifeBuoy size={36} className="mx-auto text-slate-400 dark:text-slate-700 mb-3" />
+          <p className="text-slate-800 dark:text-slate-400 text-sm font-semibold">No tickets found</p>
+          <p className="text-slate-500 dark:text-slate-600 text-xs mt-1">
+            {filterStatus !== 'ALL' ? `No ${filterStatus.replace('_', ' ').toLowerCase()} tickets.` : 'No support tickets yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* List header */}
+          <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400">
+            <div className="col-span-1">ID</div>
+            <div className="col-span-4">Subject</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-2">{section === 'assigned' && isManager ? 'From' : 'Assigned To'}</div>
+            <div className="col-span-2">Date</div>
+            <div className="col-span-1"></div>
           </div>
+          {filtered.map(t => {
+            const badge = getStatusBadge(t.status);
+            return (
+              <button
+                key={t.id}
+                onClick={() => openTicketRow(t)}
+                className="w-full grid grid-cols-12 gap-3 items-center px-4 py-3.5 bg-white dark:bg-slate-900/50 hover:bg-sky-50/80 dark:hover:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 hover:border-sky-300 dark:hover:border-slate-700 rounded-xl transition-all duration-200 text-left group cursor-pointer shadow-sm dark:shadow-none"
+              >
+                <div className="col-span-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold">#{t.id}</div>
+                <div className="col-span-4">
+                  <p className="text-slate-900 dark:text-slate-100 font-semibold text-xs group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{t.title}</p>
+                  {t.resolutionNotes && <p className="text-[10px] text-emerald-600 dark:text-emerald-400/90 truncate mt-0.5 font-medium">↳ {t.resolutionNotes}</p>}
+                </div>
+                <div className="col-span-2">
+                  <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full font-extrabold tracking-wider ${badge.cls}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span>
+                    {t.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <div className="col-span-2 text-[10px] text-slate-700 dark:text-slate-400 font-medium truncate">
+                  {t._isAssigned ? (t.raisedBy?.name || 'Unknown') : (t.assignedTo?.name || 'Super Admin')}
+                </div>
+                <div className="col-span-2 text-[10px] text-slate-600 dark:text-slate-400 font-mono">
+                  {new Date(t.createdAt).toLocaleDateString()}
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <svg className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-          <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-3">Itemized Breakdown</h4>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between text-slate-300">
-                <span>Base Charge</span>
-                <span>₹{(invoice.baseCharge || 0).toFixed(2)}</span>
+      {/* MODAL — Ticket Detail View */}
+      {detailModalOpen && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setDetailModalOpen(false)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="bg-slate-100/90 dark:bg-slate-950 px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start">
+              <div className="flex-1 pr-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full font-extrabold tracking-wider ${getStatusBadge(selectedTicket.status).cls}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${getStatusBadge(selectedTicket.status).dot}`}></span>
+                    {selectedTicket.status.replace('_', ' ')}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold">#{selectedTicket.id}</span>
+                </div>
+                <h3 className="text-slate-900 dark:text-slate-100 font-extrabold text-base leading-tight">{selectedTicket.title}</h3>
               </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Excess Charge</span>
-                <span>₹{(invoice.excessCharge || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Shared Area Allocation</span>
-                <span>₹{(invoice.sharedCostAllocation || 0).toFixed(2)}</span>
-              </div>
+              <button onClick={() => setDetailModalOpen(false)} className="text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 p-1.5 rounded-lg transition shrink-0">
+                <X size={16} />
+              </button>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Amount</span>
-              <span className="text-emerald-400 font-black text-2xl">₹{amount}</span>
-            </div>
-          </div>
 
-          {invoice.paid ? (
-            <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-emerald-500/30 rounded-xl bg-emerald-950/20">
-              <div className="bg-emerald-500/20 p-3 rounded-full mb-3">
-                <CheckCircle2 size={32} className="text-emerald-500" />
+            {/* Body */}
+            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Description</p>
+                <p className="text-slate-800 dark:text-slate-300 text-sm leading-relaxed">{selectedTicket.description}</p>
               </div>
-              <h4 className="text-emerald-400 font-black tracking-widest uppercase text-xl">PAID</h4>
-              <p className="text-slate-400 text-[10px] mt-1 text-center">This invoice has been successfully settled.</p>
-              
-              {(invoice.razorpayPaymentId || invoice.razorpayOrderId) && (
-                <div className="mt-4 w-full px-4 text-center border-t border-emerald-500/20 pt-3">
-                  <p className="text-emerald-500/80 text-[10px] uppercase font-bold tracking-wider mb-1">Transaction Details</p>
-                  {invoice.razorpayPaymentId && <p className="text-emerald-400/80 text-[10px] font-mono mb-0.5">ID: {invoice.razorpayPaymentId}</p>}
-                  {invoice.razorpayOrderId && <p className="text-emerald-400/80 text-[10px] font-mono">Order: {invoice.razorpayOrderId}</p>}
+
+              {selectedTicket.attachment && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Attachment</p>
+                  <a href={selectedTicket.attachment} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                    <img src={selectedTicket.attachment} alt="Attachment" className="w-full max-h-48 object-cover" />
+                  </a>
                 </div>
               )}
-            </div>
-          ) : !invoice.paid && allowPay ? (
-            <div className="flex flex-col items-center justify-center space-y-4 pt-2">
-              {/* Razorpay branded payment section */}
-              <div className="w-full bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <svg width="28" height="28" viewBox="0 0 135 39" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M45.8 30.2L51.5 8.8H57.2L55.6 14.7C56.9 13 58.6 12.1 60.7 12.1C63.6 12.1 65.5 13.9 65.5 16.9C65.5 17.6 65.4 18.4 65.1 19.3L62.7 30.2H57.1L59.3 20.3C59.4 19.9 59.5 19.4 59.5 18.9C59.5 17.6 58.8 16.8 57.5 16.8C55.8 16.8 54.4 18 53.9 20.1L51.6 30.2H45.8Z" fill="#2EB8E6"/>
-                    <path d="M67.5 30.2L72 12.5H77.7L73.2 30.2H67.5ZM78.1 10.3C78.1 11.9 76.8 13.2 75.1 13.2C73.4 13.2 72.2 12 72.2 10.4C72.2 8.8 73.5 7.5 75.2 7.5C76.9 7.5 78.1 8.7 78.1 10.3Z" fill="#2EB8E6"/>
-                    <path d="M22 7.7L11.5 31.3L0 8.8H7.3L11.6 18.3L18.5 7.7H22Z" fill="#2EB8E6"/>
-                    <path d="M33.6 7.7L24.4 23.4L22.4 31.3H16.1L20.7 12.8L33.6 7.7Z" fill="#072654"/>
-                  </svg>
-                  <span className="text-slate-200 font-bold text-sm">Pay Securely with Razorpay</span>
+
+              {selectedTicket.resolutionNotes && (
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
+                  <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">Resolution Notes</p>
+                  <p className="text-emerald-900 dark:text-emerald-300 text-sm italic">"{selectedTicket.resolutionNotes}"</p>
                 </div>
-                <p className="text-slate-400 text-[11px] text-center leading-relaxed">
-                  Pay via Credit/Debit Card, UPI, Net Banking, or Wallets.<br/>
-                  Secured by 256-bit SSL encryption.
-                </p>
-                <div className="flex gap-2 flex-wrap justify-center">
-                  {['VISA', 'MC', 'UPI', 'NB'].map(m => (
-                    <span key={m} className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold tracking-wider border border-slate-700">{m}</span>
-                  ))}
+              )}
+
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="bg-slate-100/80 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider mb-1">Raised By</p>
+                  <p className="text-slate-800 dark:text-slate-300 font-semibold">{selectedTicket.raisedBy?.name || 'Unknown'}</p>
+                </div>
+                <div className="bg-slate-100/80 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider mb-1">Assigned To</p>
+                  <p className="text-slate-800 dark:text-slate-300 font-semibold">{selectedTicket.assignedTo?.name || 'Super Admin'}</p>
+                </div>
+                <div className="bg-slate-100/80 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider mb-1">Created</p>
+                  <p className="text-slate-800 dark:text-slate-300 font-semibold">{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="bg-slate-100/80 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider mb-1">Status</p>
+                  <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full font-extrabold tracking-wider ${getStatusBadge(selectedTicket.status).cls}`}>
+                    {selectedTicket.status.replace('_', ' ')}
+                  </span>
                 </div>
               </div>
-              <button
-                disabled={payingId === invoice.id}
-                onClick={() => onPay && onPay(invoice.id)}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3.5 rounded-xl font-bold text-sm transition-all duration-200 shadow-lg shadow-blue-500/20"
-              >
-                {payingId === invoice.id ? (
-                  <>
-                    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                    Pay ₹{invoice.amount?.toFixed(2)} Now
-                  </>
-                )}
-              </button>
-              <p className="text-slate-600 text-[9px] text-center">You'll be redirected to Razorpay secure checkout</p>
             </div>
-          ) : (
-             <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-red-500/30 rounded-xl bg-red-950/20">
-               <h4 className="text-red-400 font-black tracking-widest uppercase text-xl">UNPAID</h4>
-               <p className="text-slate-400 text-[10px] mt-1 text-center">Payment is pending for this cycle.</p>
-             </div>
-          )}
+
+            {/* Footer */}
+            {selectedTicket._isAssigned && selectedTicket.status !== 'RESOLVED' && (
+              <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                <button
+                  onClick={() => {
+                    setDetailModalOpen(false);
+                    setResolveData({ status: selectedTicket.status, resolutionNotes: selectedTicket.resolutionNotes || '' });
+                    setResolveModalOpen(true);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                >
+                  Update Status
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* MODAL — Create Ticket */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-slate-900 dark:text-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <LifeBuoy size={18} className="text-blue-600 dark:text-blue-500" /> Raise Support Ticket
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-1.5 rounded-lg transition cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Subject / Title</label>
+                <input type="text" required className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                  placeholder="e.g. Water leak in Block A"
+                  value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Description</label>
+                <textarea required rows="4" className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 resize-none"
+                  placeholder="Describe the issue in detail..."
+                  value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Attachment (Image, optional, max 5MB)</label>
+                <input type="file" accept="image/*" onChange={handleFileUpload}
+                  className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 text-xs font-medium file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer" />
+                {formData.attachment && <p className="text-emerald-600 dark:text-emerald-400 text-[10px] font-bold mt-1.5">✓ Image attached</p>}
+              </div>
+              <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 mt-2 shadow-md cursor-pointer">
+                {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                {submitting ? 'Submitting...' : 'Submit Ticket'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL — Update Status */}
+      {resolveModalOpen && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { setResolveModalOpen(false); setSelectedTicket(null); }}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-slate-900 dark:text-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Update Ticket Status</h3>
+              <button onClick={() => { setResolveModalOpen(false); setSelectedTicket(null); }} className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-1.5 rounded-lg transition cursor-pointer"><X size={16} /></button>
+            </div>
+            <div className="mb-5 p-3.5 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+              <p className="text-xs text-slate-900 dark:text-slate-200 font-bold">{selectedTicket.title}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 font-medium">{selectedTicket.description}</p>
+            </div>
+            <form onSubmit={handleUpdateStatus} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+                <select className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  value={resolveData.status} onChange={e => setResolveData({...resolveData, status: e.target.value})}>
+                  <option value="OPEN">Open</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="RESOLVED">Resolved</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Resolution / Update Notes</label>
+                <textarea rows="3" className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 resize-none"
+                  placeholder="Provide resolution details or status update..."
+                  value={resolveData.resolutionNotes} onChange={e => setResolveData({...resolveData, resolutionNotes: e.target.value})} />
+              </div>
+              <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-md cursor-pointer">
+                {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                Save Changes
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// -------------------------------------------------------------
+// END OF APP COMPONENTS
+// -------------------------------------------------------------
+

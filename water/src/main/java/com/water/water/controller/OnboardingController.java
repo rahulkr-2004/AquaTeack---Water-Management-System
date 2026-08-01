@@ -1,8 +1,10 @@
 package com.water.water.controller;
 
 import com.water.water.dto.ApartmentRequest;
+import com.water.water.dto.ColonyRequest;
 import com.water.water.dto.HouseholdRequest;
 import com.water.water.model.Apartment;
+import com.water.water.model.Building;
 import com.water.water.model.Household;
 import com.water.water.model.User;
 import com.water.water.service.OnboardingService;
@@ -12,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -22,11 +23,109 @@ public class OnboardingController {
     @Autowired
     private OnboardingService onboardingService;
 
-    // --- 1. Register a New Apartment ---
+    // --- 0. Create Colony with Buildings (batch) --- Super Admin only
+    @PostMapping("/colony")
+    public ResponseEntity<?> createColony(@Valid @RequestBody ColonyRequest request, Authentication authentication) {
+        boolean isSuperAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority()));
+        if (!isSuperAdmin) {
+            return ResponseEntity.status(403).body("Error: Only Super Admin can create a colony.");
+        }
+        try {
+            Apartment colony = onboardingService.createColonyWithBuildings(request);
+            return ResponseEntity.ok(colony);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- 0a. Add a Building to an existing Colony --- Admin/Community Admin
+    @PostMapping("/colony/{colonyId}/building")
+    public ResponseEntity<?> addBuildingToColony(@PathVariable Long colonyId, @RequestBody Map<String, String> request, Authentication authentication) {
+        System.out.println("[ADD_BUILDING] Endpoint hit for colonyId: " + colonyId + " | request: " + request + " | auth: " + authentication);
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        boolean isAdminOrCommunityAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority())
+                        || "ROLE_COMMUNITY_ADMIN".equals(a.getAuthority()) || "COMMUNITY_ADMIN".equals(a.getAuthority()));
+        if (!isAdminOrCommunityAdmin) {
+            System.out.println("[ADD_BUILDING] Access denied: User authorities: " + authentication.getAuthorities());
+            return ResponseEntity.status(403).body("Error: Admin access required to add buildings.");
+        }
+        String buildingName = request.get("name");
+        if (buildingName == null || buildingName.isBlank()) {
+            return ResponseEntity.badRequest().body("Building name is required.");
+        }
+        try {
+            Building b = onboardingService.addBuildingToColony(colonyId, buildingName.trim());
+            System.out.println("[ADD_BUILDING] Successfully added building: " + b.getName() + " (ID: " + b.getId() + ")");
+            return ResponseEntity.ok(b);
+        } catch (IllegalArgumentException e) {
+            System.out.println("[ADD_BUILDING] IllegalArgumentException: " + e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[ADD_BUILDING] Error Persisting Building: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error adding building: " + e.getMessage());
+        }
+    }
+
+    // --- 0b. Get all buildings for a colony --- Admin/Community Admin
+    @GetMapping("/colony/{colonyId}/buildings")
+    public ResponseEntity<?> getBuildingsForColony(@PathVariable Long colonyId, Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        return ResponseEntity.ok(onboardingService.getBuildingsForColony(colonyId));
+    }
+
+    // --- 0c. Soft-delete a Building --- Admin/Community Admin
+    @DeleteMapping("/building/{buildingId}")
+    public ResponseEntity<?> deleteBuilding(@PathVariable Long buildingId, Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        boolean isAdminOrCommunityAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_COMMUNITY_ADMIN".equals(a.getAuthority()));
+        if (!isAdminOrCommunityAdmin) {
+            return ResponseEntity.status(403).body("Error: Admin access required to delete a building.");
+        }
+        try {
+            onboardingService.softDeleteBuilding(buildingId);
+            return ResponseEntity.ok("Building deleted successfully.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- 0d. Assign Building to a Community Admin --- Super Admin only
+    @PostMapping("/assign-admin-building")
+    public ResponseEntity<?> assignAdminBuilding(@RequestBody Map<String, Long> request, Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return ResponseEntity.status(403).body("Error: Only Super Admin can assign buildings.");
+        }
+        Long adminId = request.get("adminId");
+        Long buildingId = request.get("buildingId");
+        if (adminId == null) return ResponseEntity.badRequest().body("adminId is required.");
+        try {
+            User updated = onboardingService.assignAdminBuilding(adminId, buildingId);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- 1. Register a New Apartment (Colony) ---
     @PostMapping("/apartment")
     public ResponseEntity<?> registerApartment(@Valid @RequestBody ApartmentRequest request, Authentication authentication) {
-        if (authentication == null || authentication.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-            return ResponseEntity.status(403).body("Error: Only Super Admin can register a building.");
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        boolean isAdminOrCommunityAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_COMMUNITY_ADMIN".equals(a.getAuthority()));
+        if (!isAdminOrCommunityAdmin) {
+            return ResponseEntity.status(403).body("Error: Admin access required to register a building/colony.");
         }
         try {
             Apartment apartment = onboardingService.registerApartment(request);
@@ -50,16 +149,52 @@ public class OnboardingController {
         }
     }
 
+    // --- 2b. Delete a Household Flat --- Admin / Community Admin
+    @DeleteMapping("/household/{id}")
+    public ResponseEntity<?> deleteHousehold(@PathVariable Long id, Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        boolean isAdminOrCommunityAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority())
+                        || "ROLE_COMMUNITY_ADMIN".equals(a.getAuthority()) || "COMMUNITY_ADMIN".equals(a.getAuthority()));
+        if (!isAdminOrCommunityAdmin) {
+            return ResponseEntity.status(403).body("Error: Admin access required to delete a household flat.");
+        }
+        try {
+            onboardingService.deleteHousehold(id);
+            return ResponseEntity.ok("Household flat deleted successfully.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error deleting household flat: " + e.getMessage());
+        }
+    }
+
     // --- 3. Get All Apartments ---
     @GetMapping("/apartments")
-    public ResponseEntity<List<Apartment>> getAllApartments() {
-        return ResponseEntity.ok(onboardingService.getAllApartments());
+    public ResponseEntity<?> getAllApartments(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        String adminEmail = authentication.getName();
+        String adminRole = authentication.getAuthorities().stream()
+                .map(auth -> auth.getAuthority())
+                .findFirst().orElse("ROLE_USER");
+        return ResponseEntity.ok(onboardingService.getAllApartments(adminEmail, adminRole));
     }
 
     // --- 4. Get All Households ---
     @GetMapping("/households")
-    public ResponseEntity<List<Household>> getAllHouseholds() {
-        return ResponseEntity.ok(onboardingService.getAllHouseholds());
+    public ResponseEntity<?> getAllHouseholds(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        String adminEmail = authentication.getName();
+        String adminRole = authentication.getAuthorities().stream()
+                .map(auth -> auth.getAuthority())
+                .findFirst().orElse("ROLE_USER");
+        return ResponseEntity.ok(onboardingService.getAllHouseholds(adminEmail, adminRole));
     }
 
     // --- 5. Get Users (SCOPED by role) ---
@@ -90,16 +225,19 @@ public class OnboardingController {
             String adminRole = authentication.getAuthorities().stream()
                     .map(auth -> auth.getAuthority())
                     .findFirst().orElse("ROLE_USER");
-            
+
             String name = request.get("name");
             String email = request.get("email");
-            Long apartmentId = Long.valueOf(request.get("apartmentId"));
+            String aptIdStr = request.get("apartmentId");
+            Long apartmentId = (aptIdStr != null && !aptIdStr.isBlank()) ? Long.valueOf(aptIdStr) : null;
             String block = request.get("block");
             String flatNumber = request.get("flatNumber");
-            
+
             return ResponseEntity.ok(onboardingService.inviteResident(name, email, apartmentId, block, flatNumber, adminEmail, adminRole));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Invitation failed: " + e.getMessage());
         }
     }
 
@@ -320,20 +458,40 @@ public class OnboardingController {
         }
     }
 
+    // --- 14.5. Assign Apartment to Community Admin (Super Admin only) ---
+    @PostMapping("/assign-admin-apartment")
+    public ResponseEntity<?> assignAdminApartment(@RequestBody Map<String, Long> request,
+                                                 Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        try {
+            String adminRole = authentication.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority())
+                    .findFirst().orElse("ROLE_USER");
+            Long adminId = request.get("adminId");
+            Long apartmentId = request.get("apartmentId");
+
+            if (adminId == null) {
+                return ResponseEntity.badRequest().body("adminId is required!");
+            }
+
+            User updated = onboardingService.assignAdminApartment(adminId, apartmentId, adminRole);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     // --- 15. Reset Database (Super Admin only, password verified) ---
     @PostMapping("/reset-database")
     public ResponseEntity<?> resetDatabase(@RequestBody Map<String, String> request, Authentication authentication) {
-        System.out.println("DEBUG: Entering resetDatabase endpoint!");
         if (authentication == null) {
-            System.out.println("DEBUG: Authentication is null!");
             return ResponseEntity.status(401).body("Not authenticated");
         }
-        String adminRole = authentication.getAuthorities().stream()
-                .map(auth -> auth.getAuthority())
-                .findFirst().orElse("ROLE_USER");
-        System.out.println("DEBUG: Authenticated user: " + authentication.getName() + " with role: " + adminRole);
-        if (!"ROLE_ADMIN".equals(adminRole)) {
-            System.out.println("DEBUG: Role is NOT ROLE_ADMIN!");
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority()));
+        if (!isSuperAdmin) {
             return ResponseEntity.status(403).body("Error: Only Super Admin can perform database reset.");
         }
         
@@ -343,11 +501,15 @@ public class OnboardingController {
         }
 
         String superAdminEmail = authentication.getName();
-        boolean success = onboardingService.verifyAndPasswordResetDatabase(superAdminEmail, password);
-        if (success) {
-            return ResponseEntity.ok("Database reset completed successfully!");
-        } else {
-            return ResponseEntity.status(401).body("Error: Password verification failed.");
+        try {
+            boolean success = onboardingService.verifyAndPasswordResetDatabase(superAdminEmail, password);
+            if (success) {
+                return ResponseEntity.ok("Database reset completed successfully!");
+            } else {
+                return ResponseEntity.status(401).body("Incorrect password! Please enter your valid login password.");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Reset error: " + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()));
         }
     }
 }

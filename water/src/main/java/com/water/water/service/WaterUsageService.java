@@ -2,6 +2,7 @@ package com.water.water.service;
 
 import com.water.water.dto.WaterUsageRequest;
 import com.water.water.model.Household;
+import com.water.water.model.Role;
 import com.water.water.model.WaterUsageLog;
 import com.water.water.model.User;
 import com.water.water.repository.HouseholdRepository;
@@ -15,7 +16,9 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class WaterUsageService {
@@ -48,7 +51,8 @@ public class WaterUsageService {
             }
             consumption = request.getReadingLiters() - lastLog.getReadingLiters();
         } else {
-            // First reading acts as a baseline, so consumption is 0.0
+            // This is the first/baseline reading. The meter is just being initialized.
+            // No water has been 'consumed' yet — consumption starts from the NEXT reading.
             consumption = 0.0;
         }
 
@@ -69,63 +73,197 @@ public class WaterUsageService {
             String line;
             boolean isFirstLine = true;
 
+            int householdCol = 0;
+            int dateCol = 1;
+            int readingCol = 2;
+            int prevCol = -1;
+
             while ((line = br.readLine()) != null) {
-                // Skip the header row
+                if (line.trim().isEmpty()) continue;
+
+                // Handle header row dynamically if present
                 if (isFirstLine) {
                     isFirstLine = false;
-                    continue;
+                    String[] headers = line.split(",");
+                    boolean hasHeaderKeywords = false;
+                    for (int i = 0; i < headers.length; i++) {
+                        String h = headers[i].trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+                        if (h.contains("household")) { householdCol = i; hasHeaderKeywords = true; }
+                        else if (h.contains("date")) { dateCol = i; hasHeaderKeywords = true; }
+                        else if (h.equals("readingliters") || h.contains("cumulat") || h.equals("reading")) { readingCol = i; hasHeaderKeywords = true; }
+                        else if (h.contains("previous")) { prevCol = i; }
+                    }
+                    if (hasHeaderKeywords) {
+                        continue; // Skip header row
+                    }
                 }
 
-                String[] data = line.split(",");
-                if (data.length < 3) continue; // Skip bad or empty rows
+                String[] data = line.split(",", -1);
+                if (data.length <= Math.max(householdCol, dateCol)) continue;
 
                 try {
-                    // Clean up potential BOM characters from the first column if the header was missing
-                    String householdStr = data[0].trim();
+                    String householdStr = data[householdCol].trim();
                     if (householdStr.startsWith("\uFEFF")) {
                         householdStr = householdStr.substring(1);
                     }
-                    
-                    // Parse the CSV columns
+                    if (householdStr.isEmpty()) continue;
+
                     Long householdId = Long.parseLong(householdStr);
-                    
-                    // Handle different date formats (e.g., from Excel)
-                    String dateStr = data[1].trim();
+                    Household household = householdRepository.findById(householdId).orElse(null);
+                    if (household == null) continue;
+
+                    String dateStr = data[dateCol].trim();
+                    if (dateStr.isEmpty()) continue;
+
                     LocalDate date;
                     if (dateStr.contains("/")) {
                         dateStr = dateStr.replace("/", "-");
                     }
                     if (dateStr.matches("\\d{2}-\\d{2}-\\d{4}")) {
                         date = LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+                    } else if (dateStr.matches("\\d{1,2}-\\d{1,2}-\\d{4}")) {
+                        date = LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ofPattern("d-M-yyyy"));
                     } else {
-                        date = LocalDate.parse(dateStr); // Default to yyyy-MM-dd
+                        date = LocalDate.parse(dateStr);
                     }
 
-                    double readingLiters = Double.parseDouble(data[2].trim());
+                    // Try readingCol first, fallback to prevCol if readingCol is blank
+                    String readingValStr = (readingCol >= 0 && readingCol < data.length) ? data[readingCol].trim() : "";
+                    if (readingValStr.isEmpty() && prevCol >= 0 && prevCol < data.length) {
+                        readingValStr = data[prevCol].trim();
+                    }
 
-                    // Create a request and route it through our existing smart logic!
-                    WaterUsageRequest request = new WaterUsageRequest();
-                    request.setHouseholdId(householdId);
-                    request.setDate(date);
-                    request.setReadingLiters(readingLiters);
+                    if (readingValStr.isEmpty()) continue;
 
-                    WaterUsageLog savedLog = logWaterUsage(request);
-                    savedLogs.add(savedLog);
+                    double readingLiters = Double.parseDouble(readingValStr);
+
+                    // Check if log already exists for this household and date
+                    WaterUsageLog existingLog = waterUsageLogRepository.findAll().stream()
+                            .filter(l -> l.getHousehold() != null && l.getHousehold().getId().equals(householdId) && l.getDate().equals(date))
+                            .findFirst().orElse(null);
+
+                    if (existingLog != null) {
+                        existingLog.setReadingLiters(readingLiters);
+                        savedLogs.add(waterUsageLogRepository.save(existingLog));
+                    } else {
+                        WaterUsageLog newLog = new WaterUsageLog();
+                        newLog.setHousehold(household);
+                        newLog.setDate(date);
+                        newLog.setReadingLiters(readingLiters);
+                        newLog.setConsumptionLiters(0.0);
+                        savedLogs.add(waterUsageLogRepository.save(newLog));
+                    }
                 } catch (Exception e) {
-                    // Skip any rows that fail (like duplicate dates) and keep processing the rest
-                    System.out.println("Skipped row due to error: " + e.getMessage());
+                    System.out.println("Skipped bulk row due to error: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse CSV file: " + e.getMessage());
         }
 
+        if (!savedLogs.isEmpty()) {
+            recalculateAllConsumption();
+        }
+
         return savedLogs;
     }
 
+    /**
+     * Generates a CSV template for bulk meter reading upload.
+     * One row per household with a meter and assigned resident; reading date is the period end date.
+     * First three columns match bulk-upload format; trailing columns are reference-only.
+     */
+    public String generateBulkUploadTemplate(String email, String role, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("Start date and end date are required.");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date.");
+        }
+        if ("ROLE_USER".equals(role)) {
+            throw new IllegalArgumentException("Access denied: only admins can download bulk upload templates.");
+        }
+
+        List<Household> households = getHouseholdsForAdmin(email, role).stream()
+                .filter(h -> h != null && h.isHasMeter())
+                .sorted(Comparator
+                        .comparing((Household h) -> (h != null && h.getApartment() != null) ? h.getApartment().getName() : "")
+                        .thenComparing((Household h) -> (h != null && h.getBlock() != null) ? h.getBlock() : "")
+                        .thenComparing((Household h) -> (h != null && h.getFlatNumber() != null) ? h.getFlatNumber() : ""))
+                .collect(Collectors.toList());
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("householdId,date,readingLiters,previousReading,residentName,apartment,block,flatNumber\n");
+
+        for (Household household : households) {
+            User resident = userRepository.findByHouseholdId(household.getId()).stream()
+                    .filter(u -> u.getRole() == Role.ROLE_USER && u.isApproved())
+                    .findFirst()
+                    .orElse(null);
+            String residentName = resident != null ? resident.getName() : "Unassigned";
+
+            WaterUsageLog lastLog = waterUsageLogRepository.findTopByHouseholdIdOrderByDateDesc(household.getId());
+            String previousReading = lastLog != null ? String.valueOf(lastLog.getReadingLiters()) : "0";
+
+            for (LocalDate currentDate = startDate; !currentDate.isAfter(endDate); currentDate = currentDate.plusDays(1)) {
+                csv.append(household.getId()).append(',')
+                        .append(currentDate).append(',')
+                        .append(',') // readingLiters column to be filled in by admin
+                        .append(previousReading).append(',')
+                        .append(csvEscape(residentName)).append(',')
+                        .append(csvEscape(household.getApartment() != null ? household.getApartment().getName() : "")).append(',')
+                        .append(csvEscape(household.getBlock())).append(',')
+                        .append(csvEscape(household.getFlatNumber()))
+                        .append('\n');
+            }
+        }
+
+        return csv.toString();
+    }
+
+    private List<Household> getHouseholdsForAdmin(String email, String role) {
+        if ("ROLE_COMMUNITY_ADMIN".equals(role)) {
+            User admin = userRepository.findByEmail(email).orElse(null);
+            if (admin != null && admin.getManagedApartment() != null) {
+                Long apartmentId = admin.getManagedApartment().getId();
+                return householdRepository.findAll().stream()
+                        .filter(h -> h.getApartment() != null && h.getApartment().getId().equals(apartmentId))
+                        .collect(Collectors.toList());
+            }
+            return new ArrayList<>();
+        }
+        return householdRepository.findAll();
+    }
+
+    private String csvEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
     public List<WaterUsageLog> getLogsForUser(String email, String role) {
-        if ("ROLE_ADMIN".equals(role) || "ROLE_COMMUNITY_ADMIN".equals(role)) {
-            return waterUsageLogRepository.findAllByOrderByDateDesc();
+        boolean isSuperAdmin = "ROLE_ADMIN".equals(role) || "ADMIN".equals(role);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(role) || "COMMUNITY_ADMIN".equals(role);
+
+        if (isSuperAdmin) {
+            return waterUsageLogRepository.findAllByOrderByDateDesc().stream()
+                    .filter(l -> !(l.getReadingLiters() == 0.0 && l.getConsumptionLiters() == 0.0))
+                    .collect(Collectors.toList());
+        }
+
+        if (isCommunityAdmin) {
+            User admin = userRepository.findByEmail(email).orElse(null);
+            if (admin != null && admin.getManagedApartment() != null) {
+                return waterUsageLogRepository.findAllByOrderByDateDesc().stream()
+                        .filter(l -> l.getHousehold() != null && l.getHousehold().getApartment().getId().equals(admin.getManagedApartment().getId()))
+                        .filter(l -> !(l.getReadingLiters() == 0.0 && l.getConsumptionLiters() == 0.0))
+                        .collect(Collectors.toList());
+            }
+            return new ArrayList<>();
         }
 
         // If ROLE_USER, get their household and filter logs
@@ -136,7 +274,9 @@ public class WaterUsageService {
             return new ArrayList<>();
         }
 
-        return waterUsageLogRepository.findByHouseholdIdOrderByDateDesc(user.getHousehold().getId());
+        return waterUsageLogRepository.findByHouseholdIdOrderByDateDesc(user.getHousehold().getId()).stream()
+                .filter(l -> !(l.getReadingLiters() == 0.0 && l.getConsumptionLiters() == 0.0))
+                .collect(Collectors.toList());
     }
 
     public Double getApartmentAverage(String email) {
@@ -165,5 +305,56 @@ public class WaterUsageService {
 
         Double avg = waterUsageLogRepository.findAverageConsumptionByApartmentAndAreaRange(h.getApartment().getId(), minArea, maxArea);
         return avg != null ? avg : 0.0;
+    }
+
+    /**
+     * Recalculates consumptionLiters for all logs as proper delta (current - previous reading).
+     * The first log per household gets consumptionLiters = 0 (baseline).
+     * Run once to fix legacy data.
+     */
+    public int recalculateAllConsumption() {
+        List<WaterUsageLog> allLogs = waterUsageLogRepository.findAllByOrderByDateDesc();
+
+        // 1. Purge dummy registration 0L logs where readingLiters == 0 && consumptionLiters == 0
+        List<WaterUsageLog> zeroLogs = allLogs.stream()
+                .filter(l -> l.getReadingLiters() == 0.0 && l.getConsumptionLiters() == 0.0)
+                .collect(Collectors.toList());
+        if (!zeroLogs.isEmpty()) {
+            waterUsageLogRepository.deleteAll(zeroLogs);
+            allLogs.removeAll(zeroLogs);
+        }
+
+        // Group by household
+        java.util.Map<Long, java.util.List<WaterUsageLog>> byHousehold = new java.util.HashMap<>();
+        for (WaterUsageLog log : allLogs) {
+            if (log.getHousehold() == null) continue;
+            Long hhId = log.getHousehold().getId();
+            byHousehold.computeIfAbsent(hhId, k -> new java.util.ArrayList<>()).add(log);
+        }
+
+        int fixedCount = 0;
+        for (java.util.Map.Entry<Long, java.util.List<WaterUsageLog>> entry : byHousehold.entrySet()) {
+            java.util.List<WaterUsageLog> logs = entry.getValue();
+            // Sort ASC by date then id
+            logs.sort((a, b) -> {
+                int d = a.getDate().compareTo(b.getDate());
+                return d != 0 ? d : Long.compare(a.getId(), b.getId());
+            });
+
+            for (int i = 0; i < logs.size(); i++) {
+                WaterUsageLog log = logs.get(i);
+                double consumption;
+                if (i == 0) {
+                    consumption = 0.0; // baseline
+                } else {
+                    double prev = logs.get(i - 1).getReadingLiters();
+                    consumption = Math.max(0.0, log.getReadingLiters() - prev);
+                }
+                log.setConsumptionLiters(consumption);
+                waterUsageLogRepository.save(log);
+                fixedCount++;
+            }
+        }
+        return fixedCount;
     }
 }

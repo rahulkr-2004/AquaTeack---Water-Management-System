@@ -2,9 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <title>AquaTrack - Smart Water Manager</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AquaTrack - Smart Water Solutions</title>
+    <!-- Theme init: runs BEFORE React mounts to prevent flash and ensure Tailwind dark: classes activate immediately -->
+    <script>
+      (function() {
+        var saved = localStorage.getItem('aq-theme');
+        var theme = saved === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <script src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs" type="module"></script>
   </head>
   <body>
     <div id="root"></div>

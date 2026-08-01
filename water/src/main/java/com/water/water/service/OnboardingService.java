@@ -1,12 +1,15 @@
 package com.water.water.service;
 
 import com.water.water.dto.ApartmentRequest;
+import com.water.water.dto.ColonyRequest;
 import com.water.water.dto.HouseholdRequest;
 import com.water.water.model.Apartment;
+import com.water.water.model.Building;
 import com.water.water.model.Household;
 import com.water.water.model.Role;
 import com.water.water.model.User;
 import com.water.water.repository.ApartmentRepository;
+import com.water.water.repository.BuildingRepository;
 import com.water.water.repository.HouseholdRepository;
 import com.water.water.repository.UserRepository;
 import com.water.water.repository.InvitationRepository;
@@ -16,6 +19,7 @@ import com.water.water.repository.WaterUsageLogRepository;
 import com.water.water.repository.WaterPurchaseRepository;
 import com.water.water.repository.SystemAlertRepository;
 import com.water.water.repository.TariffPlanRepository;
+import com.water.water.repository.SupportTicketRepository;
 import com.water.water.model.Invitation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,16 +28,27 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 @Service
 public class OnboardingService {
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Autowired
     private ApartmentRepository apartmentRepository;
+
+    @Autowired
+    private BuildingRepository buildingRepository;
 
     @Autowired
     private HouseholdRepository householdRepository;
@@ -65,60 +80,211 @@ public class OnboardingService {
     @Autowired
     private TariffPlanRepository tariffPlanRepository;
 
+    @Autowired
+    private SupportTicketRepository supportTicketRepository;
+
     @Autowired(required = false)
     private JavaMailSender emailSender;
 
-    @Value("${spring.mail.username:noreply@aquatrack.com}")
+    @Value("${spring.mail.username:aceruser12003@gmail.com}")
     private String senderEmail;
 
-    public void resetDatabase(String superAdminEmail) {
-        // 1. Delete dependent tables to respect foreign keys
-        billRepository.deleteAll();
-        billingCycleRepository.deleteAll();
-        waterUsageLogRepository.deleteAll();
-        waterPurchaseRepository.deleteAll();
-        systemAlertRepository.deleteAll();
-        tariffPlanRepository.deleteAll();
-        invitationRepository.deleteAll();
-        
-        // 2. Nullify associations first to prevent foreign key errors when deleting households and users
+    @Transactional
+    public void resetDatabase(String superAdminIdentifier) {
+        // 1. Clear entity dependent tables in reverse dependency order
+        supportTicketRepository.deleteAllInBatch();
+        billRepository.deleteAllInBatch();
+        billingCycleRepository.deleteAllInBatch();
+        waterUsageLogRepository.deleteAllInBatch();
+        waterPurchaseRepository.deleteAllInBatch();
+        systemAlertRepository.deleteAllInBatch();
+        tariffPlanRepository.deleteAllInBatch();
+        invitationRepository.deleteAllInBatch();
+
+        // 2. Clear FK associations on users
         List<User> users = userRepository.findAll();
         for (User user : users) {
             user.setManagedByAdmin(null);
+            user.setManagedBuilding(null);
+            user.setManagedApartment(null);
             user.setHousehold(null);
-            userRepository.save(user);
         }
-        
-        // 3. Delete households and buildings
-        householdRepository.deleteAll();
-        apartmentRepository.deleteAll();
-        
-        // 4. Delete all users except the current Super Admin (so they remain logged in)
+        userRepository.saveAll(users);
+        userRepository.flush();
+
+        // 3. Delete households, buildings, and apartments
+        householdRepository.deleteAllInBatch();
+        buildingRepository.deleteAllInBatch();
+        apartmentRepository.deleteAllInBatch();
+
+        // 4. Delete all non-SuperAdmin users (keep ROLE_ADMIN accounts)
         for (User user : users) {
-            if (!user.getEmail().equalsIgnoreCase(superAdminEmail)) {
+            boolean isSuperAdminUser =
+                    (user.getEmail() != null && user.getEmail().equalsIgnoreCase(superAdminIdentifier))
+                    || (user.getUsername() != null && user.getUsername().equalsIgnoreCase(superAdminIdentifier));
+            if (!isSuperAdminUser && user.getRole() != Role.ROLE_ADMIN) {
                 userRepository.delete(user);
             }
         }
+        userRepository.flush();
     }
 
-    public boolean verifyAndPasswordResetDatabase(String superAdminEmail, String rawPassword) {
+    /**
+     * Called on application startup to permanently drop legacy/orphaned tables
+     * that were created under old schema names (e.g. 'tickets' -> now 'support_tickets').
+     */
+    public void dropLegacyTables() {
         try {
-            User superAdmin = userRepository.findByEmail(superAdminEmail).orElse(null);
+            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate();
+            try {
+                entityManager.createNativeQuery("DROP TABLE IF EXISTS tickets").executeUpdate();
+            } catch (Exception ignored) {}
+            
+            // Clean up orphaned 'deleted' column if created during schema evolution
+            try {
+                entityManager.createNativeQuery("ALTER TABLE buildings DROP COLUMN deleted").executeUpdate();
+            } catch (Exception ignored) {}
+
+            // Set default value on 'is_deleted' column
+            try {
+                entityManager.createNativeQuery("ALTER TABLE buildings MODIFY COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0").executeUpdate();
+            } catch (Exception ignored) {}
+
+            try {
+                entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
+            } catch (Exception ignored) {}
+            System.out.println("Bootstrap: Legacy table cleanup complete.");
+        } catch (Exception e) {
+            System.err.println("Bootstrap: Legacy cleanup warning: " + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public boolean verifyAndPasswordResetDatabase(String superAdminIdentifier, String rawPassword) {
+        try {
+            User superAdmin = userRepository.findByEmailOrUsername(superAdminIdentifier).orElse(null);
             if (superAdmin == null) {
-                System.out.println("Reset DB: Super admin not found for email: " + superAdminEmail);
+                System.out.println("Reset DB: Super admin not found for: " + superAdminIdentifier);
                 return false;
             }
             if (!passwordEncoder.matches(rawPassword, superAdmin.getPassword())) {
-                System.out.println("Reset DB: Password mismatch for email: " + superAdminEmail);
+                System.out.println("Reset DB: Password mismatch for: " + superAdminIdentifier);
                 return false;
             }
-            resetDatabase(superAdminEmail);
+            resetDatabase(superAdmin.getEmail());
             return true;
         } catch (Exception e) {
             System.err.println("Reset DB failed with exception:");
             e.printStackTrace();
             throw e;
         }
+    }
+
+    // ── Colony / Building Management ───────────────────────────────────────────
+
+    /** Delete a household / flat configuration. */
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteHousehold(Long householdId) {
+        Household h = householdRepository.findById(householdId)
+                .orElseThrow(() -> new IllegalArgumentException("Household flat not found."));
+
+        List<User> users = userRepository.findByHouseholdId(householdId);
+        for (User u : users) {
+            u.setHousehold(null);
+            userRepository.save(u);
+        }
+
+        waterUsageLogRepository.deleteByHouseholdId(householdId);
+        billRepository.deleteByHouseholdId(householdId);
+        systemAlertRepository.deleteByHouseholdId(householdId);
+        householdRepository.delete(h);
+    }
+
+    /**
+     * Create a new colony (Apartment) together with an initial set of buildings.
+     * Building names are trimmed, lowercased for dedup-check, then title-cased for display.
+     */
+    public Apartment createColonyWithBuildings(ColonyRequest request) {
+        String normalizedName = request.getName().trim();
+        if (apartmentRepository.existsByName(normalizedName)) {
+            throw new IllegalArgumentException("A colony with this name already exists!");
+        }
+        Apartment colony = new Apartment();
+        colony.setName(normalizedName);
+        colony.setAddress(request.getAddress() != null ? request.getAddress().trim() : "");
+        colony = apartmentRepository.save(colony);
+
+        if (request.getBuildings() != null) {
+            for (String rawName : request.getBuildings()) {
+                if (rawName == null || rawName.isBlank()) continue;
+                String bName = rawName.trim();
+                if (!buildingRepository.existsByNameIgnoreCaseAndColonyIdAndDeletedFalse(bName, colony.getId())) {
+                    Building b = new Building();
+                    b.setName(bName);
+                    b.setColony(colony);
+                    b.setDeleted(false);
+                    buildingRepository.save(b);
+                }
+            }
+        }
+        return colony;
+    }
+
+    /** Add building(s) to an existing colony. Supports single or comma-separated names. */
+    public Building addBuildingToColony(Long colonyId, String buildingName) {
+        Apartment colony = apartmentRepository.findById(colonyId)
+                .orElseThrow(() -> new IllegalArgumentException("Colony not found."));
+        String rawInput = buildingName.trim();
+        String[] names = rawInput.split(",");
+        Building lastSaved = null;
+        for (String name : names) {
+            String bName = name.trim();
+            if (bName.isEmpty()) continue;
+            if (!buildingRepository.existsByNameIgnoreCaseAndColonyIdAndDeletedFalse(bName, colonyId)) {
+                Building b = new Building();
+                b.setName(bName);
+                b.setColony(colony);
+                b.setDeleted(false);
+                lastSaved = buildingRepository.save(b);
+            } else if (lastSaved == null) {
+                lastSaved = buildingRepository.findByNameIgnoreCaseAndColonyIdAndDeletedFalse(bName, colonyId).orElse(null);
+            }
+        }
+        if (lastSaved == null) {
+            throw new IllegalArgumentException("Building(s) already exist in this colony.");
+        }
+        return lastSaved;
+    }
+
+    /** Get all active buildings for a colony. */
+    public List<Building> getBuildingsForColony(Long colonyId) {
+        return buildingRepository.findByColonyIdAndDeletedFalse(colonyId);
+    }
+
+    /** Soft-delete a building (marks as deleted, retains history). */
+    public void softDeleteBuilding(Long buildingId) {
+        Building b = buildingRepository.findById(buildingId)
+                .orElseThrow(() -> new IllegalArgumentException("Building not found."));
+        b.setDeleted(true);
+        buildingRepository.save(b);
+    }
+
+    /** Assign a specific building to a Community Admin. */
+    public User assignAdminBuilding(Long adminId, Long buildingId) {
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found."));
+        if (admin.getRole() != Role.ROLE_COMMUNITY_ADMIN) {
+            throw new IllegalArgumentException("User is not a Community Admin.");
+        }
+        if (buildingId == null) {
+            admin.setManagedBuilding(null);
+        } else {
+            Building b = buildingRepository.findById(buildingId)
+                    .orElseThrow(() -> new IllegalArgumentException("Building not found."));
+            admin.setManagedBuilding(b);
+            admin.setManagedApartment(b.getColony());
+        }
+        return userRepository.save(admin);
     }
 
     // --- 1. Register a New Apartment Building ---
@@ -132,16 +298,27 @@ public class OnboardingService {
         return apartmentRepository.save(apartment);
     }
 
-    // --- 1.5. Invite Resident ---
+    // --- 1.5. Invite Resident (Community Admin / Super Admin) ---
     public Invitation inviteResident(String name, String email, Long apartmentId, String block, String flatNumber, String adminEmail, String adminRole) {
-        if (!"ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
-            throw new IllegalArgumentException("Access Denied: Only Community Admin can invite residents.");
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Resident email is required.");
         }
-        if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("User with this email already exists!");
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Resident name is required.");
         }
-        if (invitationRepository.findByEmail(email).isPresent()) {
-            throw new IllegalArgumentException("An invitation to this email has already been sent!");
+        if (userRepository.existsByEmail(email.trim())) {
+            throw new IllegalArgumentException("A user with this email address is already registered.");
+        }
+
+        // Auto-resolve apartmentId from Community Admin profile if missing
+        if (apartmentId == null) {
+            User admin = userRepository.findByEmail(adminEmail).orElse(null);
+            if (admin != null && admin.getManagedApartment() != null) {
+                apartmentId = admin.getManagedApartment().getId();
+            }
+        }
+        if (apartmentId == null && "ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
+            throw new IllegalArgumentException("Apartment/Colony ID is required. Please ensure your account has a managed colony assigned.");
         }
         
         Invitation invitation = new Invitation();
@@ -279,10 +456,9 @@ public class OnboardingService {
             System.out.println(inviteLink);
             System.out.println("=====================================================");
         }
-        
+
         return saved;
     }
-
     // --- 2. Register a New Flat inside a Building ---
     public Household registerHousehold(HouseholdRequest request) {
         Apartment apartment = apartmentRepository.findById(request.getApartmentId())
@@ -301,11 +477,29 @@ public class OnboardingService {
         return householdRepository.save(household);
     }
 
-    public List<Apartment> getAllApartments() {
+    public List<Apartment> getAllApartments(String adminEmail, String adminRole) {
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(adminRole) || "COMMUNITY_ADMIN".equals(adminRole);
+        if (isCommunityAdmin) {
+            User admin = userRepository.findByEmail(adminEmail).orElse(null);
+            if (admin != null && admin.getManagedApartment() != null) {
+                return List.of(admin.getManagedApartment());
+            }
+            return new ArrayList<>();
+        }
         return apartmentRepository.findAll();
     }
 
-    public List<Household> getAllHouseholds() {
+    public List<Household> getAllHouseholds(String adminEmail, String adminRole) {
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(adminRole) || "COMMUNITY_ADMIN".equals(adminRole);
+        if (isCommunityAdmin) {
+            User admin = userRepository.findByEmail(adminEmail).orElse(null);
+            if (admin != null && admin.getManagedApartment() != null) {
+                return householdRepository.findAll().stream()
+                        .filter(h -> h.getApartment().getId().equals(admin.getManagedApartment().getId()))
+                        .collect(Collectors.toList());
+            }
+            return new ArrayList<>();
+        }
         return householdRepository.findAll();
     }
 
@@ -319,17 +513,32 @@ public class OnboardingService {
      * - Community Admin: sees only their own managed household users
      */
     public List<User> getUsersForAdmin(String adminEmail, String adminRole) {
-        if ("ROLE_ADMIN".equals(adminRole)) {
+        boolean isSuperAdmin = "ROLE_ADMIN".equals(adminRole) || "ADMIN".equals(adminRole);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(adminRole) || "COMMUNITY_ADMIN".equals(adminRole);
+
+        if (isSuperAdmin) {
             // Super Admin sees all non-super-admin users
             List<User> result = new ArrayList<>();
             result.addAll(userRepository.findByRole(Role.ROLE_COMMUNITY_ADMIN));
             result.addAll(userRepository.findByRole(Role.ROLE_USER));
             return result;
-        } else if ("ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
-            // Community Admin sees only their managed household users
+        } else if (isCommunityAdmin) {
+            // Community Admin sees only their managed household users OR users in their managed apartment
             User admin = userRepository.findByEmail(adminEmail)
                     .orElseThrow(() -> new IllegalArgumentException("Admin not found!"));
-            return userRepository.findByManagedByAdminId(admin.getId());
+            List<User> users = userRepository.findByManagedByAdminId(admin.getId());
+            if (admin.getManagedApartment() != null) {
+                List<User> apartmentUsers = userRepository.findByRole(Role.ROLE_USER).stream()
+                        .filter(u -> u.getHousehold() != null && u.getHousehold().getApartment().getId().equals(admin.getManagedApartment().getId()))
+                        .collect(Collectors.toList());
+                // Merge without duplicates
+                for (User u : apartmentUsers) {
+                    if (users.stream().noneMatch(existing -> existing.getId().equals(u.getId()))) {
+                        users.add(u);
+                    }
+                }
+            }
+            return users;
         }
         throw new IllegalArgumentException("Access Denied: Only administrators can view users.");
     }
@@ -351,10 +560,13 @@ public class OnboardingService {
      * - Community Admin: sees only pending ROLE_USER registrations (unmanaged ones)
      */
     public List<User> getPendingApprovals(String adminEmail, String role) {
-        if ("ROLE_ADMIN".equals(role)) {
+        boolean isSuperAdmin = "ROLE_ADMIN".equals(role) || "ADMIN".equals(role);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(role) || "COMMUNITY_ADMIN".equals(role);
+
+        if (isSuperAdmin) {
             // Super Admin sees all pending registrations
             return userRepository.findByApprovedFalse();
-        } else if ("ROLE_COMMUNITY_ADMIN".equals(role)) {
+        } else if (isCommunityAdmin) {
             // Community Admin sees only pending household user registrations
             return userRepository.findByApprovedFalseAndRole(Role.ROLE_USER);
         }
@@ -374,7 +586,10 @@ public class OnboardingService {
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found!"));
 
-        if ("ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
+        boolean isSuperAdmin = "ROLE_ADMIN".equals(adminRole) || "ADMIN".equals(adminRole);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(adminRole) || "COMMUNITY_ADMIN".equals(adminRole);
+
+        if (isCommunityAdmin) {
             if (targetUser.getRole() != Role.ROLE_USER) {
                 throw new IllegalArgumentException("Access Denied: Community Admin can only approve Resident registrations.");
             }
@@ -382,7 +597,7 @@ public class OnboardingService {
             User communityAdmin = userRepository.findByEmail(adminEmail)
                     .orElseThrow(() -> new IllegalArgumentException("Admin not found!"));
             targetUser.setManagedByAdmin(communityAdmin);
-        } else if (!"ROLE_ADMIN".equals(adminRole)) {
+        } else if (!isSuperAdmin) {
             throw new IllegalArgumentException("Access Denied: Only administrators can approve registrations.");
         }
 
@@ -398,11 +613,14 @@ public class OnboardingService {
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found!"));
 
-        if ("ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
+        boolean isSuperAdmin = "ROLE_ADMIN".equals(adminRole) || "ADMIN".equals(adminRole);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equals(adminRole) || "COMMUNITY_ADMIN".equals(adminRole);
+
+        if (isCommunityAdmin) {
             if (targetUser.getRole() != Role.ROLE_USER) {
                 throw new IllegalArgumentException("Access Denied: Community Admin can only reject Resident registrations.");
             }
-        } else if (!"ROLE_ADMIN".equals(adminRole)) {
+        } else if (!isSuperAdmin) {
             throw new IllegalArgumentException("Access Denied: Only administrators can reject registrations.");
         }
 
@@ -637,6 +855,33 @@ public class OnboardingService {
     }
 
     // =========================================================================
+    // ASSIGN APARTMENT TO COMMUNITY ADMIN (Super Admin only)
+    // =========================================================================
+
+    public User assignAdminApartment(Long adminId, Long apartmentId, String adminRole) {
+        if (!"ROLE_ADMIN".equals(adminRole)) {
+            throw new IllegalArgumentException("Access Denied: Only Super Admin can assign an apartment to a Community Admin.");
+        }
+
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found!"));
+
+        if (admin.getRole() != Role.ROLE_COMMUNITY_ADMIN) {
+            throw new IllegalArgumentException("Error: Target user is not a Community Admin.");
+        }
+
+        if (apartmentId == null) {
+            admin.setManagedApartment(null);
+        } else {
+            Apartment apartment = apartmentRepository.findById(apartmentId)
+                    .orElseThrow(() -> new IllegalArgumentException("Apartment not found!"));
+            admin.setManagedApartment(apartment);
+        }
+
+        return userRepository.save(admin);
+    }
+
+    // =========================================================================
     // FLAT ASSIGNMENT
     // =========================================================================
 
@@ -699,4 +944,5 @@ public class OnboardingService {
             throw new IllegalArgumentException("Access Denied: Only administrators can perform this action.");
         }
     }
+
 }
