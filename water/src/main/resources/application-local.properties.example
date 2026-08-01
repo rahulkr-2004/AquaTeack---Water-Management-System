@@ -1,0 +1,20 @@
+# ============================================================
+# EXAMPLE CONFIGURATION - Copy this to application-local.properties
+# and fill in your actual values
+# ============================================================
+
+# MySQL Database
+spring.datasource.url=jdbc:mysql://localhost:3306/water_billing_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=YOUR_DB_USERNAME
+spring.datasource.password=YOUR_DB_PASSWORD
+
+# JWT Configuration (use a long random string, min 32 chars)
+app.jwt.secret=YOUR_JWT_SECRET_KEY_HERE
+
+# Email (SMTP - use Gmail App Password, not your real password)
+spring.mail.username=YOUR_GMAIL_ADDRESS
+spring.mail.password=YOUR_GMAIL_APP_PASSWORD
+
+# Razorpay Credentials
+razorpay.key.id=YOUR_RAZORPAY_KEY_ID
+razorpay.key.secret=YOUR_RAZORPAY_KEY_SECRET

@@ -1,0 +1,51 @@
+# ===========================
+# CREDENTIALS - NEVER COMMIT
+# ===========================
+**/application-local.properties
+**/.env
+**/.env.local
+**/.env.production
+
+# ===========================
+# Maven
+# ===========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ===========================
+# Spring Boot
+# ===========================
+*.jar
+*.war
+*.ear
+
+# ===========================
+# Node / React Frontend
+# ===========================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+
+# ===========================
+# IDE / Editor
+# ===========================
+.idea/
+*.iml
+*.iws
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ===========================
+# OS Files
+# ===========================
+.DS_Store
+Thumbs.db
