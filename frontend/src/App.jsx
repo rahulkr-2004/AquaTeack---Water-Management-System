@@ -756,9 +756,26 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   const [localAlerts, setLocalAlerts] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [expandedAdmins, setExpandedAdmins] = useState({});
+  const [blockChartData, setBlockChartData] = useState([]);
+  const [blockChartLoading, setBlockChartLoading] = useState(false);
 
   // Sync with parent data
   useEffect(() => { setLocalLogs(usageLogs || []); }, [usageLogs]);
+
+  // Fetch block-wise consumption from backend
+  const fetchBlockConsumption = async () => {
+    setBlockChartLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/reports/block-consumption`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBlockChartData(data);
+      }
+    } catch (_) {}
+    finally { setBlockChartLoading(false); }
+  };
 
   // Fetch alerts
   const fetchAlerts = async () => {
@@ -773,9 +790,11 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   // Real-time polling every 30 seconds
   useEffect(() => {
     fetchAlerts();
+    fetchBlockConsumption();
     const interval = setInterval(() => {
       if (fetchDashboardData) fetchDashboardData();
       fetchAlerts();
+      fetchBlockConsumption();
       setLastUpdated(new Date());
     }, 30000);
     return () => clearInterval(interval);
@@ -814,26 +833,26 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     return admin ? admin.name : 'Unassigned';
   };
 
-  // Build chart data
+  // Build block chart labels (still used by block chart)
+  const now = new Date();
+  const currentMonthLabel = now.toLocaleString('default', { month: 'short', year: 'numeric' });
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthLabel = prevMonthDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+  // Build original chart data — admin-wise (super admin) or 14-day daily (community admin)
   let chartData = [];
   let maxVal = 10;
   if (isSuperAdmin) {
     const currentMonthPrefix = new Date().toISOString().substring(0, 7);
     const adminMonthlyUsage = {};
-    
-    // Initialize chart with all registered Community Admins (at 0) to ensure real-time representation
-    communityAdmins.forEach(admin => {
-      adminMonthlyUsage[admin.name] = 0;
-    });
+    communityAdmins.forEach(admin => { adminMonthlyUsage[admin.name] = 0; });
     adminMonthlyUsage['Unassigned'] = 0;
-
     localLogs.forEach(log => {
       if (log.date && log.date.startsWith(currentMonthPrefix)) {
         const adminName = getAdminForHousehold(log.household);
         adminMonthlyUsage[adminName] = (adminMonthlyUsage[adminName] || 0) + (log.consumptionLiters || 0);
       }
     });
-
     for (const [name, val] of Object.entries(adminMonthlyUsage)) {
       chartData.push({ label: name, value: Math.round(val) });
     }
@@ -937,38 +956,181 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         </div>
       </section>
 
-      {/* 14-Day Bar Chart */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm dark:shadow-xl">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase">
-            {isSuperAdmin
-              ? (lang === 'hi' ? 'कम्युनिटी एडमिन अनुसार मासिक खपत' : 'Monthly Consumption By Community Admin')
-              : (lang === 'hi' ? 'दैनिक जल खपत (पिछले 14 दिन)' : 'Daily Water Consumption (Last 14 Days)')}
-          </h3>
-          <span className="text-[9px] bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded text-slate-700 dark:text-slate-400 font-mono border border-slate-200 dark:border-slate-700/50 shadow-inner font-bold">{totalWaterUsed.toLocaleString()} L {lang === 'hi' ? 'कुल' : 'total'}</span>
-        </div>
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={isSuperAdmin ? "#8b5cf6" : "#3b82f6"} stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor={isSuperAdmin ? "#8b5cf6" : "#3b82f6"} stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} opacity={0.5} />
-              <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickMargin={8} />
-              <Tooltip 
-                cursor={{ fill: '#e2e8f0', opacity: 0.5 }} 
-                contentStyle={{ backgroundColor: 'rgba(2, 6, 23, 0.95)', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#f8fafc', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)' }}
-                itemStyle={{ color: isSuperAdmin ? '#a78bfa' : '#60a5fa', fontWeight: 'bold' }}
-              />
-              <Bar dataKey="value" name="Liters" fill="url(#colorGradient)" radius={[6, 6, 0, 0]} barSize={isSuperAdmin ? 50 : undefined} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      {/* Block-wise Horizontal Bar Chart — Super Admin Only */}
+      {isSuperAdmin && (
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md dark:shadow-2xl overflow-hidden">
+          {/* Top accent */}
+          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+          <div className="p-6">
+
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h3 className="font-black text-slate-900 dark:text-white text-base tracking-tight">
+                  {lang === 'hi' ? 'ब्लॉक-वार जल खपत' : 'Block-wise Water Consumption'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                  {lang === 'hi' ? 'रियल-टाइम • वर्तमान माह बनाम पिछला माह' : 'Real-time · Current Month vs Previous Month'}
+                </p>
+              </div>
+              <div className="flex items-center gap-5">
+                {/* Legend */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded bg-blue-500 inline-block shadow" />
+                    <span className="text-xs text-slate-700 dark:text-slate-200 font-bold">{currentMonthLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded bg-slate-400 dark:bg-slate-500 inline-block shadow" />
+                    <span className="text-xs text-slate-700 dark:text-slate-200 font-bold">{prevMonthLabel}</span>
+                  </div>
+                </div>
+                <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-5">
+                  <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{totalWaterUsed.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">Litres total</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chart */}
+            {blockChartLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-10 h-10">
+                    <div className="w-10 h-10 rounded-full border-2 border-blue-200 dark:border-slate-700" />
+                    <Loader2 className="animate-spin text-blue-500 absolute inset-0 m-auto" size={20} />
+                  </div>
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">
+                    {lang === 'hi' ? 'डेटा लोड हो रहा है...' : 'Fetching live data...'}
+                  </span>
+                </div>
+              </div>
+            ) : blockChartData.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                  <TrendingUp size={28} className="text-slate-400 dark:text-slate-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-700 dark:text-slate-300 text-sm font-bold">
+                    {lang === 'hi' ? 'अभी तक कोई डेटा नहीं' : 'No block data yet'}
+                  </p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1 font-medium">
+                    {lang === 'hi' ? 'मीटर रीडिंग दर्ज होने पर ग्राफ दिखेगा' : 'Graph appears once meter readings are logged'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div style={{ height: Math.max(220, blockChartData.length * 72) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    layout="vertical"
+                    data={blockChartData}
+                    margin={{ top: 6, right: 80, left: 12, bottom: 6 }}
+                    barCategoryGap="30%"
+                    barGap={4}
+                  >
+                    <defs>
+                      <linearGradient id="hGradCurrent" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#4f46e5" stopOpacity={1} />
+                      </linearGradient>
+                      <linearGradient id="hGradPrev" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#475569" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#64748b" stopOpacity={0.9} />
+                      </linearGradient>
+                    </defs>
+
+                    <CartesianGrid
+                      strokeDasharray="4 4"
+                      horizontal={false}
+                      stroke="#94a3b8"
+                      opacity={0.25}
+                    />
+
+                    {/* Y-axis — block names */}
+                    <YAxis
+                      type="category"
+                      dataKey="block"
+                      width={64}
+                      tick={{ fontSize: 13, fontWeight: 800, fill: '#1e293b' }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+
+                    {/* X-axis — litre values */}
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickMargin={6}
+                      tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k L` : `${v} L`}
+                    />
+
+                    <Tooltip
+                      cursor={{ fill: 'rgba(99,102,241,0.07)', rx: 6 }}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#334155',
+                        borderRadius: '14px',
+                        fontSize: '13px',
+                        color: '#f8fafc',
+                        boxShadow: '0 25px 50px -10px rgba(0,0,0,0.9)',
+                        padding: '12px 16px',
+                        minWidth: '170px'
+                      }}
+                      labelStyle={{ color: '#93c5fd', fontWeight: 800, fontSize: 13, marginBottom: 6 }}
+                      formatter={(value, name) => [
+                        <span key="v" style={{ fontWeight: 900, color: '#ffffff', fontSize: 15 }}>
+                          {value.toLocaleString()} L
+                        </span>,
+                        <span key="n" style={{ color: name === 'currentMonth' ? '#818cf8' : '#94a3b8', fontWeight: 700, fontSize: 12 }}>
+                          {name === 'currentMonth' ? currentMonthLabel : prevMonthLabel}
+                        </span>
+                      ]}
+                      labelFormatter={label => `📍 Block ${label}`}
+                    />
+
+                    {/* Previous Month */}
+                    <Bar
+                      dataKey="prevMonth"
+                      name="prevMonth"
+                      fill="url(#hGradPrev)"
+                      radius={[0, 6, 6, 0]}
+                      barSize={22}
+                      label={{
+                        position: 'right',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fill: '#64748b',
+                        formatter: v => v > 0 ? `${v.toLocaleString()} L` : ''
+                      }}
+                    />
+
+                    {/* Current Month */}
+                    <Bar
+                      dataKey="currentMonth"
+                      name="currentMonth"
+                      fill="url(#hGradCurrent)"
+                      radius={[0, 6, 6, 0]}
+                      barSize={22}
+                      label={{
+                        position: 'right',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        fill: '#4f46e5',
+                        formatter: v => v > 0 ? `${v.toLocaleString()} L` : ''
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
 
       {/* Apartments + Alerts row */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
