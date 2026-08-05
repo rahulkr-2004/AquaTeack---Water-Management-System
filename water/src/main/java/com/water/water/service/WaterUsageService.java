@@ -1,10 +1,12 @@
 package com.water.water.service;
 
 import com.water.water.dto.WaterUsageRequest;
+import com.water.water.model.Apartment;
 import com.water.water.model.Household;
 import com.water.water.model.Role;
 import com.water.water.model.WaterUsageLog;
 import com.water.water.model.User;
+import com.water.water.repository.ApartmentRepository;
 import com.water.water.repository.HouseholdRepository;
 import com.water.water.repository.UserRepository;
 import com.water.water.repository.WaterUsageLogRepository;
@@ -31,6 +33,9 @@ public class WaterUsageService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired(required = false)
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     // --- 1. Single Manual Entry ---
     public WaterUsageLog logWaterUsage(WaterUsageRequest request) {
@@ -305,6 +310,113 @@ public class WaterUsageService {
 
         Double avg = waterUsageLogRepository.findAverageConsumptionByApartmentAndAreaRange(h.getApartment().getId(), minArea, maxArea);
         return avg != null ? avg : 0.0;
+    }
+
+    @Autowired
+    private ApartmentRepository apartmentRepository;
+
+    public String seedMeterReadingsForHarsh() {
+        // Find user Harsh by name, email or username
+        User user = userRepository.findAll().stream()
+                .filter(u -> u.getName() != null && u.getName().toLowerCase().contains("harsh"))
+                .findFirst().orElse(null);
+
+        if (user == null) {
+            user = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail() != null && u.getEmail().toLowerCase().contains("harsh"))
+                    .findFirst().orElse(null);
+        }
+
+        if (user == null) {
+            // Create user Harsh if not present
+            user = new User();
+            user.setName("Harsh");
+            user.setEmail("rahulamp2004@gmail.com");
+            user.setRole(Role.ROLE_USER);
+            user.setApproved(true);
+            if (passwordEncoder != null) {
+                user.setPassword(passwordEncoder.encode("password123"));
+            } else {
+                user.setPassword("password123");
+            }
+            user = userRepository.save(user);
+        }
+
+        Household household = user.getHousehold();
+        if (household == null) {
+            // Find or create household for Harsh
+            Apartment apt = apartmentRepository.findAll().stream().findFirst().orElseGet(() -> {
+                Apartment newApt = new Apartment();
+                newApt.setName("Jeet Homes");
+                newApt.setAddress("City Center");
+                return apartmentRepository.save(newApt);
+            });
+
+            final Apartment finalApt = apt;
+            household = householdRepository.findByApartmentIdAndBlockAndFlatNumber(apt.getId(), "5", "609")
+                    .orElseGet(() -> {
+                        Household hh = new Household();
+                        hh.setApartment(finalApt);
+                        hh.setBlock("5");
+                        hh.setFlatNumber("609");
+                        hh.setHasMeter(true);
+                        return householdRepository.save(hh);
+                    });
+
+            user.setHousehold(household);
+            userRepository.save(user);
+        }
+
+        // Generate logs for 6 months: 01-Feb-2026 to 03-Aug-2026
+        LocalDate startDate = LocalDate.of(2026, 2, 1);
+        LocalDate endDate = LocalDate.of(2026, 8, 3);
+
+        List<WaterUsageLog> existing = waterUsageLogRepository.findByHouseholdIdOrderByDateDesc(household.getId());
+        if (!existing.isEmpty()) {
+            waterUsageLogRepository.deleteAll(existing);
+        }
+
+        List<WaterUsageLog> newLogs = new ArrayList<>();
+        double currentMeterReading = 15000.0; // Baseline cumulative meter reading
+
+        LocalDate date = startDate;
+        java.util.Random random = new java.util.Random(42);
+
+        while (!date.isAfter(endDate)) {
+            double dailyUsage = 180 + random.nextInt(140);
+            boolean isAnomaly = false;
+
+            if (date.getDayOfMonth() == 15 || date.getDayOfMonth() == 28) {
+                dailyUsage = 480 + random.nextInt(100);
+                isAnomaly = true;
+            }
+
+            if (date.equals(startDate)) {
+                WaterUsageLog log = new WaterUsageLog();
+                log.setHousehold(household);
+                log.setDate(date);
+                log.setReadingLiters(currentMeterReading);
+                log.setConsumptionLiters(0.0);
+                log.setAnomaly(false);
+                newLogs.add(log);
+            } else {
+                currentMeterReading += dailyUsage;
+                WaterUsageLog log = new WaterUsageLog();
+                log.setHousehold(household);
+                log.setDate(date);
+                log.setReadingLiters(currentMeterReading);
+                log.setConsumptionLiters(dailyUsage);
+                log.setAnomaly(isAnomaly);
+                newLogs.add(log);
+            }
+
+            date = date.plusDays(1);
+        }
+
+        waterUsageLogRepository.saveAll(newLogs);
+        recalculateAllConsumption();
+
+        return "Successfully logged " + newLogs.size() + " meter readings for Harsh from 01-Feb-2026 up to 03-Aug-2026.";
     }
 
     /**

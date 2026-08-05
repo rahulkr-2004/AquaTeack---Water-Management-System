@@ -131,4 +131,15 @@ public class WaterUsageController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
+    // --- 8. Seed Meter Readings for User Harsh ---
+    @PostMapping("/seed-harsh")
+    public ResponseEntity<?> seedHarshReadings() {
+        try {
+            String result = waterUsageService.seedMeterReadingsForHarsh();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error seeding Harsh readings: " + e.getMessage());
+        }
+    }
 }

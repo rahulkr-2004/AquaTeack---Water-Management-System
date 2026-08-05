@@ -44,8 +44,9 @@ public class WaterApplication {
 			// Drop legacy/orphaned tables left over from old schema versions
 			onboardingService.dropLegacyTables();
 
-			// Seeding logic removed so database remains clean
-			System.out.println("Bootstrap: Seeding disabled. Clean database active.");
+			// Seed meter readings for Harsh for last 6 months up to 3 Aug 2026
+			String seedMsg = waterUsageService.seedMeterReadingsForHarsh();
+			System.out.println("Bootstrap: " + seedMsg);
 		};
 	}
 }

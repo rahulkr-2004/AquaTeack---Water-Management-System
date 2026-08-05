@@ -10,7 +10,11 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "water_usage_logs")
+@Table(name = "water_usage_logs", indexes = {
+    @Index(name = "idx_wul_household_date", columnList = "household_id, date"),
+    @Index(name = "idx_wul_date", columnList = "date"),
+    @Index(name = "idx_wul_anomaly", columnList = "is_anomaly")
+})
 public class WaterUsageLog {
 
     @Id
@@ -32,4 +36,11 @@ public class WaterUsageLog {
 
     @Column(name = "is_anomaly", nullable = false)
     private boolean isAnomaly = false;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.date == null) {
+            this.date = LocalDate.now();
+        }
+    }
 }

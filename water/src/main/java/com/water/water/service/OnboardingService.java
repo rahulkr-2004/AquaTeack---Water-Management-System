@@ -261,13 +261,35 @@ public class OnboardingService {
         return buildingRepository.findByColonyIdAndDeletedFalse(colonyId);
     }
 
-    /** Soft-delete a building (marks as deleted, retains history). */
+    /**
+     * Soft-delete a building (marks as deleted, retains history).
+     * Also detaches any residents who lived in the building's block, 
+     * preventing stale FK references without destroying historical billing data.
+     */
+    @org.springframework.transaction.annotation.Transactional
     public void softDeleteBuilding(Long buildingId) {
         Building b = buildingRepository.findById(buildingId)
                 .orElseThrow(() -> new IllegalArgumentException("Building not found."));
+
+        // Cascade: detach residents whose household belongs to this building's block + apartment
+        if (b.getColony() != null) {
+            Long aptId = b.getColony().getId();
+            String block = b.getName();
+            List<Household> affectedHouseholds = householdRepository.findByApartmentIdAndBlock(aptId, block);
+            for (Household h : affectedHouseholds) {
+                // Detach residents from their household (preserves billing history)
+                List<User> residents = userRepository.findByHouseholdId(h.getId());
+                for (User resident : residents) {
+                    resident.setHousehold(null);
+                }
+                userRepository.saveAll(residents);
+            }
+        }
+
         b.setDeleted(true);
         buildingRepository.save(b);
     }
+
 
     /** Assign a specific building to a Community Admin. */
     public User assignAdminBuilding(Long adminId, Long buildingId) {
@@ -321,11 +343,20 @@ public class OnboardingService {
             throw new IllegalArgumentException("Apartment/Colony ID is required. Please ensure your account has a managed colony assigned.");
         }
         
+        // Resolve Apartment entity from ID
+        Apartment invitationApartment = null;
+        if (apartmentId != null) {
+            invitationApartment = apartmentRepository.findById(apartmentId).orElse(null);
+        }
+        if (invitationApartment == null && "ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
+            throw new IllegalArgumentException("Apartment/Colony not found. Please ensure your account has a valid managed colony assigned.");
+        }
+
         Invitation invitation = new Invitation();
         invitation.setToken(UUID.randomUUID().toString());
         invitation.setName(name);
         invitation.setEmail(email);
-        invitation.setApartmentId(apartmentId);
+        invitation.setApartment(invitationApartment);
         invitation.setBlock(block);
         invitation.setFlatNumber(flatNumber);
         invitation.setStatus("PENDING");
@@ -602,7 +633,18 @@ public class OnboardingService {
         }
 
         targetUser.setApproved(true);
-        return userRepository.save(targetUser);
+        User savedUser = userRepository.save(targetUser);
+
+        // Ensure newly proposed building (if any) is active & fully visible to Super Admin and attached to Community Admin
+        if (savedUser.getRole() == Role.ROLE_COMMUNITY_ADMIN && savedUser.getManagedBuilding() != null) {
+            Building b = savedUser.getManagedBuilding();
+            if (b.isDeleted()) {
+                b.setDeleted(false);
+                buildingRepository.save(b);
+            }
+        }
+
+        return savedUser;
     }
 
     // =========================================================================
@@ -813,11 +855,48 @@ public class OnboardingService {
      * - Community Admin can only delete their own managed household users
      * - Super Admin can delete Community Admins + Household Users (not other Super Admins)
      */
+    @Transactional
     public void deleteUser(Long userId, String adminEmail, String adminRole) {
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found!"));
 
         validateAdminScope(targetUser, adminEmail, adminRole);
+
+        // 1. Unlink managed residents if deleting a Community Admin
+        List<User> managedUsers = userRepository.findAll().stream()
+                .filter(u -> u.getManagedByAdmin() != null && u.getManagedByAdmin().getId().equals(userId))
+                .collect(Collectors.toList());
+        for (User resident : managedUsers) {
+            resident.setManagedByAdmin(null);
+            userRepository.save(resident);
+        }
+
+        // 2. Unlink target user from any System Alerts
+        List<com.water.water.model.SystemAlert> alerts = systemAlertRepository.findAll().stream()
+                .filter(a -> a.getTargetUser() != null && a.getTargetUser().getId().equals(userId))
+                .collect(Collectors.toList());
+        for (com.water.water.model.SystemAlert alert : alerts) {
+            alert.setTargetUser(null);
+            systemAlertRepository.save(alert);
+        }
+
+        // 3. Unlink target user from any Bills
+        List<com.water.water.model.Bill> bills = billRepository.findAll().stream()
+                .filter(b -> b.getTargetUser() != null && b.getTargetUser().getId().equals(userId))
+                .collect(Collectors.toList());
+        for (com.water.water.model.Bill bill : bills) {
+            bill.setTargetUser(null);
+            billRepository.save(bill);
+        }
+
+        // 4. Detach from Household and manage references
+        targetUser.setHousehold(null);
+        targetUser.setManagedApartment(null);
+        targetUser.setManagedBuilding(null);
+        targetUser.setManagedByAdmin(null);
+        userRepository.save(targetUser);
+
+        // 5. Safely delete user
         userRepository.delete(targetUser);
     }
 
@@ -925,7 +1004,10 @@ public class OnboardingService {
     // =========================================================================
 
     private void validateAdminScope(User targetUser, String adminEmail, String adminRole) {
-        if ("ROLE_COMMUNITY_ADMIN".equals(adminRole)) {
+        boolean isSuperAdmin = "ROLE_ADMIN".equalsIgnoreCase(adminRole) || "ADMIN".equalsIgnoreCase(adminRole);
+        boolean isCommunityAdmin = "ROLE_COMMUNITY_ADMIN".equalsIgnoreCase(adminRole) || "COMMUNITY_ADMIN".equalsIgnoreCase(adminRole);
+
+        if (isCommunityAdmin) {
             if (targetUser.getRole() != Role.ROLE_USER) {
                 throw new IllegalArgumentException("Access Denied: Community Admin can only manage Resident users.");
             }
@@ -936,7 +1018,7 @@ public class OnboardingService {
                 !targetUser.getManagedByAdmin().getId().equals(admin.getId())) {
                 throw new IllegalArgumentException("Access Denied: This user is not under your management.");
             }
-        } else if ("ROLE_ADMIN".equals(adminRole)) {
+        } else if (isSuperAdmin) {
             if (targetUser.getRole() == Role.ROLE_ADMIN) {
                 throw new IllegalArgumentException("Access Denied: Cannot modify another Super Admin.");
             }

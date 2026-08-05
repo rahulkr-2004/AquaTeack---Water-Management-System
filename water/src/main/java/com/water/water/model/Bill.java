@@ -11,7 +11,11 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "bills")
+@Table(name = "bills", indexes = {
+    @Index(name = "idx_bill_household_paid", columnList = "household_id, paid"),
+    @Index(name = "idx_bill_cycle_paid", columnList = "billing_cycle_id, paid"),
+    @Index(name = "idx_bill_invoice", columnList = "invoice_number")
+})
 public class Bill {
 
     @Id

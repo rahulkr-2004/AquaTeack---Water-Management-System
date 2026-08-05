@@ -27,19 +27,56 @@ public class ReportController {
 
 
     @GetMapping("/summary")
-    public ResponseEntity<?> getSummaryReport() {
+    public ResponseEntity<?> getSummaryReport(@org.springframework.web.bind.annotation.RequestParam(required = false) String month) {
         try {
             List<WaterUsageLog> logs = waterUsageLogRepository.findAll();
             List<WaterPurchase> purchases = waterPurchaseRepository.findAll();
             List<Bill> bills = billRepository.findAll();
 
-            double totalConsumedLiters = logs.stream().mapToDouble(log -> log.getConsumptionLiters()).sum();
-            double totalPurchasedLiters = purchases.stream().mapToDouble(p -> p.getLiters()).sum();
+            // Extract all unique months (YYYY-MM) available across logs, purchases, and bills
+            Set<String> monthSet = new TreeSet<>(Collections.reverseOrder());
+            for (WaterUsageLog l : logs) {
+                if (l.getDate() != null) {
+                    monthSet.add(l.getDate().toString().substring(0, 7));
+                }
+            }
+            for (WaterPurchase p : purchases) {
+                if (p.getDate() != null) {
+                    monthSet.add(p.getDate().toString().substring(0, 7));
+                }
+            }
+            for (Bill b : bills) {
+                if (b.getBillingCycle() != null && b.getBillingCycle().getStartDate() != null) {
+                    monthSet.add(b.getBillingCycle().getStartDate().toString().substring(0, 7));
+                }
+            }
+            List<String> availableMonths = new ArrayList<>(monthSet);
+
+            // Filter by month if provided and not ALL
+            if (month != null && !month.isBlank() && !"ALL".equalsIgnoreCase(month)) {
+                String target = month.trim();
+                logs = logs.stream()
+                        .filter(l -> l.getDate() != null && l.getDate().toString().startsWith(target))
+                        .toList();
+                purchases = purchases.stream()
+                        .filter(p -> p.getDate() != null && p.getDate().toString().startsWith(target))
+                        .toList();
+                bills = bills.stream()
+                        .filter(b -> b.getBillingCycle() != null && b.getBillingCycle().getStartDate() != null && b.getBillingCycle().getStartDate().toString().startsWith(target))
+                        .toList();
+            }
+
+            double totalConsumedLiters = logs.stream()
+                    .mapToDouble(l -> l.getConsumptionLiters() != null ? l.getConsumptionLiters() : 0.0)
+                    .sum();
+            double totalPurchasedLiters = purchases.stream()
+                    .mapToDouble(p -> p != null ? p.getLiters() : 0.0)
+                    .sum();
             BigDecimal totalPurchasedCost = purchases.stream()
-                    .map(p -> p.getCost())
+                    .map(p -> p.getCost() != null ? p.getCost() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
             BigDecimal totalBilledAmount = bills.stream()
-                    .map(b -> b.getAmount())
+                    .map(b -> b.getAmount() != null ? b.getAmount() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
 
             // Group consumption by apartment
@@ -47,11 +84,14 @@ public class ReportController {
             for (WaterUsageLog log : logs) {
                 if (log.getHousehold() != null && log.getHousehold().getApartment() != null) {
                     String aptName = log.getHousehold().getApartment().getName();
-                    consumptionByApartment.put(aptName, consumptionByApartment.getOrDefault(aptName, 0.0) + log.getConsumptionLiters());
+                    double val = log.getConsumptionLiters() != null ? log.getConsumptionLiters() : 0.0;
+                    consumptionByApartment.put(aptName, consumptionByApartment.getOrDefault(aptName, 0.0) + val);
                 }
             }
 
             Map<String, Object> summary = new HashMap<>();
+            summary.put("selectedMonth", (month == null || month.isBlank()) ? "ALL" : month);
+            summary.put("availableMonths", availableMonths);
             summary.put("totalConsumedLiters", totalConsumedLiters);
             summary.put("totalPurchasedLiters", totalPurchasedLiters);
             summary.put("totalPurchasedCost", totalPurchasedCost);

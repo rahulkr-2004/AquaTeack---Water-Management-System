@@ -28,7 +28,7 @@ public class TariffPlan {
     private BigDecimal excessRate;
 
     @Column(name = "base_limit_kl", nullable = false)
-    private Integer baseLimitKl; // Example: 10 kL before excess rate kicks in
+    private Double baseLimitKl; // Example: 10.5 kL before excess rate kicks in
 
     @Column(name = "base_limit_days")
     private Integer baseLimitDays = 30; // The number of days the base limit applies to (e.g., 7 days, 30 days)

@@ -125,6 +125,29 @@ export default function App() {
   const toggleLanguage = (newLang) => {
     setLang(newLang);
     localStorage.setItem('aquatrack_lang', newLang);
+
+    // Trigger Google Translate engine for full-page live translation
+    try {
+      if (newLang === 'en') {
+        // Reset translation to original English
+        document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${window.location.hostname}; path=/;`;
+      } else {
+        // Set Google Translate target language cookie
+        document.cookie = `googtrans=/en/${newLang}; path=/;`;
+        document.cookie = `googtrans=/en/${newLang}; domain=${window.location.hostname}; path=/;`;
+      }
+
+      const selectElem = document.querySelector('.goog-te-combo');
+      if (selectElem) {
+        selectElem.value = newLang === 'en' ? '' : newLang;
+        selectElem.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.warn("Language switcher trigger:", err);
+    }
   };
 
   const t = (key, params = {}) => {
@@ -270,7 +293,10 @@ export default function App() {
 
   if (!token) {
     const urlParams = new URLSearchParams(window.location.search);
-    const inviteToken = urlParams.get('token');
+    let inviteToken = urlParams.get('token');
+    if (!inviteToken && window.location.pathname.startsWith('/invite/')) {
+      inviteToken = window.location.pathname.replace('/invite/', '').trim();
+    }
     
     const toastNode = message.text && (
       <div className="fixed top-5 right-5 z-[9999] animate-fade-in-up">
@@ -299,7 +325,7 @@ export default function App() {
       </div>
     );
 
-    if (window.location.pathname === '/invite' || inviteToken) {
+    if (window.location.pathname.startsWith('/invite') || inviteToken) {
       return (
         <>
           <InviteVerificationView inviteToken={inviteToken} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} />
@@ -310,6 +336,7 @@ export default function App() {
     return (
       <>
         <AuthView setToken={setToken} message={message} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} lang={lang} setLang={setLang} />
+        <AquaBotFloatingWidget isLanding={true} lang={lang} t={t} />
         {toastNode}
       </>
     );
@@ -450,7 +477,12 @@ export default function App() {
               {sidebarItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (item.id === 'alerts' || item.id === 'notifications') {
+                      setAlertsCount(0);
+                    }
+                  }}
                   className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition duration-150 text-xs font-semibold cursor-pointer ${activeTab === item.id ? (isSuperAdmin ? 'bg-amber-600 text-white shadow-md shadow-amber-600/15' : 'bg-blue-600 text-white shadow-md' ) : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-900 dark:hover:text-slate-200'}`}
                 >
                   {item.icon}
@@ -645,6 +677,7 @@ export default function App() {
                   households={households} 
                   showMessage={showMessage} 
                   isAdmin={true}
+                  fetchDashboardData={fetchDashboardData}
                   lang={lang} t={t}
                 />
               )}
@@ -679,6 +712,7 @@ export default function App() {
                   households={[]} 
                   showMessage={showMessage} 
                   isAdmin={false}
+                  fetchDashboardData={fetchDashboardData}
                   lang={lang} t={t}
                 />
               )}
@@ -705,12 +739,15 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating AquaBot Widget for Household Residents */}
-      {!isManager && activeTab !== 'chatbot' && (
+      {/* Floating AquaBot Widget for All Dashboards */}
+      {activeTab !== 'chatbot' && (
         <AquaBotFloatingWidget
           profile={profile}
           usageLogs={usageLogs}
           bills={bills}
+          apartments={apartments}
+          households={households}
+          users={users}
           token={token}
           setActiveTab={setActiveTab}
           lang={lang}
@@ -787,16 +824,15 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     } catch (_) {}
   };
 
-  // Real-time polling every 30 seconds
+  // Real-time polling every 60 seconds (silent background refresh without full page loader flicker)
   useEffect(() => {
     fetchAlerts();
     fetchBlockConsumption();
     const interval = setInterval(() => {
-      if (fetchDashboardData) fetchDashboardData();
       fetchAlerts();
       fetchBlockConsumption();
       setLastUpdated(new Date());
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1132,6 +1168,97 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
       )}
 
 
+      {/* Real-time Analytics & Visual Graphs — Community Admin Exclusive */}
+      {!isSuperAdmin && (
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* 14-Day Daily Consumption Trend */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <TrendingUp size={16} className="text-blue-500" />
+                  {lang === 'hi' ? '14-दिवसीय खपत प्रवृत्ति' : '14-Day Consumption Trend'}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {lang === 'hi' ? 'दैनिक समाज जल खपत (लीटर)' : 'Daily community water usage (Liters)'}
+                </p>
+              </div>
+              <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full uppercase">
+                {lang === 'hi' ? 'रियल-टाइम' : 'Real-time'}
+              </span>
+            </div>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.2} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                    formatter={(val) => [`${val.toLocaleString()} L`, 'Consumption']}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#commGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Flat-wise Consumption Breakdown */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <Activity size={16} className="text-cyan-500" />
+                  {lang === 'hi' ? 'फ्लैट-वार खपत वितरण' : 'Flat-wise Usage Distribution'}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {lang === 'hi' ? 'प्रबंधित निवासियों की जल खपत' : 'Water consumed across managed units'}
+                </p>
+              </div>
+              <span className="text-[10px] bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-full uppercase">
+                {lang === 'hi' ? 'सक्रिय डेटा' : 'Active Units'}
+              </span>
+            </div>
+            <div className="h-56 w-full">
+              {householdUsers.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-slate-400 text-xs italic">
+                  {lang === 'hi' ? 'कोई निवासी पंजीकृत नहीं है' : 'No managed residents logged yet'}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={householdUsers.slice(0, 8).map(u => {
+                      const uHousehold = households.find(h => h.id === u.household?.id) || u.household;
+                      const flatName = uHousehold?.flatNo ? `F-${uHousehold.flatNo}` : u.name.split(' ')[0];
+                      const uUsage = Math.round(localLogs
+                        .filter(l => l.household?.id === uHousehold?.id)
+                        .reduce((sum, l) => sum + (l.consumptionLiters || 0), 0));
+                      return { flat: flatName, usage: uUsage };
+                    })}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.2} vertical={false} />
+                    <XAxis dataKey="flat" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                      formatter={(val) => [`${val.toLocaleString()} L`, 'Water Used']}
+                    />
+                    <Bar dataKey="usage" fill="#06b6d4" radius={[6, 6, 0, 0]} barSize={26} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Apartments + Alerts row */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Apartments */}
@@ -1142,9 +1269,44 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
           ) : (
             <div className="space-y-2">
               {apartments.map(a => {
-                const count = households.filter(h => h.apartment?.id === a.id).length;
+                const aptIdStr = String(a.id);
+                // Collect household IDs belonging to this apartment
+                const matchingHouseholdIds = new Set(
+                  (households || [])
+                    .filter(h => {
+                      const id = h.apartment?.id || h.apartmentId || (typeof h.apartment === 'number' || typeof h.apartment === 'string' ? h.apartment : null);
+                      return String(id) === aptIdStr;
+                    })
+                    .map(h => h.id)
+                );
+                (users || []).forEach(u => {
+                  if (u.household) {
+                    const uAptId = u.household.apartment?.id || u.household.apartmentId || u.managedByAdmin?.managedApartment?.id;
+                    if (uAptId && String(uAptId) === aptIdStr && u.household.id) {
+                      matchingHouseholdIds.add(u.household.id);
+                    }
+                  }
+                });
+
+                const count = Math.max(
+                  matchingHouseholdIds.size,
+                  (households || []).filter(h => {
+                    const id = h.apartment?.id || h.apartmentId || (typeof h.apartment === 'number' || typeof h.apartment === 'string' ? h.apartment : null);
+                    return String(id) === aptIdStr;
+                  }).length,
+                  (users || []).filter(u => {
+                    const uAptId = u.household?.apartment?.id || u.household?.apartmentId || u.managedByAdmin?.managedApartment?.id;
+                    return uAptId && String(uAptId) === aptIdStr;
+                  }).length
+                );
+
                 const waterUsed = Math.round(localLogs
-                  .filter(l => l.household?.apartment?.id === a.id || households.find(h => h.id === l.household?.id)?.apartment?.id === a.id)
+                  .filter(l => {
+                    const lAptId = l.household?.apartment?.id || l.household?.apartmentId;
+                    if (lAptId && String(lAptId) === aptIdStr) return true;
+                    if (l.household?.id && matchingHouseholdIds.has(l.household.id)) return true;
+                    return false;
+                  })
                   .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
                 return (
                   <div key={a.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-lg flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500/50 transition">
@@ -2064,6 +2226,7 @@ function HouseholdsTab({ token, apartments, households, users, showMessage, fetc
 function ResidentsTab({ token, users, households, apartments = [], showMessage, fetchDashboardData, isSuperAdmin, userRole, pendingUsers = [], darkMode, profile }) {
   const [assignData, setAssignData] = useState({ userId: '', householdId: '' });
   const [loadingAssign, setLoadingAssign] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createData, setCreateData] = useState({ name: '', email: '', password: '', role: 'ROLE_USER' });
@@ -2258,14 +2421,20 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
     }
   };
 
-  const startEdit = (user) => {
-    setEditingUserId(user.id);
-    setEditData({ name: user.name, email: user.email, householdId: user.household ? user.household.id : '' });
+  const startEdit = (u) => {
+    setEditingUserId(u.id);
+    setEditData({
+      name: u.name || '',
+      email: u.email || '',
+      householdId: u.household ? String(u.household.id) : '',
+      apartmentId: u.managedApartment ? String(u.managedApartment.id) : '',
+      communityAdminId: u.managedByAdmin ? String(u.managedByAdmin.id) : ''
+    });
   };
 
   const cancelEdit = () => {
     setEditingUserId(null);
-    setEditData({ name: '', email: '', householdId: '' });
+    setEditData({ name: '', email: '', householdId: '', apartmentId: '', communityAdminId: '' });
   };
 
   const handleUpdateUser = async (userId) => {
@@ -2276,24 +2445,48 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(editData)
+        body: JSON.stringify({
+          name: editData.name,
+          email: editData.email,
+          householdId: editData.householdId ? parseInt(editData.householdId) : null
+        })
       });
+
       if (response.ok) {
+        // If updating Community Admin Apartment
+        const u = users.find(x => x.id === userId);
+        if (u && u.role === 'ROLE_COMMUNITY_ADMIN' && isSuperAdmin) {
+          const newAptId = editData.apartmentId ? parseInt(editData.apartmentId) : null;
+          const currAptId = u.managedApartment ? u.managedApartment.id : null;
+          if (newAptId !== currAptId) {
+            await handleAssignAdminApartment(userId, editData.apartmentId);
+          }
+        }
+
+        // If updating Managing Admin
+        if (u && u.role === 'ROLE_USER' && isSuperAdmin) {
+          const newAdminId = editData.communityAdminId ? parseInt(editData.communityAdminId) : null;
+          const currAdminId = u.managedByAdmin ? u.managedByAdmin.id : null;
+          if (newAdminId !== currAdminId) {
+            await handleAssignAdmin(userId, editData.communityAdminId);
+          }
+        }
+
         showMessage('success', 'User updated successfully!');
-        setEditingUserId(null);
+        cancelEdit();
         fetchDashboardData();
       } else {
         const text = await response.text();
-        showMessage('error', text || 'Update failed.');
+        showMessage('error', text || 'Failed to update user.');
       }
     } catch (err) {
-      showMessage('error', 'Network failure.');
+      showMessage('error', 'Network error.');
     }
   };
 
   const handleAssignAdmin = async (userId, communityAdminId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/assign-managed-admin`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/assign-managing-admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2341,8 +2534,28 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
     }
   };
 
-  const communityAdmins = users.filter(u => u.role === 'ROLE_COMMUNITY_ADMIN');
-  const householdUsers = users.filter(u => u.role === 'ROLE_USER');
+  // Filter function for user search by Name, Email, Username, User ID, or Household ID/Block
+  const filterUserBySearch = (u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    const nameMatch = u.name?.toLowerCase().includes(q);
+    const emailMatch = u.email?.toLowerCase().includes(q);
+    const usernameMatch = u.username?.toLowerCase().includes(q);
+    const userIdMatch = String(u.id).includes(q) || `usr-${u.id}`.includes(q);
+    
+    // Household ID & details matching
+    const hhIdMatch = u.household ? (
+      String(u.household.id).includes(q) ||
+      `hh-${u.household.id}`.includes(q) ||
+      u.household.block?.toLowerCase().includes(q) ||
+      u.household.flatNumber?.toLowerCase().includes(q)
+    ) : false;
+
+    return nameMatch || emailMatch || usernameMatch || userIdMatch || hhIdMatch;
+  };
+
+  const communityAdmins = users.filter(u => u.role === 'ROLE_COMMUNITY_ADMIN').filter(filterUserBySearch);
+  const householdUsers = users.filter(u => u.role === 'ROLE_USER').filter(filterUserBySearch);
   const assignableUsers = isSuperAdmin ? [...communityAdmins, ...householdUsers] : householdUsers;
 
   // Get all household IDs that are already allocated to any resident
@@ -2357,7 +2570,7 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
       <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">{title}</h3>
       <div className="overflow-x-auto">
         {tableUsers.length === 0 ? (
-          <p className="text-slate-500 text-xs italic py-4">No users found.</p>
+          <p className="text-slate-500 text-xs italic py-4">No users matching search filter.</p>
         ) : (
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -2391,11 +2604,11 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
                   
                   <td>
                     {isCommunityAdminTable ? (
-                      isSuperAdmin ? (
+                      editingUserId === u.id && isSuperAdmin ? (
                         <select
                           className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                          value={u.managedApartment ? u.managedApartment.id : ''}
-                          onChange={(e) => handleAssignAdminApartment(u.id, e.target.value)}
+                          value={editData.apartmentId || ''}
+                          onChange={(e) => setEditData({ ...editData, apartmentId: e.target.value })}
                         >
                           <option value="">-- Unassigned --</option>
                           {apartments.map(apt => {
@@ -2441,6 +2654,7 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
                         u.household ? (
                           <span className="text-emerald-700 dark:text-emerald-400 font-bold">
                             {u.household.apartment?.name} - Block {u.household.block} / Flat {u.household.flatNumber}
+                            <span className="ml-1 text-[10px] opacity-75 font-mono text-slate-500">(HH-{u.household.id})</span>
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500 italic">No allocation</span>
@@ -2451,16 +2665,26 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
 
                   {showAdminAssign && (
                     <td className="py-2">
-                      <select
-                        className="w-full max-w-[140px] px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-[10px] font-semibold focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                        value={u.managedByAdmin ? u.managedByAdmin.id : ''}
-                        onChange={(e) => handleAssignAdmin(u.id, e.target.value)}
-                      >
-                        <option value="">-- Unassigned --</option>
-                        {communityAdmins.map(admin => (
-                          <option key={admin.id} value={admin.id}>{admin.name}</option>
-                        ))}
-                      </select>
+                      {editingUserId === u.id ? (
+                        <select
+                          className="w-full max-w-[140px] px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-[10px] font-semibold focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+                          value={editData.communityAdminId || ''}
+                          onChange={(e) => setEditData({ ...editData, communityAdminId: e.target.value })}
+                        >
+                          <option value="">-- Unassigned --</option>
+                          {communityAdmins.map(admin => (
+                            <option key={admin.id} value={admin.id}>{admin.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        u.managedByAdmin ? (
+                          <span className="px-2 py-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs">
+                            {u.managedByAdmin.name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic">Unassigned</span>
+                        )
+                      )}
                     </td>
                   )}
                   
@@ -2490,9 +2714,33 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
 
   return (
     <div className="space-y-8">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">User Management Registry</h2>
-        <div className="flex gap-2">
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">User Management Registry</h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Manage user roles, apartment allocations, and resident credentials</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search Filter Input */}
+          <div className="relative flex-1 sm:w-64">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search name, email, username, HH-ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           {isSuperAdmin && (
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
@@ -3428,6 +3676,26 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
 function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], profile, isAdmin, setActiveTab }) {
   const [expandedApts, setExpandedApts] = useState({});
   const [expandedHH, setExpandedHH]     = useState({});
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  // Generate last 12 months options
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      options.push({ val, label });
+    }
+    return options;
+  }, []);
+
+  // Filter logs by selected month
+  const filteredUsageLogs = useMemo(() => {
+    if (!selectedMonth || selectedMonth === 'ALL') return usageLogs || [];
+    return (usageLogs || []).filter(log => log.date && log.date.startsWith(selectedMonth));
+  }, [usageLogs, selectedMonth]);
 
   // Fallback: If households array is empty (e.g. resident view), extract household directly from profile or usageLogs
   const effectiveHouseholds = useMemo(() => {
@@ -3436,20 +3704,20 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
     if (profile?.household?.id) {
       map[profile.household.id] = profile.household;
     }
-    (usageLogs || []).forEach(log => {
+    (filteredUsageLogs || []).forEach(log => {
       const hh = log.household || (log.householdId ? { id: log.householdId, block: 'Main', flatNumber: 'Unit' } : null);
       if (hh && hh.id && !map[hh.id]) {
         map[hh.id] = hh;
       }
     });
     return Object.values(map);
-  }, [households, usageLogs, profile]);
+  }, [households, filteredUsageLogs, profile]);
 
   // Group logs by householdId, sorted newest first
   const logsByHH = useMemo(() => {
     const map = {};
     // Sort all logs oldest → newest so delta is computed correctly
-    const sorted = [...(usageLogs || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
+    const sorted = [...(filteredUsageLogs || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
     sorted.forEach((log) => {
       const hhId = log.household?.id ?? log.householdId ?? (profile?.household?.id);
       if (!hhId) return;
@@ -3461,7 +3729,7 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
     // Reverse each so newest is first for display
     Object.keys(map).forEach(k => map[k].reverse());
     return map;
-  }, [usageLogs, profile]);
+  }, [filteredUsageLogs, profile]);
 
   // Group households by apartmentId
   const hhByApt = useMemo(() => {
@@ -3474,18 +3742,15 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
     return map;
   }, [effectiveHouseholds]);
 
-  // Auto expand when there is only 1 apartment or household
+  // Auto-expand Level 1 (Apartment level) by default while keeping Level 2 (Household level) collapsed
   useEffect(() => {
     if (effectiveHouseholds.length > 0) {
       const aptMap = {};
-      const hhMap = {};
       effectiveHouseholds.forEach(hh => {
         const aptId = hh.apartment?.id ?? hh.apartmentId ?? 1;
         aptMap[aptId] = true;
-        hhMap[hh.id] = true;
       });
       setExpandedApts(prev => ({ ...aptMap, ...prev }));
-      setExpandedHH(prev => ({ ...hhMap, ...prev }));
     }
   }, [effectiveHouseholds]);
 
@@ -3501,7 +3766,7 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
   const isResident = !isAdmin;
 
   // Compute Resident Summary Stats
-  const residentLogs = usageLogs || [];
+  const residentLogs = filteredUsageLogs || [];
   const latestReading = residentLogs.length > 0 ? residentLogs[0].readingLiters : 0;
   const totalConsumption = residentLogs.reduce((sum, l) => sum + (l.consumptionLiters || 0), 0);
 
@@ -3519,14 +3784,34 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
           </p>
         </div>
 
-        {isResident && setActiveTab && (
-          <button
-            onClick={() => setActiveTab('my_usage')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-900/20"
-          >
-            <Plus size={16} /> Log New Reading
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* 12-Month Search Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 px-3.5 py-1.5 rounded-xl shadow-xs transition-colors">
+            <Calendar size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Filter Month:</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">All Available Months</option>
+              {monthOptions.map(m => (
+                <option key={m.val} value={m.val} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isResident && setActiveTab && (
+            <button
+              onClick={() => setActiveTab('my_usage')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-900/20"
+            >
+              <Plus size={16} /> Log New Reading
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Resident Summary Header Cards */}
@@ -3564,28 +3849,32 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
         </div>
       )}
 
-      {/* Empty State */}
-      {residentLogs.length === 0 && aptList.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-10 text-center space-y-4 max-w-md mx-auto my-8 shadow-md dark:shadow-xl">
-          <div className="w-16 h-16 bg-blue-500/10 text-blue-500 dark:text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/20">
-            <Activity size={32} />
+      {/* Empty State when no logs exist for selected month */}
+      {residentLogs.length === 0 && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center space-y-3 max-w-md mx-auto my-6 shadow-sm">
+          <div className="w-14 h-14 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
+            <Activity size={28} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Usage History Found</h3>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Meter Readings Logged</h3>
             <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mt-1">
-              You haven't logged any meter readings yet. Click below to submit your current meter reading and start tracking your water consumption.
+              {selectedMonth !== 'ALL' 
+                ? `There are no water usage logs recorded for the selected month (${monthOptions.find(m => m.val === selectedMonth)?.label || selectedMonth}).`
+                : "No water usage logs recorded yet."}
             </p>
           </div>
-          {setActiveTab && (
+          {isResident && setActiveTab && (
             <button
               onClick={() => setActiveTab('my_usage')}
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-900/30 inline-flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md inline-flex items-center gap-2"
             >
-              <Plus size={16} /> Log Water Reading
+              <Plus size={15} /> Log New Reading
             </button>
           )}
         </div>
-      ) : isResident ? (
+      )}
+
+      {residentLogs.length > 0 && isResident ? (
         /* Resident Direct Table View */
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-lg">
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/50 flex justify-between items-center">
@@ -4664,7 +4953,7 @@ function TariffPlansTab({ token, apartments = [], showMessage, isSuperAdmin, pro
             <div>
               <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Base Limit (kL)</label>
               <input
-                type="number" step="1" required placeholder="15"
+                type="number" step="any" required placeholder="1.5"
                 className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={formData.baseLimitKl}
                 onChange={e => setFormData({ ...formData, baseLimitKl: e.target.value })}
@@ -4713,7 +5002,7 @@ function TariffPlansTab({ token, apartments = [], showMessage, isSuperAdmin, pro
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                   <th className="pb-3 pl-2">Apartment Name</th>
                   <th className="pb-3">Base Rate (per kL)</th>
-                  <th className="pb-3">Base Limit (Liters)</th>
+                  <th className="pb-3">Base Limit (Liters / kL)</th>
                   <th className="pb-3">Excess Rate (per kL)</th>
                 </tr>
               </thead>
@@ -4721,9 +5010,11 @@ function TariffPlansTab({ token, apartments = [], showMessage, isSuperAdmin, pro
                 {tariffs.map(t => (
                   <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
                     <td className="py-3 pl-2 font-bold text-slate-900 dark:text-slate-100">{t.apartment?.name}</td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">₹{t.baseRate.toFixed(2)}</td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">{t.baseLimitKl * 1000} Liters</td>
-                    <td className="text-blue-600 dark:text-blue-400 font-bold">₹{t.excessRate.toFixed(2)}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">₹{t.baseRate?.toFixed(2)}</td>
+                    <td className="font-medium text-slate-800 dark:text-slate-300">
+                      {t.baseLimitKl != null ? (t.baseLimitKl * 1000).toLocaleString() : 0} Liters ({t.baseLimitKl} kL)
+                    </td>
+                    <td className="text-blue-600 dark:text-blue-400 font-bold">₹{t.excessRate?.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -5532,11 +5823,23 @@ function InvoicesTab({ token, showMessage }) {
   );
 }
 
-function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
+function AlertsTab({ token, households, showMessage, isAdmin, onUpdate, fetchDashboardData }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [formData, setFormData] = useState({ title: '', message: '', type: 'MAINTENANCE', householdId: '' });
+
+  const formatAlertDateTime = (dateVal, createdAtVal) => {
+    const val = createdAtVal || dateVal;
+    if (!val) return '';
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    } catch (_) {
+      return String(val);
+    }
+  };
 
   const fetchAlerts = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -5547,7 +5850,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
       if (res.ok) {
         const data = await res.json();
         setAlerts(data);
-        if(onUpdate) onUpdate();
+        if (onUpdate) onUpdate();
       }
     } catch (err) {
       console.error(err);
@@ -5571,6 +5874,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
       if (res.ok) {
         showMessage('success', 'All notifications marked as read!');
         fetchAlerts(true);
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         showMessage('error', 'Failed to mark notifications as read.');
       }
@@ -5598,6 +5902,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
         showMessage('success', 'Alert broadcasted successfully!');
         setFormData({ title: '', message: '', type: 'MAINTENANCE', householdId: '' });
         fetchAlerts();
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         showMessage('error', 'Failed to submit broadcast.');
       }
@@ -5617,6 +5922,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
       if (res.ok) {
         showMessage('success', 'Alert resolved!');
         fetchAlerts();
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         showMessage('error', 'Failed to resolve alert.');
       }
@@ -5634,6 +5940,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
       if (res.ok) {
         showMessage('success', 'All notifications cleared!');
         fetchAlerts();
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         showMessage('error', 'Failed to clear notifications.');
       }
@@ -5741,7 +6048,7 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate }) {
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide border uppercase ${a.type === 'LEAK' ? 'bg-red-950 text-red-400 border-red-500/20' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>
                       {a.type}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-bold font-mono">{a.date}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold font-mono">{formatAlertDateTime(a.date, a.createdAt)}</span>
                   </div>
                   <h4 className="text-sm font-bold">{a.title}</h4>
                   <p className="text-xs text-slate-400 leading-relaxed">{a.message}</p>
@@ -5767,22 +6074,34 @@ function ReportsTab({ token }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fixingData, setFixingData] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
 
-  const fetchSummary = async () => {
+  const fetchSummary = async (monthVal = selectedMonth) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/reports/summary`, {
+      const url = monthVal && monthVal !== 'ALL'
+        ? `${API_BASE_URL}/api/reports/summary?month=${monthVal}`
+        : `${API_BASE_URL}/api/reports/summary`;
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         setSummary(data);
+      } else {
+        console.error('Reports API response not OK:', res.status);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch report summary:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+    fetchSummary(val);
   };
 
   const handleRecalculate = async () => {
@@ -5795,7 +6114,7 @@ function ReportsTab({ token }) {
       });
       const msg = await res.text();
       alert(msg);
-      fetchSummary();
+      fetchSummary(selectedMonth);
     } catch (err) {
       alert('Failed to recalculate: ' + err.message);
     } finally {
@@ -5803,106 +6122,215 @@ function ReportsTab({ token }) {
     }
   };
 
-  useEffect(() => { fetchSummary(); }, []);
+  useEffect(() => { fetchSummary('ALL'); }, []);
 
-  if (loading) {
-    return <p className="text-slate-500 text-xs text-center py-10">Compiling report statistics...</p>;
-  }
+  const formatMonthLabel = (mStr) => {
+    if (!mStr || mStr === 'ALL') return 'All Time (Overall)';
+    try {
+      const [year, month] = mStr.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    } catch (_) {
+      return mStr;
+    }
+  };
 
-  if (!summary) {
-    return <p className="text-slate-555 text-xs italic py-10 text-center">No reports data available.</p>;
-  }
-
-  const consumptionMap = summary.consumptionByApartment || {};
+  const consumptionMap = summary?.consumptionByApartment || {};
   const aptNames = Object.keys(consumptionMap);
-  const totalConsumed = summary.totalConsumedLiters;
-  const totalPurchased = summary.totalPurchasedLiters;
+  const totalConsumed = summary?.totalConsumedLiters || 0;
+  const totalPurchased = summary?.totalPurchasedLiters || 0;
+  
+  // Generate last 12 months options (matching Meter Readings search filter)
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      options.push({ val, label });
+    }
+    return options;
+  }, []);
+
+  const chartData = aptNames.map(name => ({
+    name,
+    consumption: consumptionMap[name] || 0
+  }));
+
+  const balanceData = [
+    { category: 'Procured Water', volume: totalPurchased },
+    { category: 'Consumed Water', volume: totalConsumed }
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">System Performance Metrics</h2>
-        <button
-          onClick={handleRecalculate}
-          disabled={fixingData}
-          className="text-[10px] bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/40 text-amber-400 px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide transition disabled:opacity-50"
-        >
-          {fixingData ? '⟳ Fixing...' : '🔧 Recalculate Consumption'}
-        </button>
-      </div>
-
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Total Water Procured</p>
-          <p className="text-2xl font-bold text-slate-100 mt-1">{totalPurchased.toLocaleString()} L</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Total Water Consumed</p>
-          <p className="text-2xl font-bold text-blue-400 mt-1">{totalConsumed.toLocaleString()} L</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Procurement Cost</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">₹{summary.totalPurchasedCost?.toFixed(2) || '0.00'}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <p className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Total Revenue Billed</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">₹{summary.totalBilledAmount?.toFixed(2) || '0.00'}</p>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Procured vs Consumed Balance</h3>
-          <div className="h-44 bg-slate-950 rounded-lg border border-slate-800 p-6 flex flex-col justify-around">
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                <span>TOTAL WATER PURCHASED (TANKERS)</span>
-                <span>{totalPurchased.toLocaleString()} Liters</span>
-              </div>
-              <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden">
-                <div style={{ width: `${totalPurchased ? 100 : 0}%` }} className="bg-indigo-605 h-full rounded-full"></div>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                <span>TOTAL WATER CONSUMED BY FLATS</span>
-                <span>{totalConsumed.toLocaleString()} Liters</span>
-              </div>
-              <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden">
-                <div style={{ width: `${totalPurchased ? Math.min((totalConsumed / totalPurchased) * 100, 100) : 0}%` }} className="bg-blue-500 h-full rounded-full"></div>
-              </div>
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-2">
-            Discrepancy (if consumption &gt; purchased) represents meter variance or backlogged readings.
+      {/* Header & Controls */}
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <TrendingUp size={22} className="text-blue-600 dark:text-blue-400" />
+            System Performance & Analytics Reports
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            Filter water procurement, consumption, and financial billing reports by month
           </p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Consumption by Building Block</h3>
-          <div className="h-44 bg-slate-950 rounded-lg border border-slate-800 p-4 flex flex-col justify-center overflow-y-auto space-y-3">
-            {aptNames.length === 0 ? (
-              <p className="text-slate-500 text-xs italic text-center">No block consumption data logged.</p>
-            ) : (
-              aptNames.map(name => {
-                const val = consumptionMap[name];
-                const percentage = totalConsumed ? (val / totalConsumed) * 100 : 0;
-                return (
-                  <div key={name} className="space-y-1">
-                    <div className="flex justify-between text-[9px] font-bold text-slate-400">
-                      <span>{name}</span>
-                      <span>{val.toLocaleString()} L ({Math.round(percentage)}%)</span>
-                    </div>
-                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
-                      <div style={{ width: `${percentage}%` }} className="bg-blue-400 h-full rounded-full"></div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* 12-Month Search Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 px-3.5 py-1.5 rounded-xl shadow-xs transition-colors">
+            <Calendar size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Filter Month:</label>
+            <select
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">All Available Months</option>
+              {monthOptions.map(m => (
+                <option key={m.val} value={m.val} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">
+                  {m.label}
+                </option>
+              ))}
+            </select>
           </div>
+
+          <button
+            onClick={handleRecalculate}
+            disabled={fixingData}
+            className="text-[10px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-xl font-bold uppercase tracking-wide transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+          >
+            {fixingData ? '⟳ Fixing...' : '🔧 Recalculate'}
+          </button>
         </div>
-      </section>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center">
+          <p className="text-slate-500 text-xs font-semibold animate-pulse">Updating analytics for {formatMonthLabel(selectedMonth)}...</p>
+        </div>
+      ) : (!summary || (totalConsumed === 0 && totalPurchased === 0 && selectedMonth !== 'ALL')) ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center space-y-3 max-w-md mx-auto my-8 shadow-sm">
+          <div className="w-14 h-14 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
+            <Activity size={28} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Analytics & Usage Data Found</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mt-1">
+              There are no water usage readings, procurement purchases, or billing records logged for <strong>{formatMonthLabel(selectedMonth)}</strong>.
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+            Select another month from the filter dropdown above to view historical reports.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Active Period Banner */}
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 p-3 rounded-xl flex items-center justify-between text-xs text-blue-800 dark:text-blue-300 font-medium">
+            <span>Showing Data For: <strong>{formatMonthLabel(selectedMonth)}</strong></span>
+            <span className="text-[11px] opacity-75 font-mono">{aptNames.length} Active Building Blocks</span>
+          </div>
+
+          {/* Metric Cards */}
+          <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Water Procured</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1 font-mono">{totalPurchased.toLocaleString()} L</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Water Consumed</p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">{totalConsumed.toLocaleString()} L</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Procurement Cost</p>
+              <p className="text-2xl font-black text-red-600 dark:text-red-400 mt-1 font-mono">₹{summary.totalPurchasedCost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Revenue Billed</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">₹{summary.totalBilledAmount?.toFixed(2) || '0.00'}</p>
+            </div>
+          </section>
+
+          {/* Visual Charts & Analytics */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Visual Bar Chart: Block-wise Water Consumption */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 flex items-center justify-between">
+                <span>Block-wise Consumption ({formatMonthLabel(selectedMonth)})</span>
+                <span className="text-[10px] text-blue-500 font-bold">Liters</span>
+              </h3>
+              {chartData.length === 0 ? (
+                <p className="text-slate-500 text-xs italic text-center py-12">No consumption recorded for this period.</p>
+              ) : (
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
+                        formatter={(val) => [`${val.toLocaleString()} Liters`, 'Consumed']}
+                      />
+                      <Bar dataKey="consumption" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* Visual Area Balance: Procured vs Consumed */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 flex items-center justify-between">
+                <span>Procured vs Consumed Balance ({formatMonthLabel(selectedMonth)})</span>
+                <span className="text-[10px] text-emerald-500 font-bold">Water Volume</span>
+              </h3>
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={balanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                    <XAxis dataKey="category" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
+                      formatter={(val) => [`${val.toLocaleString()} Liters`, 'Volume']}
+                    />
+                    <Bar dataKey="volume" fill="#10b981" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </section>
+
+          {/* Breakdown Table & Progress Bars */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Building Block Usage Breakdown</h3>
+            <div className="space-y-3">
+              {aptNames.length === 0 ? (
+                <p className="text-slate-500 text-xs italic text-center py-4">No block consumption data logged for {formatMonthLabel(selectedMonth)}.</p>
+              ) : (
+                aptNames.map(name => {
+                  const val = consumptionMap[name];
+                  const percentage = totalConsumed ? (val / totalConsumed) * 100 : 0;
+                  return (
+                    <div key={name} className="space-y-1">
+                      <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-300">
+                        <span>{name}</span>
+                        <span className="font-mono">{val.toLocaleString()} L ({Math.round(percentage)}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-950 h-2.5 rounded-full overflow-hidden">
+                        <div style={{ width: `${percentage}%` }} className="bg-blue-500 h-full rounded-full transition-all duration-500"></div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -6486,7 +6914,21 @@ function SupportTab({ token, profile, showMessage, isSuperAdmin, isCommunityAdmi
     ? (section === 'assigned' ? (tickets.assignedToMe || []).map(t => ({ ...t, _isAssigned: true })) : (tickets.raisedByMe || []).map(t => ({ ...t, _isAssigned: false })))
     : (tickets.raisedByMe || []).map(t => ({ ...t, _isAssigned: false }));
 
-  const filtered = filterStatus === 'ALL' ? currentList : currentList.filter(t => t.status === filterStatus);
+  // Chronological sorting (newest first)
+  const sortedList = [...currentList].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  const filtered = filterStatus === 'ALL' ? sortedList : sortedList.filter(t => t.status === filterStatus);
+
+  const formatTicketDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } catch (_) {
+      return dateStr;
+    }
+  };
 
   const countByStatus = (list, status) => status === 'ALL' ? list.length : list.filter(t => t.status === status).length;
 
@@ -6619,7 +7061,7 @@ function SupportTab({ token, profile, showMessage, isSuperAdmin, isCommunityAdmi
                   {t._isAssigned ? (t.raisedBy?.name || 'Unknown') : (t.assignedTo?.name || 'Super Admin')}
                 </div>
                 <div className="col-span-2 text-[10px] text-slate-600 dark:text-slate-400 font-mono">
-                  {new Date(t.createdAt).toLocaleDateString()}
+                  {formatTicketDateTime(t.createdAt)}
                 </div>
                 <div className="col-span-1 flex justify-end">
                   <svg className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">

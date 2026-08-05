@@ -62,7 +62,7 @@ public class TariffController {
 
             BigDecimal baseRate = new BigDecimal(baseRateStr);
             BigDecimal excessRate = new BigDecimal(excessRateStr);
-            Integer baseLimitKl = (int) Math.round(Double.parseDouble(baseLimitKlStr));
+            Double baseLimitKl = Double.parseDouble(baseLimitKlStr);
             Integer baseLimitDays = (int) Math.round(Double.parseDouble(baseLimitDaysStr));
 
             Apartment apartment = apartmentRepository.findById(apartmentId)

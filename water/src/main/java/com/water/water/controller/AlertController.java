@@ -126,13 +126,16 @@ public class AlertController {
 
         } else if (role == Role.ROLE_COMMUNITY_ADMIN) {
             // Community Admin notification isolation
+            if ("REGISTRATION".equalsIgnoreCase(alert.getType())) {
+                return false; // Community Admin registration/approval alerts are only for Super Admin
+            }
             if (alert.getHousehold() != null) {
                 // Only show household alerts within their managed apartment
                 return user.getManagedApartment() != null && 
                        alert.getHousehold().getApartment() != null &&
                        alert.getHousehold().getApartment().getId().equals(user.getManagedApartment().getId());
             }
-            // General/System/Registration alerts visible to Community Admin
+            // General/System alerts visible to Community Admin
             return true;
 
         } else if (role == Role.ROLE_ADMIN) {

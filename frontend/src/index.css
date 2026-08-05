@@ -16,10 +16,11 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* Ensure native select dropdowns match the theme */
+/* Ensure native select dropdowns match the theme with high visibility */
 select option {
   background-color: #0f172a;
   color: #f8fafc;
+  padding: 8px 12px;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -60,13 +61,18 @@ select option {
     border: none;
   }
 
-  /* Firefox inner border kill */
+  /* Firefox inner border kill & MS Edge native password reveal hide */
   input::-moz-focus-inner,
   button::-moz-focus-inner,
   select::-moz-focus-inner {
     border: 0;
     padding: 0;
     outline: none;
+  }
+
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
   }
 
   /* Autofill — light mode */

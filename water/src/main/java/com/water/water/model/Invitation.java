@@ -1,5 +1,6 @@
 package com.water.water.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,7 +11,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "invitations")
+@Table(name = "invitations", indexes = {
+    @Index(name = "idx_invitation_email", columnList = "email"),
+    @Index(name = "idx_invitation_token", columnList = "token")
+})
 public class Invitation {
 
     @Id
@@ -26,8 +30,11 @@ public class Invitation {
     @Column(nullable = false)
     private String email;
 
-    @Column(name = "apartment_id", nullable = false)
-    private Long apartmentId;
+    // Proper FK relationship to Apartment — fixes referential integrity issue
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "apartment_id", nullable = false)
+    @JsonIgnoreProperties({"households", "buildings"})
+    private Apartment apartment;
 
     @Column(nullable = false)
     private String block;
@@ -57,6 +64,14 @@ public class Invitation {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Convenience getter for backward compatibility.
+     * Returns the apartment's ID without breaking callers that use getApartmentId().
+     */
+    public Long getApartmentId() {
+        return apartment != null ? apartment.getId() : null;
+    }
 
     @PrePersist
     protected void onCreate() {

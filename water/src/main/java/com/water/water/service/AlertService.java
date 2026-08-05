@@ -50,7 +50,7 @@ public class AlertService {
             Optional<TariffPlan> tariffPlanOpt = tariffPlanRepository.findByApartmentId(household.getApartment().getId());
             if (tariffPlanOpt.isEmpty()) continue;
 
-            int limitLiters = tariffPlanOpt.get().getBaseLimitKl() * 1000;
+            double limitLiters = tariffPlanOpt.get().getBaseLimitKl() * 1000.0;
 
             // Get the latest reading (assuming it represents total current billing cycle or just a daily check)
             WaterUsageLog lastLog = waterUsageLogRepository.findTopByHouseholdIdOrderByDateDesc(household.getId());

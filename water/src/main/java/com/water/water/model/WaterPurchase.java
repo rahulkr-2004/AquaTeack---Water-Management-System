@@ -36,4 +36,11 @@ public class WaterPurchase {
 
     @Column(name = "invoice_number")
     private String invoiceNumber;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.date == null) {
+            this.date = LocalDate.now();
+        }
+    }
 }

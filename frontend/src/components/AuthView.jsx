@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
+  AtSign,
   Droplets,
   Lock,
   Eye,
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react';
 import { WaterGridCanvas, BubblesCanvas, RaindropsCanvas } from './CanvasBackgrounds';
 import { CommunityAdminVerifyView } from './VerificationViews';
+import RegistrationWizard from './RegistrationWizard';
 import LanguagePicker from './LanguagePicker';
 
 const API_BASE_URL = 'http://localhost:8080';
@@ -132,7 +134,7 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/check-username?username=${encodeURIComponent(val)}`);
         const data = await res.json();
-        setUsernameStatus(data);
+        setUsernameStatus({ available: data.available === true, message: data.message });
       } catch { setUsernameStatus(null); }
     }, 500);
   };
@@ -161,6 +163,7 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
       bodyPayload = {
         name: formData.name,
         email: formData.email,
+        username: formData.username || formData.email?.split('@')[0],
         password: formData.password,
         role: formData.role,
         gender: formData.gender,
@@ -186,22 +189,28 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
           showMessage('success', 'Successfully authenticated!');
         } else {
           const data = await response.json().catch(() => null);
-          if (data && data.requiresVerification && data.userId) {
-            setAdminVerifyUserId(data.userId);
+          const targetUserId = data?.userId || data?.user?.id || formData.username || formData.email;
+          if (formData.role === 'ROLE_COMMUNITY_ADMIN') {
+            setAdminVerifyUserId(targetUserId);
             setView('admin_verify');
-            showMessage('success', 'Account created! Please upload your verification documents.');
+            showMessage('success', 'Registration submitted! Please upload your identity verification documents to finish onboarding.');
           } else {
             showMessage('success', 'Registration completed successfully! Please sign in.');
             setView('login');
           }
         }
       } else {
-        const errorText = await response.text();
-        if (response.status === 403 || errorText.toLowerCase().includes("pending approval")) {
-          showMessage('info', 'Your registration is complete! Please wait until the community admin reviews and approves your document verification.');
-        } else {
-          showMessage('error', errorText || 'Verification failed.');
-        }
+        let errorText = await response.text();
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.message) errorText = parsed.message;
+            else if (typeof parsed === 'object') {
+              errorText = Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join(', ');
+            }
+          }
+        } catch {}
+        showMessage('error', errorText || 'Registration failed.');
       }
     } catch (err) {
       showMessage('error', 'Could not establish connection to the Spring Boot REST server.');
@@ -210,8 +219,8 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
     }
   };
 
-  if (view === 'admin_verify' && adminVerifyUserId) {
-    return <CommunityAdminVerifyView userId={adminVerifyUserId} showMessage={showMessage} onComplete={() => setView('login')} darkMode={darkMode} />;
+  if (view === 'admin_verify') {
+    return <CommunityAdminVerifyView userId={adminVerifyUserId || formData.username || 'pending'} showMessage={showMessage} onComplete={() => setView('login')} darkMode={darkMode} />;
   }
 
   return (
@@ -512,26 +521,26 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
 
               </div>
 
-              {/* Right Side: Auth Form Clean White / Glassmorphic Card with Crisp Borders & Shadows */}
-              <div className="w-full lg:w-[420px] shrink-0 self-center my-auto">
+              {/* Right Side Card */}
+              <div className="w-full lg:w-[450px] shrink-0 self-center my-auto">
                 <div className="relative rounded-3xl bg-white dark:bg-slate-900 border-2 border-sky-200/90 dark:border-slate-800 p-6 sm:p-8 shadow-2xl shadow-sky-950/15 dark:shadow-cyan-900/20 transition-all duration-300 card-3d-tilt card-side-glow hover:border-cyan-400 dark:hover:border-cyan-500/80 hover:shadow-[0_25px_60px_-15px_rgba(14,165,233,0.35)] dark:hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.3)] hover:-translate-y-1">
 
-                  {/* Auth View Header */}
-                  <div className="text-center mb-6">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:shadow-[0_0_30px_rgba(56,189,248,0.6)] mx-auto mb-3 flex items-center justify-center bg-white dark:bg-slate-950 p-1 transition-all duration-300 hover:scale-110 hover:rotate-3 cursor-pointer">
-                      <img
-                        src="/logo.svg"
-                        alt="AquaTrack Logo"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-100 tracking-tight">
-                      {view === 'login' ? 'Sign In' : 'Create Account'}
-                    </h2>
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
-                      {view === 'login' ? 'Access your AquaTrack smart water portal' : 'Register your society or apartment profile'}
-                    </p>
-                  </div>
+                  {view === 'register' ? (
+                    <RegistrationWizard
+                      showMessage={showMessage}
+                      onSwitchToLogin={() => setView('login')}
+                      darkMode={darkMode}
+                    />
+                  ) : (
+                    <>
+                      {/* Auth View Header (Login only) */}
+                      <div className="text-center mb-6">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:shadow-[0_0_30px_rgba(56,189,248,0.6)] mx-auto mb-3 flex items-center justify-center bg-white dark:bg-slate-950 p-1 transition-all duration-300 hover:scale-110 hover:rotate-3 cursor-pointer">
+                          <img src="/logo.svg" alt="AquaTrack Logo" className="w-full h-full object-contain" />
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-100 tracking-tight">Sign In</h2>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Access your AquaTrack smart water portal</p>
+                      </div>
 
                   {/* Form Elements with Sharp Input Borders & Enhanced Contrast */}
                   <form onSubmit={handleSubmit} className="space-y-5">
@@ -548,10 +557,10 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                           </button>
                           <button
                             type="button"
-                            onClick={() => setFormData({ ...formData, role: 'ROLE_RESIDENT' })}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${formData.role === 'ROLE_RESIDENT' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200'}`}
+                            onClick={() => setFormData({ ...formData, role: 'ROLE_ADMIN' })}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${formData.role === 'ROLE_ADMIN' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200'}`}
                           >
-                            Resident Tenant
+                            Super Admin
                           </button>
                         </div>
 
@@ -574,17 +583,80 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                           />
                         </div>
+
+                        {/* Colony / Apartment & Block Dropdowns placed at bottom for Community Admin */}
+                        {formData.role === 'ROLE_COMMUNITY_ADMIN' && (
+                          <>
+                            <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
+                              <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                              <select
+                                required
+                                value={formData.colonyId}
+                                onChange={e => setFormData({ ...formData, colonyId: e.target.value })}
+                                className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold focus:outline-none antialiased cursor-pointer"
+                              >
+                                <option value="" className="bg-slate-900 text-slate-300">-- Select Colony / Apartment --</option>
+                                {colonies.map(c => (
+                                  <option key={c.id} value={c.id} className="bg-slate-900 text-white font-medium">{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Block Dropdown */}
+                            {formData.colonyId && (
+                              <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
+                                <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                                <select
+                                  required
+                                  value={formData.buildingId}
+                                  onChange={e => setFormData({ ...formData, buildingId: e.target.value })}
+                                  className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold focus:outline-none antialiased cursor-pointer"
+                                >
+                                  <option value="" className="bg-slate-900 text-slate-300">-- Select Block --</option>
+                                  {availableBuildings.map(b => (
+                                    <option key={b.id} value={b.id} className="bg-slate-900 text-white font-medium">
+                                      {b.name.toLowerCase().startsWith('block') ? b.name : `Block ${b.name}`} (Unassigned)
+                                    </option>
+                                  ))}
+                                  <option value="CUSTOM" className="bg-slate-900 text-cyan-400 font-bold">+ Propose New Block...</option>
+                                </select>
+                              </div>
+                            )}
+
+                            {/* Custom Block Input */}
+                            {formData.buildingId === 'CUSTOM' && (
+                              <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
+                                <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                                <input
+                                  type="text" required placeholder="Enter Proposed Block Name (e.g. Block D)"
+                                  className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
+                                  value={formData.customBuildingName || ''}
+                                  onChange={e => setFormData({ ...formData, customBuildingName: e.target.value })}
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
                       </>
                     )}
 
                     <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                      <Mail className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                      {view === 'login' ? (
+                        <Mail className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                      ) : (
+                        <AtSign className="text-cyan-600 dark:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
+                      )}
                       <input
-                        type="text" required placeholder={view === 'login' ? 'Username or Email' : 'Username'}
+                        type="text" required placeholder={view === 'login' ? 'Username or Email' : 'Username (e.g. rahul2004)'}
                         className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
                         value={view === 'login' ? formData.email : formData.username}
                         onChange={e => view === 'login' ? setFormData({ ...formData, email: e.target.value }) : handleUsernameChange(e.target.value)}
                       />
+                      {view === 'register' && usernameStatus && (
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${usernameStatus.available ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'}`} title={usernameStatus.message}>
+                          {usernameStatus.available ? 'Available' : (usernameStatus.message?.toLowerCase().includes('taken') ? 'Taken' : 'Invalid')}
+                        </span>
+                      )}
                     </div>
 
                     <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
@@ -620,7 +692,7 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                       )}
                     </button>
 
-                    <div className="text-center pt-2">
+                    <div className="text-center pt-2 space-y-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -629,17 +701,16 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                         }}
                         className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition cursor-pointer"
                       >
-                        {view === 'login' ? (
-                          <>Don't have an account? <span className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">Create account</span></>
-                        ) : (
-                          <>Already have an account? <span className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">Sign in</span></>
-                        )}
+                        Don't have an account? <span className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">Create account</span>
                       </button>
+
                     </div>
                   </form>
+                </>
+              )}
 
-                </div>
-              </div>
+            </div>
+          </div>
 
             </div>
 

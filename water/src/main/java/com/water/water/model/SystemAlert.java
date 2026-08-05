@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -34,14 +35,36 @@ public class SystemAlert {
     @Column(nullable = false, length = 1000)
     private String message;
 
-    @Column(nullable = false)
-    private LocalDate date;
+    @Column(name = "date", nullable = false)
+    private LocalDate date = LocalDate.now();
 
     @Column(nullable = false)
-    private String type; // e.g. "LEAK", "MAINTENANCE", "BILLING"
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(nullable = false)
+    private String type; // e.g. "LEAK", "MAINTENANCE", "BILLING", "REGISTRATION"
 
     @Transient
     private boolean resolved = false;
+
+    public void setDate(Object dateObj) {
+        if (dateObj instanceof LocalDate) {
+            this.date = (LocalDate) dateObj;
+            this.createdAt = ((LocalDate) dateObj).atStartOfDay();
+        } else if (dateObj instanceof LocalDateTime) {
+            this.date = ((LocalDateTime) dateObj).toLocalDate();
+            this.createdAt = (LocalDateTime) dateObj;
+        } else {
+            this.date = LocalDate.now();
+            this.createdAt = LocalDateTime.now();
+        }
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
+        if (this.date == null) this.date = this.createdAt.toLocalDate();
+    }
 
     @JsonIgnore
     @ManyToMany(fetch = FetchType.EAGER)
