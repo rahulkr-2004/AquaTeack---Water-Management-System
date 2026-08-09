@@ -163,7 +163,7 @@ public class LeakScanController {
                 suspect.put("estimatedMonthlyCost", monthlyEstCost);
                 suspect.put("detectedDate", latestLog.getDate().toString());
                 suspect.put("alertIssued", alertOpt.isPresent());
-                suspect.put("alertId", alertOpt.map(SystemAlert::getId).orElse(null));
+                suspect.put("alertId", alertOpt.map(a -> a.getId()).orElse(null));
 
                 leakSuspects.add(suspect);
             }

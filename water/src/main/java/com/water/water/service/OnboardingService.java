@@ -14,12 +14,8 @@ import com.water.water.repository.HouseholdRepository;
 import com.water.water.repository.UserRepository;
 import com.water.water.repository.InvitationRepository;
 import com.water.water.repository.BillRepository;
-import com.water.water.repository.BillingCycleRepository;
 import com.water.water.repository.WaterUsageLogRepository;
-import com.water.water.repository.WaterPurchaseRepository;
 import com.water.water.repository.SystemAlertRepository;
-import com.water.water.repository.TariffPlanRepository;
-import com.water.water.repository.SupportTicketRepository;
 import com.water.water.model.Invitation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,22 +62,10 @@ public class OnboardingService {
     private BillRepository billRepository;
 
     @Autowired
-    private BillingCycleRepository billingCycleRepository;
-
-    @Autowired
     private WaterUsageLogRepository waterUsageLogRepository;
 
     @Autowired
-    private WaterPurchaseRepository waterPurchaseRepository;
-
-    @Autowired
     private SystemAlertRepository systemAlertRepository;
-
-    @Autowired
-    private TariffPlanRepository tariffPlanRepository;
-
-    @Autowired
-    private SupportTicketRepository supportTicketRepository;
 
     @Autowired(required = false)
     private JavaMailSender emailSender;
@@ -89,45 +73,6 @@ public class OnboardingService {
     @Value("${spring.mail.username:aceruser12003@gmail.com}")
     private String senderEmail;
 
-    @Transactional
-    public void resetDatabase(String superAdminIdentifier) {
-        // 1. Clear entity dependent tables in reverse dependency order
-        supportTicketRepository.deleteAllInBatch();
-        billRepository.deleteAllInBatch();
-        billingCycleRepository.deleteAllInBatch();
-        waterUsageLogRepository.deleteAllInBatch();
-        waterPurchaseRepository.deleteAllInBatch();
-        systemAlertRepository.deleteAllInBatch();
-        tariffPlanRepository.deleteAllInBatch();
-        invitationRepository.deleteAllInBatch();
-
-        // 2. Clear FK associations on users
-        List<User> users = userRepository.findAll();
-        for (User user : users) {
-            user.setManagedByAdmin(null);
-            user.setManagedBuilding(null);
-            user.setManagedApartment(null);
-            user.setHousehold(null);
-        }
-        userRepository.saveAll(users);
-        userRepository.flush();
-
-        // 3. Delete households, buildings, and apartments
-        householdRepository.deleteAllInBatch();
-        buildingRepository.deleteAllInBatch();
-        apartmentRepository.deleteAllInBatch();
-
-        // 4. Delete all non-SuperAdmin users (keep ROLE_ADMIN accounts)
-        for (User user : users) {
-            boolean isSuperAdminUser =
-                    (user.getEmail() != null && user.getEmail().equalsIgnoreCase(superAdminIdentifier))
-                    || (user.getUsername() != null && user.getUsername().equalsIgnoreCase(superAdminIdentifier));
-            if (!isSuperAdminUser && user.getRole() != Role.ROLE_ADMIN) {
-                userRepository.delete(user);
-            }
-        }
-        userRepository.flush();
-    }
 
     /**
      * Called on application startup to permanently drop legacy/orphaned tables
@@ -159,26 +104,6 @@ public class OnboardingService {
         }
     }
 
-    @Transactional
-    public boolean verifyAndPasswordResetDatabase(String superAdminIdentifier, String rawPassword) {
-        try {
-            User superAdmin = userRepository.findByEmailOrUsername(superAdminIdentifier).orElse(null);
-            if (superAdmin == null) {
-                System.out.println("Reset DB: Super admin not found for: " + superAdminIdentifier);
-                return false;
-            }
-            if (!passwordEncoder.matches(rawPassword, superAdmin.getPassword())) {
-                System.out.println("Reset DB: Password mismatch for: " + superAdminIdentifier);
-                return false;
-            }
-            resetDatabase(superAdmin.getEmail());
-            return true;
-        } catch (Exception e) {
-            System.err.println("Reset DB failed with exception:");
-            e.printStackTrace();
-            throw e;
-        }
-    }
 
     // ── Colony / Building Management ───────────────────────────────────────────
 

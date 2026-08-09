@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+
 import java.util.*;
 
 @Service
@@ -324,7 +324,7 @@ public class DemoDataSeeder {
                     List<WaterUsageLog> logs = waterUsageLogRepository.findByHouseholdIdOrderByDateDesc(hh.getId());
                     double totalConsumption = logs.stream()
                             .filter(l -> !l.getDate().isBefore(start) && !l.getDate().isAfter(end))
-                            .mapToDouble(WaterUsageLog::getConsumptionLiters)
+                            .mapToDouble(l -> l.getConsumptionLiters())
                             .sum();
 
                     if (totalConsumption <= 0) totalConsumption = 8500.0;

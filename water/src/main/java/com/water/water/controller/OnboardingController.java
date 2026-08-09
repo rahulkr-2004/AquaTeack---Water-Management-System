@@ -483,33 +483,4 @@ public class OnboardingController {
         }
     }
 
-    // --- 15. Reset Database (Super Admin only, password verified) ---
-    @PostMapping("/reset-database")
-    public ResponseEntity<?> resetDatabase(@RequestBody Map<String, String> request, Authentication authentication) {
-        if (authentication == null) {
-            return ResponseEntity.status(401).body("Not authenticated");
-        }
-        boolean isSuperAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority()));
-        if (!isSuperAdmin) {
-            return ResponseEntity.status(403).body("Error: Only Super Admin can perform database reset.");
-        }
-        
-        String password = request.get("password");
-        if (password == null || password.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Error: Verification password is required.");
-        }
-
-        String superAdminEmail = authentication.getName();
-        try {
-            boolean success = onboardingService.verifyAndPasswordResetDatabase(superAdminEmail, password);
-            if (success) {
-                return ResponseEntity.ok("Database reset completed successfully!");
-            } else {
-                return ResponseEntity.status(401).body("Incorrect password! Please enter your valid login password.");
-            }
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Reset error: " + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()));
-        }
-    }
 }

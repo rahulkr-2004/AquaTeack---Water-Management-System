@@ -31,7 +31,7 @@ public class ReportController {
     @Autowired private WaterUsageLogRepository waterUsageLogRepository;
     @Autowired private HouseholdRepository householdRepository;
     @Autowired private UserRepository userRepository;
-    @Autowired private TariffPlanRepository tariffPlanRepository;
+
     @Autowired private com.water.water.service.DemoDataSeeder demoDataSeeder;
 
     @PostMapping("/seed-demo-data")

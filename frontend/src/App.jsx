@@ -823,7 +823,7 @@ export default function App() {
                   profile={profile} 
                   fetchProfile={fetchProfile} 
                   fetchDashboardData={fetchDashboardData}
-                  onResetSuccess={handleLogout}
+
                   showMessage={showMessage} 
                   isSuperAdmin={isSuperAdmin}
                   lang={lang} t={t}
@@ -5019,12 +5019,10 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
 // -------------------------------------------------------------
 // 7. PROFILE TAB
 // -------------------------------------------------------------
-function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, onResetSuccess, showMessage }) {
+function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, showMessage }) {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', gender: '', mobileNo: '+91 ' });
   const [updating, setUpdating] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetPassword, setResetPassword] = useState('');
-  const [resettingDb, setResettingDb] = useState(false);
+
 
   useEffect(() => {
     if (profile) {
@@ -5063,28 +5061,6 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, onResetS
     finally { setUpdating(false); }
   };
 
-  const handleResetDatabase = async (e) => {
-    e.preventDefault();
-    if (!resetPassword) return showMessage('error', 'Password is required.');
-    setResettingDb(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/reset-database`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ password: resetPassword })
-      });
-      const txt = await res.text();
-      if (res.ok) { 
-        showMessage('success', 'Database reset successful! Logging you out to refresh your session...');
-        setResetPassword('');
-        setShowResetConfirm(false);
-        // Auto-logout after 2.5s so admin gets a fresh session
-        setTimeout(() => { if (onResetSuccess) onResetSuccess(); }, 2500);
-      }
-      else { showMessage('error', txt || 'Failed to reset database.'); }
-    } catch { showMessage('error', 'Network failure.'); }
-    finally { setResettingDb(false); }
-  };
 
   const roleColor = profile?.role === 'ROLE_ADMIN'
     ? { from: '#f59e0b', to: '#d97706', text: 'text-amber-300', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', label: 'SUPER ADMIN' }
@@ -5298,46 +5274,6 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, onResetS
             </form>
           </div>
 
-          {profile?.role === 'ROLE_ADMIN' && (
-            <div className="border-t border-slate-800/80 pt-6">
-              <div className="bg-rose-950/10 border border-rose-500/25 p-5 rounded-2xl space-y-4">
-                <div>
-                  <h3 className="font-extrabold text-rose-400 text-xs tracking-wide uppercase flex items-center gap-2">
-                    <ShieldAlert size={18} /> Danger Zone — Administrative Reset
-                  </h3>
-                  <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                    Wipe all system records, registered apartments, households, bills, usage history logs, alerts, and other users.
-                    Your own Super Admin account will remain intact so you stay logged in. This operation is irreversible.
-                  </p>
-                </div>
-                {!showResetConfirm ? (
-                  <button type="button" onClick={() => setShowResetConfirm(true)}
-                    className="bg-rose-700 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl transition text-xs shadow-md cursor-pointer">
-                    Reset System Database
-                  </button>
-                ) : (
-                  <form onSubmit={handleResetDatabase} className="space-y-3.5 max-w-sm pt-2">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-rose-300 uppercase tracking-wider pl-1">Enter Your Password to Confirm</label>
-                      <input type="password" required placeholder="Password required"
-                        className="w-full px-4 py-2.5 bg-slate-950 border border-rose-500/30 focus:border-rose-500 rounded-xl text-slate-200 focus:outline-none transition text-xs"
-                        value={resetPassword} onChange={e => setResetPassword(e.target.value)} />
-                    </div>
-                    <div className="flex gap-3">
-                      <button type="button" onClick={() => { setShowResetConfirm(false); setResetPassword(''); }}
-                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition border border-slate-700/50 cursor-pointer">
-                        Cancel
-                      </button>
-                      <button type="submit" disabled={resettingDb}
-                        className="flex-grow bg-rose-700 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer">
-                        {resettingDb ? 'Wiping Database...' : 'Permanently Delete All Data'}
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

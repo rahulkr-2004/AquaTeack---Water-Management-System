@@ -494,7 +494,7 @@ public class WaterUsageService {
             boolean isUser = currentUser != null && currentUser.getHousehold() != null && currentUser.getHousehold().getId().equals(h.getId());
 
             List<WaterUsageLog> logs = waterUsageLogRepository.findByHouseholdIdAndDateAfter(h.getId(), thirtyDaysAgo);
-            double totalUsageLiters = logs.stream().mapToDouble(WaterUsageLog::getConsumptionLiters).sum();
+            double totalUsageLiters = logs.stream().mapToDouble(l -> l.getConsumptionLiters()).sum();
             int daysCount = Math.max(1, logs.size());
             double dailyAvg = totalUsageLiters / daysCount;
 
