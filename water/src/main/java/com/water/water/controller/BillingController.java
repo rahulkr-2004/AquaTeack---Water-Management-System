@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -1015,7 +1016,8 @@ public class BillingController {
             document.close();
 
             HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=invoice_" + bill.getInvoiceNumber() + ".pdf");
+            String invFilename = buildLogicalInvoiceFilename(bill);
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + invFilename + "\"");
             headers.add(HttpHeaders.CONTENT_TYPE, "application/pdf");
             return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
 
@@ -1023,6 +1025,20 @@ public class BillingController {
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private String buildLogicalInvoiceFilename(Bill bill) {
+        String inv = bill.getInvoiceNumber() != null ? bill.getInvoiceNumber().replaceAll("[^a-zA-Z0-9-]", "_") : "INV";
+        String flat = (bill.getHousehold() != null && bill.getHousehold().getFlatNumber() != null) ? bill.getHousehold().getFlatNumber().replaceAll("[^a-zA-Z0-9]", "") : "N/A";
+        String block = (bill.getHousehold() != null && bill.getHousehold().getBlock() != null) ? bill.getHousehold().getBlock().replaceAll("[^a-zA-Z0-9]", "") : "A";
+        String name = (bill.getTargetUser() != null && bill.getTargetUser().getName() != null) ? bill.getTargetUser().getName().trim().replaceAll("[^a-zA-Z0-9]", "_") : "Resident";
+        
+        String monthStr = "Current";
+        if (bill.getBillingCycle() != null && bill.getBillingCycle().getStartDate() != null) {
+            monthStr = bill.getBillingCycle().getStartDate().format(DateTimeFormatter.ofPattern("MMM_yyyy"));
+        }
+        
+        return String.format("AquaTrack_Invoice_%s_Flat_%s_Block_%s_%s_%s.pdf", inv, flat, block, name, monthStr);
     }
 
     private void addTh(PdfPTable t, String txt, Color bg, Font f, int align) {

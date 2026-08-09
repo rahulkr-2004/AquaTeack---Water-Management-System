@@ -36,6 +36,18 @@ select option {
     box-sizing: border-box;
   }
 
+  /* Lock font properties so Google Translate <font> tag injection cannot
+     override font-weight, size, or family via the cascade */
+  font {
+    font-weight: inherit !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    font-style: inherit !important;
+    color: inherit !important;
+    letter-spacing: inherit !important;
+    line-height: inherit !important;
+  }
+
   input,
   input[type],
   select,
@@ -130,6 +142,55 @@ input, select, textarea {
 input, select, textarea {
   color-scheme: inherit;
 }
+
+/* ── Google Translate Bold Fix ──────────────────
+   Google Translate wraps content in <font> and
+   injects a stylesheet that makes text appear bold
+   when an element is clicked/focused. These rules
+   lock the font-weight globally to prevent it.    */
+
+/* Kill any bold that Google Translate injects via <font> tags */
+font,
+font * {
+  font-weight: inherit !important;
+  font-style: inherit !important;
+  font-size: inherit !important;
+  font-family: inherit !important;
+  letter-spacing: inherit !important;
+}
+
+/* Prevent the Google Translate toolbar from altering body font */
+.goog-te-banner-frame,
+.goog-te-menu-value,
+.goog-te-combo,
+.goog-te-gadget {
+  font-weight: normal !important;
+  font-family: inherit !important;
+}
+
+/* Suppress the injected bold on focused inputs by the translate script */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus {
+  font-weight: inherit !important;
+  font-style: inherit !important;
+  font-family: inherit !important;
+}
+
+/* Prevent ::selection from changing font-weight */
+::selection {
+  font-weight: inherit !important;
+}
+
+/* Suppress goog-text-highlight bold style injected on translate */
+.goog-text-highlight {
+  background: none !important;
+  box-shadow: none !important;
+  font-weight: inherit !important;
+}
+
 
 input::placeholder,
 textarea::placeholder {
@@ -898,6 +959,41 @@ html[data-theme="dark"] .profile-card-info {
   background: rgba(13, 20, 35, 1);
 }
 
+/* Live SVG Avatar Animations */
+@keyframes avatarBlink {
+  0%, 88%, 94%, 100% { transform: scaleY(1); }
+  91% { transform: scaleY(0.1); }
+}
+
+@keyframes avatarPulseRing {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.06); opacity: 0.8; }
+}
+
+@keyframes avatarFloatParticle {
+  0% { transform: translateY(0px) scale(0.8); opacity: 0.3; }
+  50% { transform: translateY(-5px) scale(1.3); opacity: 0.9; }
+  100% { transform: translateY(-10px) scale(0.5); opacity: 0; }
+}
+
+.animate-avatar-blink {
+  transform-origin: center;
+  animation: avatarBlink 4.5s infinite ease-in-out;
+}
+
+.animate-avatar-ring {
+  transform-origin: center;
+  animation: avatarPulseRing 3.2s infinite ease-in-out;
+}
+
+.animate-avatar-particle-1 {
+  animation: avatarFloatParticle 3s infinite ease-in-out;
+}
+
+.animate-avatar-particle-2 {
+  animation: avatarFloatParticle 4s infinite ease-in-out 1.5s;
+}
+
 /* Avatar bubble */
 .profile-card-avatar-wrap {
   display: flex;
@@ -912,7 +1008,7 @@ html[data-theme="dark"] .profile-card-info {
               inset 0px 2px 40px rgba(248, 250, 255, 0.9);
   position: relative;
   transition: all 0.3s ease-out 0.1s;
-  filter: grayscale(30%);
+  filter: grayscale(0%);
   margin-bottom: 0.5em;
 }
 

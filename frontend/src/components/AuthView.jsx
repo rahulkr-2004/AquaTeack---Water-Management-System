@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LogoSVG from './LogoSVG';
 import {
   User,
   Mail,
@@ -378,11 +379,7 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
             onClick={() => setLandingNav('home')}
             className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-cyan-400/80 shadow-[0_0_20px_rgba(56,189,248,0.5)] shrink-0 cursor-pointer flex items-center justify-center bg-white dark:bg-slate-950 p-0.5 transition-all duration-300 hover:scale-110 hover:rotate-3"
           >
-            <img
-              src="/logo.svg"
-              alt="AquaTrack Logo"
-              className="w-full h-full object-contain"
-            />
+            <LogoSVG className="w-full h-full" />
           </div>
           <div
             onClick={() => setLandingNav('home')}
@@ -536,7 +533,7 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                       {/* Auth View Header (Login only) */}
                       <div className="text-center mb-6">
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:shadow-[0_0_30px_rgba(56,189,248,0.6)] mx-auto mb-3 flex items-center justify-center bg-white dark:bg-slate-950 p-1 transition-all duration-300 hover:scale-110 hover:rotate-3 cursor-pointer">
-                          <img src="/logo.svg" alt="AquaTrack Logo" className="w-full h-full object-contain" />
+                          <LogoSVG className="w-full h-full" />
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-100 tracking-tight">Sign In</h2>
                         <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Access your AquaTrack smart water portal</p>
@@ -1042,11 +1039,9 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
             {/* Column 1: Brand & Mission */}
             <div className="space-y-3">
               <div className="flex items-center gap-2.5">
-                <img
-                  src="https://static.vecteezy.com/system/resources/previews/050/429/564/non_2x/water-splashing-mascot-icon-design-modern-logo-vector.jpg"
-                  alt="AquaTrack Mascot Logo"
-                  className="w-8 h-8 rounded-full object-cover border-2 border-cyan-500/60 shadow-sm"
-                />
+                <div className="w-8 h-8 rounded-full border-2 border-cyan-500/60 shadow-sm bg-slate-900 p-0.5 flex items-center justify-center shrink-0">
+                  <LogoSVG className="w-full h-full" />
+                </div>
                 <span className="font-black text-lg tracking-tight text-slate-950 dark:text-slate-100 uppercase font-brand">
                   AQUA<span className="text-cyan-600 dark:text-cyan-400">TRACK</span>
                 </span>

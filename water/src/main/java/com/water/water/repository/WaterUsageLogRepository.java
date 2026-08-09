@@ -21,6 +21,8 @@ public interface WaterUsageLogRepository extends JpaRepository<WaterUsageLog, Lo
 
     java.util.List<WaterUsageLog> findAllByOrderByDateDesc();
 
+    java.util.List<WaterUsageLog> findByHouseholdIdAndDateAfter(Long householdId, LocalDate date);
+
     @org.springframework.data.jpa.repository.Query("SELECT AVG(w.consumptionLiters) FROM WaterUsageLog w WHERE w.household.apartment.id = :apartmentId")
     Double findAverageConsumptionByApartment(@org.springframework.data.repository.query.Param("apartmentId") Long apartmentId);
 

@@ -75,7 +75,7 @@ public class WaterUsageController {
                 return ResponseEntity.badRequest().body("No households with meters and assigned residents found for the selected period.");
             }
 
-            String filename = "meter_readings_" + startDate + "_to_" + endDate + ".csv";
+            String filename = "AquaTrack_Meter_Readings_Log_" + startDate + "_to_" + endDate + ".csv";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.parseMediaType("text/csv"))
@@ -141,5 +141,15 @@ public class WaterUsageController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error seeding Harsh readings: " + e.getMessage());
         }
+    }
+
+    // --- 9. Real-Time Apartment Conservation Leaderboard Endpoint ---
+    @GetMapping("/leaderboard")
+    public ResponseEntity<?> getApartmentLeaderboard(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        String email = authentication.getName();
+        return ResponseEntity.ok(waterUsageService.getApartmentLeaderboard(email));
     }
 }

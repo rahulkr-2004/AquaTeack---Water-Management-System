@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LogoSVG from './LogoSVG';
 import {
   User, Mail, AtSign, Lock, Eye, EyeOff, Building2, Phone,
   ShieldCheck, UploadCloud, Camera, FileText, Check, ChevronRight,
@@ -273,7 +274,7 @@ export default function RegistrationWizard({ showMessage, onSwitchToLogin, darkM
       {/* Header */}
       <div className="text-center mb-5">
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_18px_rgba(56,189,248,0.3)] mx-auto mb-3 flex items-center justify-center bg-white dark:bg-slate-950 p-1">
-          <img src="/logo.svg" alt="AquaTrack Logo" className="w-full h-full object-contain" />
+          <LogoSVG className="w-full h-full" />
         </div>
         <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Create Account</h2>
         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Register your society or apartment profile</p>

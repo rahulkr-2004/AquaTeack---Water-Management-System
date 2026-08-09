@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Bot, Send, X, ChevronRight, Zap, Sparkles } from 'lucide-react';
+import { Bot, Send, X, ChevronRight, Zap, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
 
 export const RobotSVG = () => (
   <img src="/robot.svg" alt="AquaBot Icon" className="w-full h-full object-contain" />
@@ -43,7 +43,201 @@ export function FormattedMarkdown({ content }) {
   );
 }
 
-export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], households = [], users = [], token, setActiveTab, onClose, isFullPage = false, isLanding = false, lang = 'en', t }) {
+export const TelegramWallpaperPattern = () => (
+  <div className="absolute inset-0 pointer-events-none opacity-[0.11] dark:opacity-[0.14] overflow-hidden select-none text-slate-800 dark:text-cyan-200">
+    <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="telegram-rich-doodle-pattern" width="280" height="280" patternUnits="userSpaceOnUse">
+          <g fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+            {/* Paper Airplane 1 */}
+            <g transform="translate(15, 15) rotate(12) scale(0.85)">
+              <path d="M5 20 L30 5 L20 32 L14 24 L5 20 Z M20 5 L14 24" />
+            </g>
+
+            {/* Cloud & Raindrops */}
+            <g transform="translate(70, 10) scale(0.75)">
+              <path d="M20 15 C15 15 10 19 10 23 C5 23 2 27 5 32 C8 35 13 35 20 35 C25 35 32 35 35 31 C38 27 35 21 30 21 C30 17 25 15 20 15 Z" />
+              <path d="M13 41 C13 41 11 45 13 46 M23 41 C23 41 21 45 23 46 M31 39 C31 39 29 43 31 44" />
+            </g>
+
+            {/* Whale / Fish with Water Spout */}
+            <g transform="translate(130, 20) rotate(-10) scale(0.75)">
+              <path d="M10 20 C30 5 55 15 55 27 C55 40 35 45 15 40 C5 38 0 30 0 27 C0 25 5 23 10 20 Z" />
+              <path d="M55 27 L65 21 M55 27 L65 33" />
+              <circle cx="15" cy="25" r="1.5" fill="currentColor" />
+              <path d="M30 8 C30 0 35 -3 35 -3 M30 8 C27 1 22 -2 22 -2" />
+            </g>
+
+            {/* Sun with Rays */}
+            <g transform="translate(210, 10) scale(0.7)">
+              <circle cx="15" cy="15" r="8" />
+              <path d="M15 1 V5 M15 25 V29 M1 15 H5 M25 15 H29 M5 5 L8 8 M22 22 L25 25 M5 25 L8 22 M22 5 L25 8" />
+            </g>
+
+            {/* Hot Air Balloon */}
+            <g transform="translate(245, 60) rotate(15) scale(0.75)">
+              <path d="M20 5 C5 5 0 20 10 30 L16 38 H24 L30 30 C40 20 35 5 20 5 Z" />
+              <path d="M16 38 V43 H24 V38 M18 43 V46 H22 V43" />
+            </g>
+
+            {/* Planet Saturn */}
+            <g transform="translate(10, 75) rotate(-25) scale(0.8)">
+              <circle cx="15" cy="15" r="9" />
+              <ellipse cx="15" cy="15" rx="17" ry="4" />
+            </g>
+
+            {/* Cute Panda / Animal Face */}
+            <g transform="translate(75, 70) scale(0.75)">
+              <circle cx="16" cy="16" r="13" />
+              <circle cx="6" cy="6" r="4" />
+              <circle cx="26" cy="6" r="4" />
+              <circle cx="11" cy="14" r="1.5" fill="currentColor" />
+              <circle cx="21" cy="14" r="1.5" fill="currentColor" />
+              <path d="M13 21 C14 23 18 23 19 21" />
+            </g>
+
+            {/* Ice Cream Cone */}
+            <g transform="translate(135, 75) rotate(20) scale(0.75)">
+              <path d="M5 15 L15 45 L25 15 Z" />
+              <path d="M3 15 C0 5 30 5 27 15" />
+            </g>
+
+            {/* Floating Umbrella */}
+            <g transform="translate(185, 70) scale(0.75)">
+              <path d="M5 20 C5 5 35 5 35 20 Z" />
+              <path d="M20 20 V40 C20 43 17 44 15 42" />
+              <path d="M5 20 C12 23 17 23 20 20 C23 23 28 23 35 20" />
+            </g>
+
+            {/* Submarine / Boat */}
+            <g transform="translate(10, 135) rotate(-5) scale(0.75)">
+              <path d="M10 15 H50 C60 15 60 30 50 30 H10 C0 30 0 15 10 15 Z" />
+              <circle cx="20" cy="22.5" r="3" />
+              <circle cx="35" cy="22.5" r="3" />
+              <path d="M30 15 V7 H37" />
+            </g>
+
+            {/* Rocket Ship */}
+            <g transform="translate(75, 130) rotate(35) scale(0.75)">
+              <path d="M15 25 C15 10 30 0 30 0 C30 0 45 10 45 25 V40 H15 Z" />
+              <circle cx="30" cy="23" r="4" />
+            </g>
+
+            {/* Cactus / Plant */}
+            <g transform="translate(140, 135) scale(0.75)">
+              <path d="M15 5 V35 M15 15 H5 V5 M15 20 H25 V10" />
+            </g>
+
+            {/* Lightbulb */}
+            <g transform="translate(185, 135) rotate(-15) scale(0.75)">
+              <path d="M15 5 C8 5 5 15 10 22 L13 28 H27 L30 22 C35 15 32 5 25 5 Z" />
+              <path d="M13 28 V32 H27 V28 M17 32 V35 H23 V32" />
+            </g>
+
+            {/* Musical Note */}
+            <g transform="translate(240, 130) rotate(10) scale(0.75)">
+              <path d="M10 5 V30 M10 5 L30 0 V25 M10 15 L30 10" />
+              <circle cx="5" cy="30" r="4" fill="currentColor" />
+              <circle cx="25" cy="25" r="4" fill="currentColor" />
+            </g>
+
+            {/* Palm Tree */}
+            <g transform="translate(10, 195) scale(0.75)">
+              <path d="M20 40 C22 20 25 5 25 0 M25 0 C15 -5 5 0 0 5 M25 0 C35 -5 45 0 50 5 M25 0 C20 -10 15 -15 10 -15 M25 0 C30 -10 35 -15 40 -15" />
+            </g>
+
+            {/* Cute Cat / Fox */}
+            <g transform="translate(70, 195) rotate(-10) scale(0.75)">
+              <path d="M10 15 L20 0 L25 13 C30 10 40 10 45 13 L50 0 L60 15 C65 25 60 40 35 40 C10 40 5 25 10 15 Z" />
+              <circle cx="25" cy="23" r="2" fill="currentColor" />
+              <circle cx="45" cy="23" r="2" fill="currentColor" />
+              <path d="M33 30 L35 32 L37 30" />
+            </g>
+
+            {/* Water Drop Doodle */}
+            <g transform="translate(140, 195) rotate(25) scale(0.8)">
+              <path d="M15 5 C15 5 5 18 5 25 C5 31 9 35 15 35 C21 35 25 31 25 25 C25 18 15 5 15 5 Z" />
+            </g>
+
+            {/* Gift Box with Ribbon */}
+            <g transform="translate(185, 195) scale(0.75)">
+              <rect x="5" y="10" width="30" height="25" rx="2" />
+              <path d="M2 5 H38 V10 H2 Z M20 5 V35 M5 22.5 H35" />
+            </g>
+
+            {/* Sliced Watermelon */}
+            <g transform="translate(235, 190) rotate(15) scale(0.75)">
+              <path d="M5 5 A 25 25 0 0 0 55 5 Z" />
+              <path d="M5 5 H55" />
+              <circle cx="20" cy="13" r="1" fill="currentColor" />
+              <circle cx="30" cy="18" r="1" fill="currentColor" />
+              <circle cx="40" cy="13" r="1" fill="currentColor" />
+            </g>
+
+            {/* Star & Moon */}
+            <g transform="translate(10, 245) scale(0.75)">
+              <path d="M15 5 L17 11 L23 12 L18 16 L20 22 L15 18 L10 22 L12 16 L7 12 L13 11 Z" />
+              <path d="M40 5 C30 5 25 15 28 25 C30 30 35 33 40 33 C35 28 35 15 40 5 Z" />
+            </g>
+
+            {/* Coffee Cup / Mug */}
+            <g transform="translate(75, 245) scale(0.75)">
+              <path d="M5 10 H35 V30 C35 38 27 40 20 40 C13 40 5 38 5 30 Z" />
+              <path d="M35 15 H41 C45 15 45 28 41 28 H35" />
+              <path d="M13 2 C13 5 17 5 17 8 M23 2 C23 5 27 5 27 8" />
+            </g>
+
+            {/* Camera Doodle */}
+            <g transform="translate(135, 245) rotate(-10) scale(0.75)">
+              <rect x="5" y="10" width="30" height="22" rx="3" />
+              <circle cx="20" cy="21" r="6" />
+              <path d="M15 10 L18 5 H27 L30 10" />
+            </g>
+
+            {/* Crown */}
+            <g transform="translate(190, 245) scale(0.75)">
+              <path d="M10 25 L5 5 L18 15 L25 0 L32 15 L45 5 L40 25 Z" />
+            </g>
+
+            {/* Diamond / Gem */}
+            <g transform="translate(240, 245) rotate(20) scale(0.75)">
+              <path d="M5 15 L20 5 L35 15 L20 35 Z M5 15 H35 M14 15 L20 35 M26 15 L20 35" />
+            </g>
+
+            {/* Tiny Accent Stars, Hearts & Dots scattered randomly across the pattern */}
+            <path d="M50 45 L52 48 L55 49 L52 51 L50 54 L48 51 L45 49 L48 48 Z" />
+            <path d="M115 115 C115 113 113 111 110 113 C107 111 105 113 105 115 C105 118 110 121 110 121 C110 121 115 118 115 115 Z" />
+            <path d="M225 105 L227 108 L230 109 L227 111 L225 114 L223 111 L220 109 L223 108 Z" />
+            <path d="M50 175 C50 173 48 171 45 173 C42 171 40 173 40 175 C40 178 45 181 45 181 C45 181 50 178 50 175 Z" />
+            <path d="M175 175 L177 178 L180 179 L177 181 L175 184 L173 181 L170 179 L173 178 Z" />
+            <path d="M265 225 L267 228 L270 229 L267 231 L265 234 L263 231 L260 229 L263 228 Z" />
+
+            <circle cx="120" cy="55" r="1.5" fill="currentColor" />
+            <circle cx="190" cy="20" r="1.5" fill="currentColor" />
+            <circle cx="270" cy="25" r="1.5" fill="currentColor" />
+            <circle cx="55" cy="115" r="1.5" fill="currentColor" />
+            <circle cx="170" cy="115" r="1.5" fill="currentColor" />
+            <circle cx="230" cy="65" r="1.5" fill="currentColor" />
+            <circle cx="115" cy="175" r="1.5" fill="currentColor" />
+            <circle cx="230" cy="175" r="1.5" fill="currentColor" />
+            <circle cx="60" cy="235" r="1.5" fill="currentColor" />
+            <circle cx="125" cy="235" r="1.5" fill="currentColor" />
+            <circle cx="175" cy="235" r="1.5" fill="currentColor" />
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#telegram-rich-doodle-pattern)"/>
+    </svg>
+  </div>
+);
+
+export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], households = [], users = [], token, setActiveTab, onClose, isFullPage = false, isLanding = false, lang = 'en', t, onExpandChange }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    if (onExpandChange) onExpandChange(isExpanded);
+  }, [isExpanded, onExpandChange]);
+
   const userName = profile?.name || 'User';
   const role = profile?.role || 'ROLE_USER';
   const isSuperAdmin = role === 'ROLE_ADMIN' || role === 'ADMIN';
@@ -713,50 +907,71 @@ export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], 
   };
 
   return (
-    <div className={`flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl overflow-hidden ${isFullPage ? 'h-[80vh] w-full max-w-4xl' : 'h-[520px] w-[350px] sm:w-[410px]'}`}>
-      {/* Chat Header — Vivid Deep Gradient with Glass Effect & Pure White Typography */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 px-4 py-3.5 border-b border-white/10 flex items-center justify-between shrink-0 shadow-lg text-white notranslate" translate="no">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-md p-1 backdrop-blur-sm">
-              <RobotSVG />
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full shadow-sm"></span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-white text-sm tracking-tight leading-none">{t ? t('bot_title') : 'AquaBot Assistant'}</h3>
-              <span className="bg-white/20 border border-white/30 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider shadow-xs">
-                {isSuperAdmin ? 'SUPER ADMIN AI' : isCommunityAdmin ? 'COMMUNITY AI' : 'AI ASSISTANT'}
-              </span>
-            </div>
-            <p className="text-[10px] text-blue-100 font-medium mt-1 leading-none opacity-90">Live for {userName} ({flatInfo})</p>
-          </div>
-        </div>
+    <>
+      <div 
+        className={`relative flex flex-col bg-[#e7ede8] dark:bg-[#0e1621] border border-slate-300/80 dark:border-slate-800 shadow-2xl overflow-hidden font-sans transition-all duration-300 ease-in-out ${
+          isExpanded 
+            ? 'h-[88vh] max-h-[850px] w-[94vw] max-w-5xl rounded-3xl backdrop-blur-2xl ring-1 ring-white/20 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)]' 
+            : isFullPage 
+              ? 'h-[80vh] w-full max-w-4xl rounded-2xl' 
+              : 'h-[530px] w-[350px] sm:w-[420px] rounded-2xl'
+        }`}
+      >
+        {/* SVG Doodle Wallpaper Background */}
+        <TelegramWallpaperPattern />
 
-        <div className="flex items-center gap-2">
-          {onClose && (
+        {/* Chat Header — Telegram Signature Header */}
+        <div className="relative z-10 bg-[#517da2] dark:bg-[#17212b] px-4 py-3 border-b border-white/10 dark:border-slate-800 flex items-center justify-between shrink-0 shadow-sm text-white notranslate" translate="no">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-9 h-9 rounded-full bg-white/20 dark:bg-slate-800 border border-white/30 dark:border-slate-700 flex items-center justify-center text-white shadow-sm p-1">
+                <RobotSVG />
+              </div>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#517da2] dark:border-[#17212b] rounded-full"></span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-white text-sm tracking-tight leading-none">{t ? t('bot_title') : 'AquaBot Assistant'}</h3>
+                <span className="bg-white/20 dark:bg-[#242f3d] text-white dark:text-blue-300 text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                  {isSuperAdmin ? 'SUPER ADMIN' : isCommunityAdmin ? 'COMMUNITY AI' : 'BOT'}
+                </span>
+              </div>
+              <p className="text-[10px] text-blue-100 dark:text-slate-400 font-medium mt-0.5 leading-none opacity-90">bot • live for {userName}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Expand / Minimize Toggle Button */}
             <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/20 transition cursor-pointer"
-              title="Close AquaBot"
+              onClick={() => setIsExpanded(prev => !prev)}
+              className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 dark:hover:bg-slate-800 transition cursor-pointer"
+              title={isExpanded ? "Minimize Chat" : "Expand Chat"}
             >
-              <X size={18} />
+              {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
-          )}
-        </div>
-      </div>
 
-      {/* Quick Action Task Bar at top */}
-      <div className="bg-slate-100/90 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800/80 px-3 py-2 flex items-center gap-2 overflow-x-auto scrollbar-none shrink-0">
-        <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 dark:hover:bg-slate-800 transition cursor-pointer"
+                title="Close AquaBot"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+
+      {/* Quick Action Task Bar (Telegram Keyboard Row Style) */}
+      <div className="relative z-10 bg-white/80 dark:bg-[#17212b]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 py-2 flex items-center gap-2 overflow-x-auto scrollbar-none shrink-0">
+        <span className="text-[10px] font-extrabold text-[#517da2] dark:text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
           <Zap size={11} className="text-amber-500" /> {t ? t('bot_tasks') : 'TASKS:'}
         </span>
         {defaultSuggestions.map((s, idx) => (
           <button
             key={idx}
             onClick={() => handleSend(s.query)}
-            className="text-[10px] font-bold bg-white dark:bg-slate-900 hover:bg-blue-600 hover:!text-white text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1 rounded-full whitespace-nowrap transition-all duration-150 shrink-0 cursor-pointer shadow-sm"
+            className="text-[10px] font-bold bg-white dark:bg-[#242f3d] hover:bg-[#517da2] hover:!text-white dark:hover:bg-[#2b5278] text-slate-800 dark:text-slate-200 border border-slate-300/80 dark:border-slate-700/80 px-3 py-1 rounded-full whitespace-nowrap transition-all duration-150 shrink-0 cursor-pointer shadow-xs"
           >
             {s.label}
           </button>
@@ -764,47 +979,48 @@ export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], 
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950/40">
+      <div className="relative z-10 flex-1 p-3.5 overflow-y-auto space-y-3.5">
         {messages.map((m) => (
           <div
             key={m.id}
             className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}
           >
-            <div className="flex items-center gap-1.5 mb-1 px-1">
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono font-semibold">{m.sender === 'user' ? 'You' : 'AquaBot'} • {m.timestamp}</span>
+            <div className="flex items-center gap-1.5 mb-0.5 px-1">
+              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">{m.sender === 'user' ? 'You' : 'AquaBot'} • {m.timestamp}</span>
             </div>
 
+            {/* Telegram Message Bubbles */}
             <div
-              className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-md ${
+              className={`max-w-[85%] p-3 text-xs leading-relaxed shadow-sm transition-all ${
                 m.sender === 'user'
-                  ? 'bg-blue-600 !text-white rounded-tr-none shadow-blue-600/20 font-medium'
-                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none font-medium shadow-sm'
+                  ? 'bg-[#effedd] dark:bg-[#2b5278] text-slate-900 dark:text-white rounded-2xl rounded-tr-xs border border-[#d2eebf] dark:border-[#3b6e9e] font-medium'
+                  : 'bg-white dark:bg-[#182533] border border-slate-200/80 dark:border-[#243447] text-slate-900 dark:text-slate-100 rounded-2xl rounded-tl-xs font-medium'
               }`}
             >
               <FormattedMarkdown content={m.text} />
 
-              {/* High Contrast Action Button inside message */}
+              {/* Action Button inside message */}
               {m.actionButton && (
-                <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-700/60">
                   <button
                     onClick={m.actionButton.onClick}
-                    className="w-full bg-blue-600 hover:bg-blue-500 !text-white font-extrabold py-2 px-3 rounded-xl transition duration-150 text-[11px] flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 cursor-pointer"
+                    className="w-full bg-[#517da2] hover:bg-[#436b8e] dark:bg-[#2b5278] dark:hover:bg-[#356491] text-white font-extrabold py-1.5 px-3 rounded-xl transition duration-150 text-[11px] flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   >
                     <span>{m.actionButton.label}</span>
-                    <ChevronRight size={14} className="!text-white" />
+                    <ChevronRight size={14} className="text-white" />
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Suggestions Chips below bot reply */}
+            {/* Telegram Quick Reply Suggestion Chips */}
             {m.suggestions && m.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2 max-w-[90%]">
+              <div className="flex flex-wrap gap-1.5 mt-1.5 max-w-[90%]">
                 {m.suggestions.map((sug, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(sug.query)}
-                    className="text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-600 hover:!text-white text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-xs"
+                    className="text-[10px] font-bold bg-white/90 dark:bg-[#17212b] hover:bg-[#517da2] hover:!text-white dark:hover:bg-[#2b5278] text-[#456e92] dark:text-[#64b5f6] border border-[#517da2]/30 dark:border-[#2b5278] px-2.5 py-1 rounded-full transition-all cursor-pointer shadow-xs"
                   >
                     {sug.label}
                   </button>
@@ -815,42 +1031,41 @@ export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], 
         ))}
 
         {isTyping && (
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs py-2 px-1">
-            <div className="w-6 h-6 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center">
-              <Bot size={14} className="animate-spin text-blue-500" />
-            </div>
-            <span className="text-[11px] font-semibold animate-pulse">{lang === 'hi' ? 'एक्वाबॉट उत्तर लिख रहा है...' : 'AquaBot is typing...'}</span>
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 text-xs py-1.5 px-2 bg-white/80 dark:bg-[#182533] border border-slate-200/60 dark:border-[#243447] rounded-2xl w-fit shadow-xs">
+            <Bot size={13} className="animate-spin text-[#517da2] dark:text-blue-400" />
+            <span className="text-[11px] font-medium animate-pulse">{lang === 'hi' ? 'एक्वाबॉट टाइप कर रहा है...' : 'AquaBot is typing...'}</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input */}
+      {/* Telegram Chat Input Bar */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           handleSend();
         }}
-        className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0"
+        className="relative z-10 p-2.5 bg-white dark:bg-[#17212b] border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0"
       >
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t ? t('bot_ask_placeholder') : 'Ask AquaBot about usage, bills, tickets...'}
-          className="flex-1 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all font-medium"
+          className="flex-1 bg-slate-100 dark:bg-[#0e1621] border border-slate-300/80 dark:border-slate-700/80 rounded-full px-4 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#517da2]/40 transition-all font-medium"
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 !text-white p-2.5 rounded-xl transition duration-150 shadow-md shadow-blue-600/30 shrink-0 cursor-pointer"
+          className="bg-[#5288c1] hover:bg-[#4374a7] disabled:opacity-40 disabled:hover:bg-[#5288c1] text-white p-2.5 rounded-full transition duration-150 shadow-sm shrink-0 cursor-pointer flex items-center justify-center"
         >
-          <Send size={15} className="!text-white" />
+          <Send size={14} className="text-white" />
         </button>
       </form>
     </div>
-  );
+  </>
+);
 }
 
 export function ResidentChatbotTab({ profile, usageLogs, bills, apartments, households, users, token, setActiveTab, lang, t }) {
@@ -889,6 +1104,7 @@ export function ResidentChatbotTab({ profile, usageLogs, bills, apartments, hous
 
 export function AquaBotFloatingWidget({ profile, usageLogs, bills, apartments, households, users, token, setActiveTab, isLanding = false, lang, t }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const rawName = profile?.name || profile?.username || (lang === 'hi' ? 'अतिथि' : 'Guest');
   const firstName = rawName.split(' ')[0];
@@ -897,9 +1113,9 @@ export function AquaBotFloatingWidget({ profile, usageLogs, bills, apartments, h
     : (lang === 'hi' ? `नमस्ते ${firstName}` : `Hi ${firstName}`);
 
   return (
-    <div className="fixed bottom-[-14px] right-[-10px] sm:bottom-[-18px] sm:right-[-12px] z-50 flex flex-col items-end">
+    <>
       {isOpen && (
-        <div className="mb-4 mr-3 animate-fade-in-up shadow-2xl">
+        <div className={isExpanded ? "fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in" : "fixed bottom-4 right-4 z-50 animate-fade-in-up shadow-2xl"}>
           <AquaBotChatWindow
             profile={profile}
             usageLogs={usageLogs}
@@ -909,7 +1125,8 @@ export function AquaBotFloatingWidget({ profile, usageLogs, bills, apartments, h
             users={users}
             token={token}
             setActiveTab={setActiveTab}
-            onClose={() => setIsOpen(false)}
+            onClose={() => { setIsOpen(false); setIsExpanded(false); }}
+            onExpandChange={(exp) => setIsExpanded(exp)}
             isFullPage={false}
             isLanding={isLanding || !token}
             lang={lang}
@@ -918,27 +1135,31 @@ export function AquaBotFloatingWidget({ profile, usageLogs, bills, apartments, h
         </div>
       )}
 
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center transition-all duration-300 transform hover:scale-108 active:scale-95 group cursor-pointer bg-transparent border-none outline-none focus:outline-none p-0"
-      >
-        {/* Soft Ambient Light Floor Shadow */}
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900/25 dark:bg-cyan-500/20 rounded-full blur-md pointer-events-none group-hover:scale-110 transition-all duration-300"></div>
+      {!isOpen && !isExpanded && (
+        <div className="fixed bottom-[-14px] right-[-10px] sm:bottom-[-18px] sm:right-[-12px] z-50 flex flex-col items-end">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center transition-all duration-300 transform hover:scale-108 active:scale-95 group cursor-pointer bg-transparent border-none outline-none focus:outline-none p-0"
+          >
+            {/* Soft Ambient Light Floor Shadow */}
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900/25 dark:bg-cyan-500/20 rounded-full blur-md pointer-events-none group-hover:scale-110 transition-all duration-300"></div>
 
-        <div className="w-full h-full flex items-center justify-center transform group-hover:-translate-y-1.5 transition-transform duration-300 filter drop-shadow-[0_12px_22px_rgba(0,0,0,0.22)] drop-shadow-[0_4px_12px_rgba(56,189,248,0.25)]">
-          <RobotSVG />
+            <div className="w-full h-full flex items-center justify-center transform group-hover:-translate-y-1.5 transition-transform duration-300 filter drop-shadow-[0_12px_22px_rgba(0,0,0,0.22)] drop-shadow-[0_4px_12px_rgba(56,189,248,0.25)]">
+              <RobotSVG />
+            </div>
+
+            {/* Live Status Pulsing Dot */}
+            <span className="absolute top-5 right-7 w-3.5 h-3.5 bg-emerald-400 rounded-full animate-ping border-2 border-slate-900"></span>
+            <span className="absolute top-5 right-7 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-slate-900 shadow-sm"></span>
+
+            {/* Hover Tooltip - Hi [User's Name] */}
+            <span className="absolute right-36 sm:right-44 top-1/2 -translate-y-1/2 bg-slate-900/95 dark:bg-slate-950/95 text-cyan-300 text-xs font-black px-4 py-2 rounded-xl shadow-xl border border-cyan-500/40 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-md flex items-center gap-1.5">
+              <Sparkles size={14} className="text-cyan-400 animate-pulse" />
+              <span>{hoverGreeting}</span>
+            </span>
+          </button>
         </div>
-
-        {/* Live Status Pulsing Dot */}
-        <span className="absolute top-5 right-7 w-3.5 h-3.5 bg-emerald-400 rounded-full animate-ping border-2 border-slate-900"></span>
-        <span className="absolute top-5 right-7 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-slate-900 shadow-sm"></span>
-
-        {/* Hover Tooltip - Hi [User's Name] */}
-        <span className="absolute right-36 sm:right-44 top-1/2 -translate-y-1/2 bg-slate-900/95 dark:bg-slate-950/95 text-cyan-300 text-xs font-black px-4 py-2 rounded-xl shadow-xl border border-cyan-500/40 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-md flex items-center gap-1.5">
-          <Sparkles size={14} className="text-cyan-400 animate-pulse" />
-          <span>{hoverGreeting}</span>
-        </span>
-      </button>
-    </div>
+      )}
+    </>
   );
 }

@@ -60,9 +60,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/alerts/**")
                             .hasAnyAuthority("ROLE_USER", "ROLE_COMMUNITY_ADMIN", "ROLE_ADMIN", "USER", "COMMUNITY_ADMIN", "ADMIN")
 
-                        // Reports endpoints
-                        .requestMatchers("/api/reports/**")
+                        // Leak Scan endpoints
+                        .requestMatchers("/api/leak-scan/**")
                             .hasAnyAuthority("ROLE_COMMUNITY_ADMIN", "ROLE_ADMIN", "COMMUNITY_ADMIN", "ADMIN")
+
+                        // Reports endpoints
+                        .requestMatchers("/api/reports/seed-demo-data").permitAll()
+                        .requestMatchers("/api/reports/**").authenticated()
 
                         // Residents and Admins can log water usage
                         .requestMatchers("/api/usage/**")
@@ -95,6 +99,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(java.util.Arrays.asList("*"));
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
+        configuration.setExposedHeaders(java.util.Arrays.asList("Content-Disposition", "content-disposition"));
         configuration.setAllowCredentials(true);
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

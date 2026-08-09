@@ -37,6 +37,9 @@ public class WaterPurchase {
     @Column(name = "invoice_number")
     private String invoiceNumber;
 
+    @Column(name = "block_name")
+    private String blockName;
+
     @PrePersist
     protected void onCreate() {
         if (this.date == null) {

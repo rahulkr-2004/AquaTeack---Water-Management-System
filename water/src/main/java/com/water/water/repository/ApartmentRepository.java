@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository;
 public interface ApartmentRepository extends JpaRepository<Apartment, Long> {
     // Helps us prevent creating duplicate apartment buildings
     boolean existsByName(String name);
+    java.util.Optional<Apartment> findByName(String name);
 }

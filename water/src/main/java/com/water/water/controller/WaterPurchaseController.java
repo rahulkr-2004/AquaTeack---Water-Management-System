@@ -38,6 +38,9 @@ public class WaterPurchaseController {
             String invoiceNumber = request.containsKey("invoiceNumber") && request.get("invoiceNumber") != null
                     ? request.get("invoiceNumber").toString()
                     : "";
+            String blockName = request.containsKey("blockName") && request.get("blockName") != null
+                    ? request.get("blockName").toString()
+                    : (request.containsKey("block") && request.get("block") != null ? request.get("block").toString() : "");
 
             Apartment apartment = apartmentRepository.findById(apartmentId)
                     .orElseThrow(() -> new IllegalArgumentException("Apartment not found!"));
@@ -49,6 +52,7 @@ public class WaterPurchaseController {
             purchase.setCost(cost);
             purchase.setSupplierName(supplierName);
             purchase.setInvoiceNumber(invoiceNumber);
+            purchase.setBlockName(blockName);
 
             return ResponseEntity.ok(waterPurchaseRepository.save(purchase));
         } catch (Exception e) {

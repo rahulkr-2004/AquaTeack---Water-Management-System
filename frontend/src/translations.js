@@ -31,7 +31,18 @@ export const translations = {
     nav_water_purchase: "Water Tanker Purchase",
     nav_invoices: "Invoices & Records",
     nav_alerts: "System Alerts",
+    nav_leak_scan: "Leakage Detection",
     nav_reports: "Analytics & Reports",
+
+    sec_leak_scan: "Real-Time Leakage Detection & Analysis",
+    stat_scanned_households: "Scanned Households",
+    stat_suspected_leaks: "Suspected Water Leaks",
+    stat_est_water_loss: "Est. Daily Water Loss",
+    stat_est_financial_loss: "Est. Monthly Loss",
+    btn_run_scan: "Run Instant Leak Scan",
+    risk_critical: "CRITICAL LEAK",
+    risk_high: "HIGH RISK",
+    risk_warning: "WARNING DRIFT",
 
     // User Roles
     role_resident: "Resident User",
@@ -160,7 +171,18 @@ export const translations = {
     nav_water_purchase: "जल टैंकर मांग व खरीद",
     nav_invoices: "चालान और रिकॉर्ड",
     nav_alerts: "सिस्टम चेतावनी व अलर्ट",
+    nav_leak_scan: "लीकेज डिटेक्शन",
     nav_reports: "विश्लेषण व विस्तृत रिपोर्ट",
+
+    sec_leak_scan: "रियल-टाइम जल लीकेज डिटेक्शन व विश्लेषण",
+    stat_scanned_households: "स्कैन किए गए घर",
+    stat_suspected_leaks: "संभावित जल लीकेज",
+    stat_est_water_loss: "अनुमानित दैनिक जल हानि",
+    stat_est_financial_loss: "अनुमानित मासिक नुकसान",
+    btn_run_scan: "तुरंत लीकेज स्कैन चलाएं",
+    risk_critical: "गंभीर लीकेज",
+    risk_high: "उच्च जोखिम",
+    risk_warning: "चेतावनी भटकाव",
 
     // User Roles
     role_resident: "निवासी उपभोक्ता",

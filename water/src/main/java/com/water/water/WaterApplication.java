@@ -26,7 +26,8 @@ public class WaterApplication {
 			ApartmentRepository apartmentRepository,
 			HouseholdRepository householdRepository,
 			com.water.water.service.WaterUsageService waterUsageService,
-			com.water.water.service.OnboardingService onboardingService) {
+			com.water.water.service.OnboardingService onboardingService,
+			com.water.water.service.DemoDataSeeder demoDataSeeder) {
 		return args -> {
 			List<User> users = userRepository.findAll();
 			for (User user : users) {
@@ -47,6 +48,10 @@ public class WaterApplication {
 			// Seed meter readings for Harsh for last 6 months up to 3 Aug 2026
 			String seedMsg = waterUsageService.seedMeterReadingsForHarsh();
 			System.out.println("Bootstrap: " + seedMsg);
+
+			// Seed 3 Community Admins, Residents, 3 Months Water Logs, and Paid Bills up to July
+			String demoMsg = demoDataSeeder.seedDemoData();
+			System.out.println("Bootstrap: " + demoMsg);
 		};
 	}
 }

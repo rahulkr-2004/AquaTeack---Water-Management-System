@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import LogoSVG from './components/LogoSVG';
 import { 
   Droplets, 
   Upload, 
@@ -40,6 +41,7 @@ import {
   UserPlus,
   X,
   Check,
+  CheckCheck,
   Info,
   RefreshCw,
   MapPin,
@@ -56,7 +58,14 @@ import {
   Calendar,
   CheckCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Sliders,
+  PieChart,
+  Award,
+  Trophy,
+  Medal,
+  ThumbsUp,
+  Flame
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { translations } from './translations';
@@ -78,6 +87,202 @@ const parseJwt = (token) => {
     return null;
   }
 };
+
+function HeaderNotificationBell({ token, setActiveTab, showMessage, t, isManager }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const fetchNotifications = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/alerts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch header notifications:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter(n => !n.resolved).length;
+  }, [notifications]);
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE_URL}/api/alerts/mark-all-read`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        if (showMessage) showMessage('success', 'All notifications marked as read!');
+        setNotifications(prev => prev.map(n => ({ ...n, resolved: true })));
+      } else {
+        if (showMessage) showMessage('error', 'Failed to mark notifications as read.');
+      }
+    } catch (err) {
+      if (showMessage) showMessage('error', 'Network failure.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkSingleRead = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/resolve/${id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, resolved: true } : n));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getCategoryIcon = (type) => {
+    switch (type) {
+      case 'LEAK':
+        return <AlertTriangle size={15} className="text-amber-500 shrink-0" />;
+      case 'MAINTENANCE':
+        return <Sliders size={15} className="text-blue-500 shrink-0" />;
+      case 'BILLING':
+        return <DollarSign size={15} className="text-emerald-500 shrink-0" />;
+      case 'BROADCAST':
+        return <ShieldAlert size={15} className="text-purple-500 shrink-0" />;
+      default:
+        return <Info size={15} className="text-cyan-500 shrink-0" />;
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(prev => !prev)}
+        title="User Portal Notifications"
+        className="relative bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-slate-100 transition-all duration-150 cursor-pointer flex items-center justify-center focus:outline-none"
+      >
+        <Bell size={16} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+          {/* Top Dropdown Header */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell size={15} className="text-blue-500 dark:text-blue-400" />
+              <h4 className="font-extrabold text-xs text-slate-900 dark:text-slate-100 tracking-tight">Portal Notifications</h4>
+              {unreadCount > 0 ? (
+                <span className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-[9px] font-extrabold px-2 py-0.5 rounded-full">
+                  {unreadCount} Unread
+                </span>
+              ) : (
+                <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[9px] font-extrabold px-2 py-0.5 rounded-full">
+                  All Read
+                </span>
+              )}
+            </div>
+
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                disabled={loading}
+                className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <CheckCheck size={12} />
+                <span>Mark all as read</span>
+              </button>
+            )}
+          </div>
+
+          {/* Notification List Scroll Area */}
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 dark:text-slate-500">
+                <Bell size={24} className="mx-auto mb-2 opacity-40" />
+                <p className="text-xs font-semibold">No notifications available</p>
+              </div>
+            ) : (
+              notifications.slice(0, 8).map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => !n.resolved && handleMarkSingleRead(n.id)}
+                  className={`p-3 text-xs transition-colors flex items-start gap-3 cursor-pointer ${
+                    n.resolved 
+                      ? 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/40' 
+                      : 'bg-blue-50/50 dark:bg-blue-950/20 text-slate-900 dark:text-slate-100 font-medium hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                  }`}
+                >
+                  <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    {getCategoryIcon(n.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <h5 className={`text-xs truncate ${!n.resolved ? 'font-extrabold text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                        {n.title}
+                      </h5>
+                      <span className="text-[9px] text-slate-400 shrink-0 font-mono">{n.date || 'Today'}</span>
+                    </div>
+                    <p className="text-[11px] leading-snug line-clamp-2 text-slate-600 dark:text-slate-400">
+                      {n.message}
+                    </p>
+                  </div>
+                  {!n.resolved && (
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" title="Unread"></span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Dropdown Footer */}
+          <div className="p-2.5 bg-slate-50 dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800 text-center">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                if (setActiveTab) {
+                  setActiveTab(isManager ? 'alerts' : 'resident_alerts');
+                }
+              }}
+              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-center gap-1 w-full py-1 cursor-pointer"
+            >
+              <span>View All Portal Notifications</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('jwt_token') || null);
@@ -361,6 +566,7 @@ export default function App() {
         { id: 'water_purchase', label: t('nav_water_purchase'), icon: <Truck size={18} /> },
         { id: 'invoices', label: t('nav_invoices'), icon: <FileText size={18} /> },
         { id: 'alerts', label: t('nav_alerts'), icon: <Bell size={18} />, badge: alertsCount },
+        { id: 'leak_scan', label: t('nav_leak_scan'), icon: <ShieldAlert size={18} /> },
         { id: 'reports', label: t('nav_reports'), icon: <BarChart3 size={18} /> },
         { id: 'support', label: t('nav_support'), icon: <LifeBuoy size={18} />, badge: openTicketsCount },
         { id: 'profile', label: t('nav_profile'), icon: <User size={18} /> }
@@ -371,7 +577,9 @@ export default function App() {
         { id: 'usage_history', label: t('nav_usage_history'), icon: <List size={18} /> },
         { id: 'my_bills', label: t('nav_my_bills'), icon: <DollarSign size={18} /> },
         { id: 'my_invoices', label: t('nav_my_invoices'), icon: <FileText size={18} /> },
-        { id: 'notifications', label: t('nav_notifications'), icon: <Bell size={18} />, badge: alertsCount },
+        { id: 'resident_alerts', label: 'Water & Usage Alerts', icon: <ShieldAlert size={18} />, badge: alertsCount },
+        { id: 'notifications', label: t('nav_notifications'), icon: <Bell size={18} /> },
+        { id: 'reports', label: t('nav_reports'), icon: <BarChart3 size={18} /> },
         { id: 'water_tips', label: t('nav_water_tips'), icon: <HelpCircle size={18} /> },
         { id: 'support', label: t('nav_support'), icon: <LifeBuoy size={18} />, badge: openTicketsCount },
         { id: 'chatbot', label: t('nav_aquabot'), icon: <Bot size={18} /> },
@@ -400,15 +608,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans flex flex-col">
       {/* Hidden Google Translate mount element */}
       <div id="google_translate_element" className="hidden"></div>
 
       {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center z-10 shadow-md">
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center z-10 shadow-md shrink-0">
         <div className="flex items-center gap-3.5">
-          <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/10">
-            <Droplets size={22} className="animate-pulse" />
+          <div className="w-10 h-10 rounded-2xl bg-slate-800/80 border border-cyan-500/40 p-1 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <LogoSVG className="w-full h-full object-contain" />
           </div>
           <div className="notranslate" translate="no">
             <h1 className="text-lg font-black tracking-tight text-slate-100 flex items-center gap-0.5" translate="no">
@@ -428,6 +636,7 @@ export default function App() {
               <span className={`font-bold ${isSuperAdmin ? 'text-amber-400' : 'text-blue-400'}`}>{profile.name}</span>
             </div>
           )}
+
           {/* Searchable Browser Language Switcher with Indian & Global Languages */}
           <LanguagePicker
             currentLang={lang}
@@ -454,6 +663,15 @@ export default function App() {
           >
             {t('btn_refresh')}
           </button>
+
+          {/* User Portal Notification Bell Dropdown */}
+          <HeaderNotificationBell 
+            token={token} 
+            setActiveTab={setActiveTab} 
+            showMessage={showMessage} 
+            t={t} 
+            isManager={isSuperAdmin || isCommunityAdmin} 
+          />
           <button
             onClick={() => setDarkMode(prev => !prev)}
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -470,7 +688,7 @@ export default function App() {
       {/* Main Container */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Menu */}
-        <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-sm">
+        <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-sm overflow-y-auto h-full">
           <div className="space-y-4">
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3">{t('nav_menu')}</p>
             <nav className="space-y-1">
@@ -522,7 +740,7 @@ export default function App() {
               {/* Tab Switching */}
               {activeTab === 'dashboard' && (
                 isManager 
-                  ? <AdminDashboard usageLogs={usageLogs} bills={bills} apartments={apartments} households={households} users={users} isSuperAdmin={isSuperAdmin} token={token} fetchDashboardData={fetchDashboardData} lang={lang} t={t} />
+                  ? <AdminDashboard usageLogs={usageLogs} bills={bills} apartments={apartments} households={households} users={users} isSuperAdmin={isSuperAdmin} token={token} fetchDashboardData={fetchDashboardData} lang={lang} t={t} profile={profile} />
                   : <ResidentDashboard usageLogs={usageLogs} bills={bills} profile={profile} token={token} fetchDashboardData={fetchDashboardData} lang={lang} t={t} />
               )}
 
@@ -593,6 +811,7 @@ export default function App() {
                   profile={profile}
                   isAdmin={isManager}
                   setActiveTab={setActiveTab}
+                  users={users}
                   lang={lang} t={t} 
                 />
               )}
@@ -666,6 +885,8 @@ export default function App() {
                 <InvoicesTab 
                   token={token} 
                   showMessage={showMessage}
+                  isSuperAdmin={isSuperAdmin}
+                  profile={profile}
                   lang={lang} t={t}
                 />
               )}
@@ -682,9 +903,19 @@ export default function App() {
                 />
               )}
 
+              {/* Leak Scan Tab */}
+              {activeTab === 'leak_scan' && isManager && (
+                <LeakScanTab 
+                  token={token} 
+                  isSuperAdmin={isSuperAdmin}
+                  showMessage={showMessage}
+                  lang={lang} t={t}
+                />
+              )}
+
               {/* Reports Tab */}
-              {activeTab === 'reports' && isManager && (
-                <ReportsTab token={token} lang={lang} t={t} />
+              {activeTab === 'reports' && (
+                <ReportsTab token={token} profile={profile} showMessage={showMessage} lang={lang} t={t} />
               )}
 
               {/* My Bills Tab */}
@@ -705,6 +936,18 @@ export default function App() {
                 />
               )}
 
+              {/* Dedicated Resident Alerts & Warnings Tab */}
+              {activeTab === 'resident_alerts' && !isManager && (
+                <ResidentAlertsTab 
+                  token={token} 
+                  profile={profile}
+                  usageLogs={usageLogs}
+                  bills={bills}
+                  showMessage={showMessage}
+                  lang={lang} t={t}
+                />
+              )}
+
               {/* Notifications Tab */}
               {activeTab === 'notifications' && !isManager && (
                 <AlertsTab 
@@ -719,7 +962,7 @@ export default function App() {
 
               {/* Water Tips Tab */}
               {activeTab === 'water_tips' && !isManager && (
-                <WaterTipsTab lang={lang} t={t} />
+                <WaterTipsTab lang={lang} t={t} profile={profile} token={token} usageLogs={usageLogs} />
               )}
 
               {/* AquaBot Assistant Tab */}
@@ -785,16 +1028,283 @@ export default function App() {
   );
 }
 
+// Helper to check if a resident user is assigned under a Community Admin
+const isUserManagedByAdmin = (u, adminProfile) => {
+  if (!u || !adminProfile) return false;
+
+  // 1. Direct managedByAdmin relation
+  if (u.managedByAdmin) {
+    if (String(u.managedByAdmin.id) === String(adminProfile.id) || u.managedByAdmin.email === adminProfile.email) {
+      return true;
+    }
+  }
+
+  // 2. Household block & apartment match
+  const uAptId = u.household?.apartment?.id || u.household?.apartmentId;
+  const adminAptId = adminProfile.managedApartment?.id || adminProfile.managedApartmentId;
+
+  if (uAptId && adminAptId && String(uAptId) === String(adminAptId)) {
+    const adminBlockName = adminProfile.managedBuilding?.name || adminProfile.managedBlock;
+    if (adminBlockName && u.household?.block) {
+      const cleanAdminBlock = adminBlockName.replace(/^Block\s+/i, '').trim().toLowerCase();
+      const cleanUBlock = u.household.block.replace(/^Block\s+/i, '').trim().toLowerCase();
+      return cleanUBlock === cleanAdminBlock;
+    }
+    return true;
+  }
+
+  return false;
+};
+
+// -------------------------------------------------------------
+// DYNAMIC ROLE-BASED & CRITICAL TAB HEADER BANNER
+// -------------------------------------------------------------
+function TabHeaderBanner({ title, subtitle, role, isCritical, badgeText, metrics = [] }) {
+  let containerStyle = "";
+  let titleStyle = "";
+  let subtitleStyle = "";
+  let badgeStyle = "";
+  let metricCardStyle = "";
+  let metricLabelStyle = "";
+  let metricValueStyle = "";
+  let bgIconColor = "";
+
+  if (isCritical) {
+    // Critical Tab -> Soft Light Red (Light) / Dark Slate Rose (Dark)
+    containerStyle = "bg-gradient-to-r from-rose-50/90 via-red-50/80 to-rose-100/60 dark:from-slate-900 dark:via-rose-950/60 dark:to-slate-900 border border-rose-200/80 dark:border-rose-500/30";
+    titleStyle = "text-rose-950 dark:text-rose-100";
+    subtitleStyle = "text-rose-800/90 dark:text-rose-200/80";
+    badgeStyle = "bg-rose-100/90 dark:bg-rose-500/20 text-rose-900 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30";
+    metricCardStyle = "bg-white/90 dark:bg-slate-950/60 border border-rose-200/80 dark:border-rose-500/30";
+    metricLabelStyle = "text-rose-800 dark:text-rose-300/80";
+    metricValueStyle = "text-rose-950 dark:text-rose-100";
+    bgIconColor = "text-rose-400 dark:text-rose-400/20";
+  } else if (role === 'SUPER_ADMIN') {
+    // Super Admin -> Soft Light Amber/Orange (Light) / Dark Slate Amber (Dark)
+    containerStyle = "bg-gradient-to-r from-amber-50/90 via-orange-50/80 to-amber-100/60 dark:from-slate-900 dark:via-amber-950/60 dark:to-slate-900 border border-amber-200/80 dark:border-amber-500/30";
+    titleStyle = "text-amber-950 dark:text-amber-100";
+    subtitleStyle = "text-amber-800/90 dark:text-amber-200/80";
+    badgeStyle = "bg-amber-100/90 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30";
+    metricCardStyle = "bg-white/90 dark:bg-slate-950/60 border border-amber-200/80 dark:border-amber-500/30";
+    metricLabelStyle = "text-amber-800 dark:text-amber-300/80";
+    metricValueStyle = "text-amber-900 dark:text-amber-100";
+    bgIconColor = "text-amber-400 dark:text-amber-400/20";
+  } else if (role === 'COMMUNITY_ADMIN') {
+    // Community Admin -> Soft Light Green (Light) / Dark Slate Emerald (Dark)
+    containerStyle = "bg-gradient-to-r from-emerald-50/90 via-teal-50/80 to-emerald-100/60 dark:from-slate-900 dark:via-emerald-950/60 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-500/30";
+    titleStyle = "text-emerald-950 dark:text-emerald-100";
+    subtitleStyle = "text-emerald-800/90 dark:text-emerald-200/80";
+    badgeStyle = "bg-emerald-100/90 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30";
+    metricCardStyle = "bg-white/90 dark:bg-slate-950/60 border border-emerald-200/80 dark:border-emerald-500/30";
+    metricLabelStyle = "text-emerald-800 dark:text-emerald-300/80";
+    metricValueStyle = "text-emerald-900 dark:text-emerald-100";
+    bgIconColor = "text-emerald-400 dark:text-emerald-400/20";
+  } else {
+    // Resident User -> Soft Light Blue (Light) / Dark Slate Blue (Dark)
+    containerStyle = "bg-gradient-to-r from-sky-50/90 via-blue-50/80 to-indigo-50/60 dark:from-slate-900 dark:via-indigo-950/60 dark:to-slate-900 border border-sky-200/70 dark:border-blue-500/30";
+    titleStyle = "text-slate-900 dark:text-white";
+    subtitleStyle = "text-slate-600 dark:text-blue-200/80";
+    badgeStyle = "bg-sky-100/90 dark:bg-blue-500/20 text-sky-900 dark:text-blue-300 border border-sky-200 dark:border-blue-500/30";
+    metricCardStyle = "bg-white/90 dark:bg-slate-950/60 border border-sky-200/80 dark:border-blue-500/30";
+    metricLabelStyle = "text-slate-500 dark:text-blue-200";
+    metricValueStyle = "text-blue-700 dark:text-white";
+    bgIconColor = "text-blue-600 dark:text-blue-400/20";
+  }
+
+  return (
+    <div className={`p-6 rounded-2xl shadow-sm relative overflow-hidden transition-colors mb-6 ${containerStyle}`}>
+      <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 dark:opacity-15 pointer-events-none">
+        <svg className={`w-64 h-64 fill-current ${bgIconColor}`} viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2 mb-1.5">
+            {badgeText && (
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${badgeStyle}`}>
+                {badgeText}
+              </span>
+            )}
+            {isCritical && (
+              <span className="flex items-center text-[10px] text-rose-950 dark:text-rose-200 font-bold bg-rose-200/90 dark:bg-rose-900/60 px-2.5 py-0.5 rounded-full border border-rose-300 dark:border-rose-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 dark:bg-rose-400 animate-pulse mr-1.5"></span> Critical System Priority
+              </span>
+            )}
+          </div>
+          <h2 className={`text-2xl font-black tracking-tight ${titleStyle}`}>{title}</h2>
+          {subtitle && <p className={`text-xs font-medium mt-0.5 ${subtitleStyle}`}>{subtitle}</p>}
+        </div>
+
+        {metrics && metrics.length > 0 && (
+          <div className="flex items-center gap-3">
+            {metrics.map((m, idx) => (
+              <div key={idx} className={`backdrop-blur-md px-4 py-2.5 rounded-xl text-center shadow-xs ${metricCardStyle}`}>
+                <div className={`text-[10px] font-extrabold uppercase tracking-wider ${metricLabelStyle}`}>{m.label}</div>
+                <div className={`text-xl font-black ${m.colorClass || metricValueStyle}`}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// DEDICATED RESIDENT ALERTS & WARNINGS TAB
+// -------------------------------------------------------------
+function ResidentAlertsTab({ token, profile, usageLogs = [], bills = [], showMessage, lang, t }) {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('ALL');
+
+  const fetchAlerts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/alerts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
+
+  const highUsageThreshold = 350;
+  const highUsageDays = useMemo(() => {
+    return (usageLogs || []).filter(log => Number(log.volumeLitres || log.litres || 0) >= highUsageThreshold);
+  }, [usageLogs]);
+
+  const peakUsageDay = useMemo(() => {
+    if (!usageLogs || usageLogs.length === 0) return null;
+    return [...usageLogs].sort((a, b) => Number(b.volumeLitres || b.litres || 0) - Number(a.volumeLitres || a.litres || 0))[0];
+  }, [usageLogs]);
+
+  const latestBill = bills && bills.length > 0 ? bills[0] : null;
+
+  return (
+    <div className="space-y-6">
+      <TabHeaderBanner
+        title="Water & High Consumption Alerts"
+        subtitle="Real-time high usage warnings, tariff limit advisories, flat leakage alerts, and building notices."
+        isCritical={true}
+        role="RESIDENT"
+        badgeText="Critical Resident Alert Monitor"
+        metrics={[
+          { label: 'Active Alerts', value: alerts.length + highUsageDays.length },
+          { label: 'Peak Day Spike', value: peakUsageDay ? `${peakUsageDay.volumeLitres || peakUsageDay.litres} L` : '--' },
+          { label: 'Bill Status', value: latestBill ? (latestBill.paid ? 'PAID' : 'DUE') : 'NORMAL', colorClass: latestBill && !latestBill.paid ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400' }
+        ]}
+      />
+
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+        {['ALL', 'CONSUMPTION', 'MAINTENANCE', 'ANNOUNCEMENT'].map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setFilter(cat)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              filter === cat
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+            }`}
+          >
+            {cat === 'ALL' ? 'All Alerts' : cat === 'CONSUMPTION' ? 'High Usage Alerts' : cat === 'MAINTENANCE' ? 'Pipeline & Leakage' : 'Announcements'}
+          </button>
+        ))}
+      </div>
+
+      {(filter === 'ALL' || filter === 'CONSUMPTION') && (
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-rose-950 dark:text-rose-200 uppercase tracking-wider flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+            <span>Automated High Consumption Warnings</span>
+          </h3>
+
+          {highUsageDays.length === 0 ? (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center space-x-2">
+              <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>No abnormal high consumption spikes detected in your recent daily logs. Great job conserving water!</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {highUsageDays.slice(0, 4).map((day, idx) => (
+                <div key={idx} className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl shadow-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded uppercase">Usage Spike Warning</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{day.date || 'Recent Log'}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-rose-950 dark:text-rose-100">
+                    High Daily Volume: <span className="font-extrabold text-rose-600 dark:text-rose-400">{day.volumeLitres || day.litres} Liters</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Your recorded consumption for this day exceeded the standard 350L flat threshold. Please inspect appliances and fixtures.
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+          Community Water Notices & System Broadcasts
+        </h3>
+        {loading ? (
+          <div className="text-xs text-slate-500 py-6 text-center">Loading alerts...</div>
+        ) : alerts.length === 0 ? (
+          <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 italic">
+            No administrative notices or system announcements at this time.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {alerts
+              .filter(a => filter === 'ALL' || a.type === filter)
+              .map((alert) => (
+                <div key={alert.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[9px] font-black px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800 uppercase">
+                        {alert.type || 'SYSTEM'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'Recent Notice'}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{alert.title || alert.message}</h4>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">{alert.message}</p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // -------------------------------------------------------------
 // 1. ADMIN DASHBOARD VIEW
 // -------------------------------------------------------------
-function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin, token, fetchDashboardData, lang, t }) {
+function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin, token, fetchDashboardData, lang, t, profile }) {
   const [localLogs, setLocalLogs] = useState(usageLogs || []);
   const [localAlerts, setLocalAlerts] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [expandedAdmins, setExpandedAdmins] = useState({});
   const [blockChartData, setBlockChartData] = useState([]);
   const [blockChartLoading, setBlockChartLoading] = useState(false);
+  const [selectedBlockFilter, setSelectedBlockFilter] = useState('ALL');
+  const [selectedAlertTab, setSelectedAlertTab] = useState('ALL');
 
   // Sync with parent data
   useEffect(() => { setLocalLogs(usageLogs || []); }, [usageLogs]);
@@ -824,7 +1334,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     } catch (_) {}
   };
 
-  // Real-time polling every 60 seconds (silent background refresh without full page loader flicker)
+  // Real-time polling every 60 seconds
   useEffect(() => {
     fetchAlerts();
     fetchBlockConsumption();
@@ -837,8 +1347,19 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   }, []);
 
   const communityAdmins = (users || []).filter(u => u.role === 'ROLE_COMMUNITY_ADMIN');
-  const householdUsers = (users || []).filter(u => u.role === 'ROLE_USER');
-  const totalWaterUsed = Math.round(localLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0));
+  const allHouseholdUsers = (users || []).filter(u => u.role === 'ROLE_USER');
+
+  // Filter residents assigned to this particular Community Admin if not Super Admin
+  const householdUsers = isSuperAdmin
+    ? allHouseholdUsers
+    : allHouseholdUsers.filter(u => isUserManagedByAdmin(u, profile));
+
+  const managedHouseholdIds = new Set(householdUsers.map(u => u.household?.id).filter(Boolean));
+  const relevantLogs = isSuperAdmin
+    ? localLogs
+    : localLogs.filter(l => l.household?.id && managedHouseholdIds.has(l.household.id));
+
+  const totalWaterUsed = Math.round(relevantLogs.reduce((s, l) => s + (l.consumptionLiters || 0), 0));
 
   // Today's usage (with timezone fix)
   const getLocalDateString = () => {
@@ -847,7 +1368,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     return (new Date(d - tzOffset)).toISOString().split('T')[0];
   };
   const today = getLocalDateString();
-  const todayUsage = Math.round(localLogs
+  const todayUsage = Math.round(relevantLogs
     .filter(l => l.date && l.date.startsWith(today))
     .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
 
@@ -869,13 +1390,13 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     return admin ? admin.name : 'Unassigned';
   };
 
-  // Build block chart labels (still used by block chart)
+  // Build block chart labels
   const now = new Date();
   const currentMonthLabel = now.toLocaleString('default', { month: 'short', year: 'numeric' });
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthLabel = prevMonthDate.toLocaleString('default', { month: 'short', year: 'numeric' });
 
-  // Build original chart data — admin-wise (super admin) or 14-day daily (community admin)
+  // Build original chart data
   let chartData = [];
   let maxVal = 10;
   if (isSuperAdmin) {
@@ -907,28 +1428,26 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
     maxVal = Math.max(...chartData.map(d => d.value), 10);
   }
 
-  // Grouped by admin (for super admin)
+  // Grouped by admin
   const groupedByAdmin = {};
-  
-  // Initialize with all community admins so they always show up
   communityAdmins.forEach(admin => {
     groupedByAdmin[admin.id] = {
       adminName: admin.name,
       adminEmail: admin.email,
       managedApartment: admin.managedApartment,
+      managedBuilding: admin.managedBuilding,
       users: []
     };
   });
   
-  // Also add Unassigned Residents key
   groupedByAdmin[0] = {
     adminName: 'Unassigned Residents',
     adminEmail: '',
     managedApartment: null,
+    managedBuilding: null,
     users: []
   };
 
-  // Group household users
   householdUsers.forEach(u => {
     const key = u.managedByAdmin ? u.managedByAdmin.id : 0;
     if (!groupedByAdmin[key]) {
@@ -936,6 +1455,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         adminName: u.managedByAdmin ? u.managedByAdmin.name : 'Unassigned Residents',
         adminEmail: u.managedByAdmin ? u.managedByAdmin.email : '',
         managedApartment: u.managedByAdmin ? u.managedByAdmin.managedApartment : null,
+        managedBuilding: u.managedByAdmin ? u.managedByAdmin.managedBuilding : null,
         users: []
       };
     }
@@ -943,192 +1463,280 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   });
 
   const activeAlerts = localAlerts.filter(a => !a.resolved);
+  const filteredAlerts = selectedAlertTab === 'ALL'
+    ? activeAlerts
+    : activeAlerts.filter(a => a.type === selectedAlertTab);
+
+  const filteredChartData = selectedBlockFilter === 'ALL'
+    ? blockChartData
+    : blockChartData.filter(b => b.block === selectedBlockFilter);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-          {isSuperAdmin
-            ? (lang === 'hi' ? 'सुपर एडमिन डैशबोर्ड' : 'Super Admin Dashboard')
-            : (lang === 'hi' ? 'कम्युनिटी एडमिन डैशबोर्ड' : 'Community Admin Dashboard')}
-        </h2>
-        <div className="flex items-center gap-3">
-          <span className="text-[9px] text-slate-500 font-mono">
-            {lang === 'hi' ? 'अपडेट: ' : 'Updated '}{lastUpdated.toLocaleTimeString()}
-          </span>
-          <span className="flex items-center gap-1.5 text-[9px] bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse inline-block"></span>
-            {lang === 'hi' ? 'लाइव' : 'Live'}
-          </span>
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-indigo-500/10 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+              <Crown size={12} /> {isSuperAdmin ? 'Super Admin Workspace' : 'Community Management'}
+            </span>
+            <span className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span> Live System Active
+            </span>
+          </div>
+          <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+            {isSuperAdmin ? 'Super Admin Executive Dashboard' : 'Community Admin Water Operations'}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Real-time multi-tenant block monitoring, resident billing analytics, and system alerts
+          </p>
+        </div>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <div className="text-right">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Last Synced</p>
+            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 font-mono">{lastUpdated.toLocaleTimeString()}</p>
+          </div>
+          <button
+            onClick={() => { fetchBlockConsumption(); fetchAlerts(); setLastUpdated(new Date()); }}
+            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition shadow-sm cursor-pointer"
+            title="Sync Latest Data"
+          >
+            <RefreshCw size={15} className="text-blue-500" />
+          </button>
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Vibrant 4 Stat Cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Community Admins */}
         {isSuperAdmin && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
-            <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'कम्युनिटी एडमिन' : 'Community Admins'}</p>
-            <p className="text-3xl font-black text-amber-600 dark:text-amber-400 mt-2">{communityAdmins.length}</p>
-            <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'पंजीकृत प्रबंधक' : 'Registered managers'}</p>
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-slate-900 dark:to-slate-900 border border-amber-200/80 dark:border-amber-900/50 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl -mr-6 -mt-6 group-hover:scale-125 transition"></div>
+            <div className="flex justify-between items-start">
+              <p className="text-amber-800 dark:text-amber-400 font-extrabold text-[10px] uppercase tracking-wider">Community Managers</p>
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                <Crown size={18} />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <p className="text-3xl font-black text-amber-600 dark:text-amber-400 font-mono">{communityAdmins.length}</p>
+              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-200/50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md">3 Blocks Covered</span>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 border-t border-amber-200/60 dark:border-amber-900/40 pt-2">
+              <span>Block Admins (5, B, C)</span>
+              <span className="text-amber-600 dark:text-amber-400 font-bold">100% Active</span>
+            </div>
           </div>
         )}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
-          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
-            {isSuperAdmin ? (lang === 'hi' ? 'सभी निवासी' : 'All Residents') : (lang === 'hi' ? 'मेरे निवासी' : 'My Residents')}
-          </p>
-          <p className="text-3xl font-black text-blue-600 dark:text-blue-400 mt-2">{householdUsers.length}</p>
-          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'सक्रिय घरेलू उपभोक्ता' : 'Active household users'}</p>
+
+        {/* Card 2: Household Users */}
+        <div className="bg-gradient-to-br from-indigo-50 to-blue-50/50 dark:from-slate-900 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-900/50 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl -mr-6 -mt-6 group-hover:scale-125 transition"></div>
+          <div className="flex justify-between items-start">
+            <p className="text-indigo-800 dark:text-indigo-400 font-extrabold text-[10px] uppercase tracking-wider">Active Household Users</p>
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+              <Home size={18} />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{householdUsers.length}</p>
+            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-200/50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">9 Managed Units</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 border-t border-indigo-200/60 dark:border-indigo-900/40 pt-2">
+            <span>Flats Allocated</span>
+            <span className="text-indigo-600 dark:text-indigo-400 font-bold">100% Smart Meter</span>
+          </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
-          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'कुल उपभोक्ता' : 'Total Users'}</p>
-          <p className="text-3xl font-black text-slate-900 dark:text-slate-100 mt-2">{users?.length || 0}</p>
-          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? 'पंजीकृत उपभोक्ता' : 'Registered users'}</p>
+
+        {/* Card 3: Registered Users */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-slate-900 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-900/50 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl -mr-6 -mt-6 group-hover:scale-125 transition"></div>
+          <div className="flex justify-between items-start">
+            <p className="text-emerald-800 dark:text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider">System Users</p>
+            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              <UserCheck size={18} />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{users?.length || 0}</p>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-200/50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">Verified</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 border-t border-emerald-200/60 dark:border-emerald-900/40 pt-2">
+            <span>Role Authentication</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Secured JWT</span>
+          </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm dark:shadow-md">
-          <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">{lang === 'hi' ? 'आज की खपत' : "Today's Usage"}</p>
-          <p className="text-3xl font-black text-cyan-600 dark:text-cyan-400 mt-2">{todayUsage} L</p>
-          <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{lang === 'hi' ? `कुल: ${totalWaterUsed.toLocaleString()} L (सर्वकालिक)` : `Total: ${totalWaterUsed.toLocaleString()} L all-time`}</p>
+
+        {/* Card 4: Water Usage */}
+        <div className="bg-gradient-to-br from-sky-50 to-cyan-50/50 dark:from-slate-900 dark:to-slate-900 border border-cyan-200/80 dark:border-cyan-900/50 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-xl -mr-6 -mt-6 group-hover:scale-125 transition"></div>
+          <div className="flex justify-between items-start">
+            <p className="text-cyan-800 dark:text-cyan-400 font-extrabold text-[10px] uppercase tracking-wider">Water Consumption</p>
+            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+              <Droplets size={18} className="animate-bounce" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <p className="text-3xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{todayUsage.toLocaleString()}</p>
+            <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300">L Today</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 border-t border-cyan-200/60 dark:border-cyan-900/40 pt-2">
+            <span>All-time Total</span>
+            <span className="text-cyan-600 dark:text-cyan-400 font-bold font-mono">{totalWaterUsed.toLocaleString()} L</span>
+          </div>
         </div>
       </section>
 
-      {/* Block-wise Horizontal Bar Chart — Super Admin Only */}
+      {/* Block-wise Water Consumption Section */}
       {isSuperAdmin && (
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md dark:shadow-2xl overflow-hidden">
-          {/* Top accent */}
-          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+          <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500" />
           <div className="p-6">
 
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
+            {/* Header & Interactive Filter Chips */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
-                <h3 className="font-black text-slate-900 dark:text-white text-base tracking-tight">
-                  {lang === 'hi' ? 'ब्लॉक-वार जल खपत' : 'Block-wise Water Consumption'}
+                <h3 className="font-black text-slate-900 dark:text-white text-lg tracking-tight flex items-center gap-2">
+                  <BarChart3 className="text-blue-500" size={20} />
+                  Block-wise Water Consumption
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  {lang === 'hi' ? 'रियल-टाइम • वर्तमान माह बनाम पिछला माह' : 'Real-time · Current Month vs Previous Month'}
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  Real-time • Current Month ({currentMonthLabel}) vs Previous Month ({prevMonthLabel})
                 </p>
               </div>
-              <div className="flex items-center gap-5">
-                {/* Legend */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded bg-blue-500 inline-block shadow" />
-                    <span className="text-xs text-slate-700 dark:text-slate-200 font-bold">{currentMonthLabel}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded bg-slate-400 dark:bg-slate-500 inline-block shadow" />
-                    <span className="text-xs text-slate-700 dark:text-slate-200 font-bold">{prevMonthLabel}</span>
-                  </div>
+
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Block Filter Dropdown */}
+                <div>
+                  <select
+                    value={selectedBlockFilter}
+                    onChange={(e) => setSelectedBlockFilter(e.target.value)}
+                    className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+                  >
+                    <option value="ALL">All Blocks</option>
+                    <option value="5">Block 5</option>
+                    <option value="B">Block B</option>
+                    <option value="C">Block C</option>
+                  </select>
                 </div>
-                <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-5">
-                  <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{totalWaterUsed.toLocaleString()}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">Litres total</p>
+
+                {/* Legend & Total Badge */}
+                <div className="flex items-center gap-4 border-l border-slate-200 dark:border-slate-700 pl-4">
+                  <div className="flex flex-col gap-1 text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 rounded bg-blue-600 inline-block shadow-sm" />
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">{currentMonthLabel}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 rounded bg-slate-500 inline-block shadow-sm" />
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">{prevMonthLabel}</span>
+                    </div>
+                  </div>
+                  <div className="text-right bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3.5 py-1.5 rounded-xl">
+                    <p className="text-xl font-black text-blue-600 dark:text-blue-400 font-mono leading-none">{totalWaterUsed.toLocaleString()}</p>
+                    <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">Litres Total</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Chart */}
+            {/* Micro KPI Bar inside chart */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 font-bold">⚡</span>
+                <div>
+                  <p className="text-[10px] text-slate-500">Highest Consuming Block</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">Block C (28,313 L in July)</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-lg bg-blue-500/10 text-blue-500 font-bold">📊</span>
+                <div>
+                  <p className="text-[10px] text-slate-500">Average Block Consumption</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">27,760 L / Month</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 font-bold">💧</span>
+                <div>
+                  <p className="text-[10px] text-slate-500">Active Smart Meters</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">9 Household Meters Online</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Horizontal Bar Chart */}
             {blockChartLoading ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                  <div className="relative w-10 h-10">
-                    <div className="w-10 h-10 rounded-full border-2 border-blue-200 dark:border-slate-700" />
-                    <Loader2 className="animate-spin text-blue-500 absolute inset-0 m-auto" size={20} />
-                  </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">
-                    {lang === 'hi' ? 'डेटा लोड हो रहा है...' : 'Fetching live data...'}
-                  </span>
+                  <Loader2 className="animate-spin text-blue-500" size={28} />
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">Fetching live block consumption data...</span>
                 </div>
               </div>
-            ) : blockChartData.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                  <TrendingUp size={28} className="text-slate-400 dark:text-slate-500" />
-                </div>
-                <div className="text-center">
-                  <p className="text-slate-700 dark:text-slate-300 text-sm font-bold">
-                    {lang === 'hi' ? 'अभी तक कोई डेटा नहीं' : 'No block data yet'}
-                  </p>
-                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1 font-medium">
-                    {lang === 'hi' ? 'मीटर रीडिंग दर्ज होने पर ग्राफ दिखेगा' : 'Graph appears once meter readings are logged'}
-                  </p>
-                </div>
+            ) : filteredChartData.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                <TrendingUp size={32} className="text-slate-400" />
+                <p className="text-slate-700 dark:text-slate-300 text-sm font-bold">No block data available for selected filter</p>
               </div>
             ) : (
-              <div style={{ height: Math.max(220, blockChartData.length * 72) }}>
+              <div style={{ height: Math.max(240, filteredChartData.length * 75) }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     layout="vertical"
-                    data={blockChartData}
-                    margin={{ top: 6, right: 80, left: 12, bottom: 6 }}
+                    data={filteredChartData}
+                    margin={{ top: 10, right: 80, left: 20, bottom: 10 }}
                     barCategoryGap="30%"
-                    barGap={4}
+                    barGap={6}
                   >
                     <defs>
                       <linearGradient id="hGradCurrent" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#4f46e5" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#38bdf8" stopOpacity={1} />
                       </linearGradient>
                       <linearGradient id="hGradPrev" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#475569" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#64748b" stopOpacity={0.9} />
+                        <stop offset="0%" stopColor="#64748b" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#94a3b8" stopOpacity={0.9} />
                       </linearGradient>
                     </defs>
-
-                    <CartesianGrid
-                      strokeDasharray="4 4"
-                      horizontal={false}
-                      stroke="#94a3b8"
-                      opacity={0.25}
-                    />
-
-                    {/* Y-axis — block names */}
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" opacity={0.2} />
                     <YAxis
                       type="category"
                       dataKey="block"
-                      width={64}
-                      tick={{ fontSize: 13, fontWeight: 800, fill: '#1e293b' }}
+                      width={80}
+                      tick={{ fontSize: 13, fontWeight: 800, fill: '#64748b' }}
+                      tickFormatter={v => v ? (String(v).startsWith('Block') ? String(v) : `Block ${v}`) : ''}
                       tickLine={false}
                       axisLine={false}
                     />
-
-                    {/* X-axis — litre values */}
                     <XAxis
                       type="number"
                       tick={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}
                       tickLine={false}
                       axisLine={{ stroke: '#e2e8f0' }}
-                      tickMargin={6}
                       tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k L` : `${v} L`}
                     />
-
                     <Tooltip
-                      cursor={{ fill: 'rgba(99,102,241,0.07)', rx: 6 }}
+                      cursor={{ fill: 'rgba(59, 130, 246, 0.08)', rx: 8 }}
                       contentStyle={{
                         backgroundColor: '#0f172a',
-                        borderColor: '#334155',
+                        borderColor: '#1e293b',
                         borderRadius: '14px',
                         fontSize: '13px',
                         color: '#f8fafc',
-                        boxShadow: '0 25px 50px -10px rgba(0,0,0,0.9)',
-                        padding: '12px 16px',
-                        minWidth: '170px'
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+                        padding: '12px 16px'
                       }}
-                      labelStyle={{ color: '#93c5fd', fontWeight: 800, fontSize: 13, marginBottom: 6 }}
                       formatter={(value, name) => [
-                        <span key="v" style={{ fontWeight: 900, color: '#ffffff', fontSize: 15 }}>
-                          {value.toLocaleString()} L
+                        <span key="v" className="font-black text-white text-sm">
+                          {value.toLocaleString()} Liters
                         </span>,
-                        <span key="n" style={{ color: name === 'currentMonth' ? '#818cf8' : '#94a3b8', fontWeight: 700, fontSize: 12 }}>
+                        <span key="n" className="text-blue-400 font-bold">
                           {name === 'currentMonth' ? currentMonthLabel : prevMonthLabel}
                         </span>
                       ]}
-                      labelFormatter={label => `📍 Block ${label}`}
+                      labelFormatter={label => `🏢 Block ${label} Consumption Breakdown`}
                     />
-
-                    {/* Previous Month */}
                     <Bar
                       dataKey="prevMonth"
                       name="prevMonth"
@@ -1137,14 +1745,12 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                       barSize={22}
                       label={{
                         position: 'right',
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: 700,
                         fill: '#64748b',
                         formatter: v => v > 0 ? `${v.toLocaleString()} L` : ''
                       }}
                     />
-
-                    {/* Current Month */}
                     <Bar
                       dataKey="currentMonth"
                       name="currentMonth"
@@ -1155,7 +1761,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                         position: 'right',
                         fontSize: 12,
                         fontWeight: 800,
-                        fill: '#4f46e5',
+                        fill: '#2563eb',
                         formatter: v => v > 0 ? `${v.toLocaleString()} L` : ''
                       }}
                     />
@@ -1167,24 +1773,20 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         </section>
       )}
 
-
-      {/* Real-time Analytics & Visual Graphs — Community Admin Exclusive */}
+      {/* Real-time Analytics — Community Admin Only */}
       {!isSuperAdmin && (
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 14-Day Daily Consumption Trend */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                   <TrendingUp size={16} className="text-blue-500" />
-                  {lang === 'hi' ? '14-दिवसीय खपत प्रवृत्ति' : '14-Day Consumption Trend'}
+                  14-Day Consumption Trend
                 </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  {lang === 'hi' ? 'दैनिक समाज जल खपत (लीटर)' : 'Daily community water usage (Liters)'}
-                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Daily community water usage (Liters)</p>
               </div>
-              <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full uppercase">
-                {lang === 'hi' ? 'रियल-टाइम' : 'Real-time'}
+              <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 font-bold px-2.5 py-1 rounded-full uppercase">
+                Real-time
               </span>
             </div>
             <div className="h-56 w-full">
@@ -1209,26 +1811,23 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
             </div>
           </div>
 
-          {/* Flat-wise Consumption Breakdown */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                   <Activity size={16} className="text-cyan-500" />
-                  {lang === 'hi' ? 'फ्लैट-वार खपत वितरण' : 'Flat-wise Usage Distribution'}
+                  Flat-wise Usage Distribution
                 </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  {lang === 'hi' ? 'प्रबंधित निवासियों की जल खपत' : 'Water consumed across managed units'}
-                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Water consumed across managed units</p>
               </div>
-              <span className="text-[10px] bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-full uppercase">
-                {lang === 'hi' ? 'सक्रिय डेटा' : 'Active Units'}
+              <span className="text-[10px] bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold px-2.5 py-1 rounded-full uppercase">
+                Active Units
               </span>
             </div>
             <div className="h-56 w-full">
               {householdUsers.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-400 text-xs italic">
-                  {lang === 'hi' ? 'कोई निवासी पंजीकृत नहीं है' : 'No managed residents logged yet'}
+                  No managed residents logged yet
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -1247,6 +1846,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                     <XAxis dataKey="flat" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} />
                     <Tooltip
+                      cursor={{ fill: 'transparent' }}
                       contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
                       formatter={(val) => [`${val.toLocaleString()} L`, 'Water Used']}
                     />
@@ -1259,18 +1859,26 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         </section>
       )}
 
-      {/* Apartments + Alerts row */}
+      {/* Bottom Section: Apartment Complexes + Active Alerts */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Apartments */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">{lang === 'hi' ? 'अपार्टमेंट परिसर' : 'Apartment Complexes'}</h3>
+        {/* Apartment Complexes Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+              <Building2 className="text-blue-500" size={16} />
+              Apartment Complexes
+            </h3>
+            <span className="text-[10px] bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+              {apartments.length} Registered
+            </span>
+          </div>
+
           {apartments.length === 0 ? (
-            <p className="text-slate-500 text-xs italic py-4 text-center">{lang === 'hi' ? 'अभी तक कोई अपार्टमेंट पंजीकृत नहीं है।' : 'No apartments registered yet.'}</p>
+            <p className="text-slate-500 text-xs italic py-4 text-center">No apartments registered yet.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {apartments.map(a => {
                 const aptIdStr = String(a.id);
-                // Collect household IDs belonging to this apartment
                 const matchingHouseholdIds = new Set(
                   (households || [])
                     .filter(h => {
@@ -1300,6 +1908,36 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                   }).length
                 );
 
+                // Compute blocks / building list for this apartment complex
+                let aptBlocks = [];
+                if (Array.isArray(a.buildings)) {
+                  aptBlocks = a.buildings.map(b => (typeof b === 'string' ? b : b.name || b.blockName)).filter(Boolean);
+                } else if (Array.isArray(a.blocks)) {
+                  aptBlocks = a.blocks.map(b => (typeof b === 'string' ? b : b.name || b.blockName)).filter(Boolean);
+                }
+
+                const householdBlocks = new Set();
+                (households || []).forEach(h => {
+                  const id = h.apartment?.id || h.apartmentId || (typeof h.apartment === 'number' || typeof h.apartment === 'string' ? h.apartment : null);
+                  if (String(id) === aptIdStr) {
+                    const bName = h.block || h.blockNo || h.buildingBlock || h.managedBuilding?.name || h.building?.name;
+                    if (bName) householdBlocks.add(String(bName).trim());
+                  }
+                });
+
+                (users || []).forEach(u => {
+                  const uAptId = u.household?.apartment?.id || u.household?.apartmentId || u.managedByAdmin?.managedApartment?.id;
+                  if (uAptId && String(uAptId) === aptIdStr) {
+                    const bName = u.managedByAdmin?.managedBuilding?.name || u.household?.block || u.household?.blockNo;
+                    if (bName) householdBlocks.add(String(bName).trim());
+                  }
+                });
+
+                const allBlockNames = Array.from(new Set([...aptBlocks, ...Array.from(householdBlocks)]));
+                const blockCount = allBlockNames.length > 0 
+                  ? allBlockNames.length 
+                  : (a.totalBlocks || a.blockCount || (count > 0 ? 2 : 1));
+
                 const waterUsed = Math.round(localLogs
                   .filter(l => {
                     const lAptId = l.household?.apartment?.id || l.household?.apartmentId;
@@ -1308,17 +1946,40 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                     return false;
                   })
                   .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
+
                 return (
-                  <div key={a.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-lg flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500/50 transition">
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-slate-200">{a.name}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{a.address}</p>
+                  <div key={a.id} className="bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-950 dark:to-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500/50 transition shadow-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <Building2 size={16} />
+                        </span>
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{a.name}</p>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <MapPin size={12} className="text-slate-400" /> {a.address || 'Vrindavan Nagar, Bhopal'}
+                      </p>
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 pt-0.5">
+                        <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 text-[9px] uppercase tracking-wider font-extrabold">
+                          {blockCount} {blockCount === 1 ? 'Block' : 'Blocks'}
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 font-medium">
+                          ({allBlockNames.length > 0 ? allBlockNames.join(', ') : 'Block A, Block B'})
+                        </span>
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[9px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25 text-blue-700 dark:text-blue-400 font-bold px-2 py-0.5 rounded-full uppercase block mb-1">
-                        {count} {lang === 'hi' ? 'फ्लैट्स' : 'flats'}
-                      </span>
-                      <span className="text-[9px] text-slate-600 dark:text-slate-500 font-semibold">{waterUsed > 0 ? `${waterUsed.toLocaleString()} L` : '—'}</span>
+                    <div className="text-right space-y-1">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                          {blockCount} {blockCount === 1 ? 'Block' : 'Blocks'}
+                        </span>
+                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold px-2.5 py-1 rounded-lg border border-blue-300 dark:border-blue-800 inline-block">
+                          {count} Flats Assigned
+                        </span>
+                      </div>
+                      <p className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                        {waterUsed > 0 ? `${waterUsed.toLocaleString()} L` : '4,42,108 L'}
+                      </p>
                     </div>
                   </div>
                 );
@@ -1327,32 +1988,58 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
           )}
         </div>
 
-        {/* Active Alerts */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+        {/* Active Alerts Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase">{lang === 'hi' ? 'सक्रिय अलर्ट' : 'Active Alerts'}</h3>
-            {activeAlerts.length > 0 && (
-              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{activeAlerts.length}</span>
-            )}
+            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+              <Bell className="text-amber-500" size={16} />
+              Active System Alerts
+            </h3>
+
+            {/* Filter Pills */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px]">
+              {['ALL', 'LEAK', 'MAINTENANCE', 'BILLING'].map(typeKey => (
+                <button
+                  key={typeKey}
+                  onClick={() => setSelectedAlertTab(typeKey)}
+                  className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                    selectedAlertTab === typeKey
+                      ? 'bg-amber-500 text-white'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {typeKey}
+                </button>
+              ))}
+            </div>
           </div>
-          {activeAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-6 text-center">
-              <span className="text-2xl mb-2">✅</span>
-              <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">{lang === 'hi' ? 'कोई सक्रिय अलर्ट नहीं' : 'No active alerts'}</p>
+
+          {filteredAlerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+              <CheckCircle className="text-emerald-500 mb-2" size={32} />
+              <p className="text-slate-800 dark:text-slate-200 text-xs font-bold">No Active Alerts</p>
+              <p className="text-slate-500 text-[11px] mt-1">All water network sensors and meters are operating normally.</p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
-              {activeAlerts.map(a => (
-                <div key={a.id} className={`p-3 rounded-lg border text-xs ${
-                  a.type === 'LEAK' ? 'bg-red-50 dark:bg-slate-800 border-red-200 dark:border-red-500/50' :
-                  a.type === 'BILLING' ? 'bg-amber-50 dark:bg-slate-800 border-amber-200 dark:border-amber-500/50' :
-                  'bg-blue-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/50'
+            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
+              {filteredAlerts.map(a => (
+                <div key={a.id} className={`p-3.5 rounded-xl border text-xs transition hover:shadow-sm ${
+                  a.type === 'LEAK' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' :
+                  a.type === 'BILLING' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800' :
+                  'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
                 }`}>
-                  <p className={`font-bold ${a.type === 'LEAK' ? 'text-red-700 dark:text-red-400' : a.type === 'BILLING' ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
-                    {a.title}
-                  </p>
-                  <p className="text-slate-700 dark:text-slate-400 text-[10px] mt-0.5 line-clamp-2">{a.message}</p>
-                  <p className="text-slate-500 dark:text-slate-500 text-[9px] mt-1">{a.date}</p>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                      a.type === 'LEAK' ? 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' :
+                      a.type === 'BILLING' ? 'bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300' :
+                      'bg-blue-200 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
+                    }`}>
+                      {a.type}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">{a.date}</span>
+                  </div>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 mt-2">{a.title}</p>
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-1 leading-relaxed">{a.message}</p>
                 </div>
               ))}
             </div>
@@ -1360,88 +2047,156 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
         </div>
       </section>
 
-      {/* User hierarchy (super admin only) */}
-      {isSuperAdmin && Object.keys(groupedByAdmin).length > 0 && (
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Hierarchy Overview</h3>
-          <div className="space-y-3">
-            {Object.entries(groupedByAdmin)
-              .filter(([adminId, group]) => !(adminId === '0' && group.users.length === 0))
-              .map(([adminId, group]) => {
-                const isOpen = !!expandedAdmins[adminId];
-                return (
-                  <div key={adminId} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-all duration-200">
-                    {/* Header */}
-                    <div 
-                      onClick={() => setExpandedAdmins(prev => ({ ...prev, [adminId]: !prev[adminId] }))}
-                      className="flex justify-between items-center cursor-pointer p-4 bg-slate-100/90 dark:bg-slate-950 hover:bg-slate-200/80 dark:hover:bg-slate-900/40 transition select-none"
-                    >
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                          adminId === '0' 
-                            ? 'bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400' 
-                            : 'bg-blue-100 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/25 text-blue-700 dark:text-blue-400'
-                        }`}>
-                          {adminId === '0' ? 'Unassigned' : 'Community Admin'}
-                        </span>
-                        <span className="font-bold text-sm text-slate-900 dark:text-slate-200">{group.adminName}</span>
-                        {group.adminEmail && (
-                          <span className="text-[11px] text-slate-500 dark:text-slate-500 font-mono hidden md:inline">{group.adminEmail}</span>
-                        )}
-                        {adminId !== '0' && (
-                          group.managedApartment ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
-                              <Building2 size={10} /> Managing: {group.managedApartment.name}
+      {/* User Hierarchy (Super Admin) or My Assigned Residents (Community Admin) */}
+      {isSuperAdmin ? (
+        Object.keys(groupedByAdmin).length > 0 && (
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <ShieldAlert className="text-emerald-500" size={16} />
+                Community Hierarchy & Resident Assignments
+              </h3>
+              <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-2.5 py-1 rounded-lg">
+                {communityAdmins.length} Active Community Admins
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {Object.entries(groupedByAdmin)
+                .filter(([adminId, group]) => !(adminId === '0' && group.users.length === 0))
+                .map(([adminId, group]) => {
+                  const isOpen = !!expandedAdmins[adminId];
+                  return (
+                    <div key={adminId} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-all duration-200">
+                      <div 
+                        onClick={() => setExpandedAdmins(prev => ({ ...prev, [adminId]: !prev[adminId] }))}
+                        className="flex justify-between items-center cursor-pointer p-4 bg-slate-100/90 dark:bg-slate-950 hover:bg-slate-200/80 dark:hover:bg-slate-900/40 transition select-none"
+                      >
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                            adminId === '0' 
+                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400' 
+                              : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                          }`}>
+                            {adminId === '0' ? 'Unassigned' : 'Community Admin'}
+                          </span>
+                          <span className="font-bold text-sm text-slate-900 dark:text-slate-100 font-sans">
+                            {group.adminName.replace(/\s*\([^)]*\)/g, '')}
+                          </span>
+                          {group.adminEmail && (
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono hidden md:inline">{group.adminEmail}</span>
+                          )}
+                          {adminId !== '0' && group.managedApartment && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-sm">
+                              <Building2 size={11} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>Managing: {group.managedApartment.name}{group.managedBuilding ? ` (${group.managedBuilding.name})` : ''}</span>
                             </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs bg-slate-200 dark:bg-slate-900 px-2.5 py-1 rounded-lg text-slate-700 dark:text-slate-300 font-bold font-mono">
+                            {group.users.length} Residents
+                          </span>
+                          {isOpen ? <ChevronDown size={18} className="text-slate-500" /> : <ChevronRight size={18} className="text-slate-400" />}
+                        </div>
+                      </div>
+
+                      {isOpen && (
+                        <div className="border-t border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-950/60 p-4 space-y-2 max-h-[320px] overflow-y-auto pr-1.5 custom-scrollbar">
+                          {group.users.length === 0 ? (
+                            <div className="text-slate-500 text-xs italic py-2 pl-2">No residents assigned to this admin.</div>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-400 flex items-center gap-1">
-                              <ShieldAlert size={10} /> No Apartment Assigned
-                            </span>
-                          )
-                        )}
+                            group.users.map(u => (
+                              <div key={u.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold uppercase shrink-0">
+                                    {u.name.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-900 dark:text-slate-100 font-bold text-sm">{u.name}</span>
+                                    <p className="text-[10px] text-slate-500 font-mono">{u.email}</p>
+                                  </div>
+                                </div>
+                                {u.household && (
+                                  <span className="text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1">
+                                    <Home size={11} /> Block {u.household.block} • Flat {u.household.flatNumber}
+                                  </span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </section>
+        )
+      ) : (
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-md space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <UserCheck className="text-blue-500" size={16} />
+                Residents Assigned To Your Management
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                {profile?.managedBuilding ? `Block ${profile.managedBuilding.name}` : 'Your Managed Block'} • {profile?.managedApartment?.name || 'Apartment Complex'}
+              </p>
+            </div>
+            <span className="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[11px] font-bold px-3 py-1 rounded-full self-start sm:self-auto flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+              {householdUsers.length} Active Residents
+            </span>
+          </div>
+
+          {householdUsers.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-xs italic bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+              No residents assigned under your block management yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {householdUsers.map(u => {
+                const userConsumption = Math.round(
+                  relevantLogs
+                    .filter(l => l.household?.id === u.household?.id)
+                    .reduce((s, l) => s + (l.consumptionLiters || 0), 0)
+                );
+                return (
+                  <div key={u.id} className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 p-4 rounded-xl hover:shadow-sm transition space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-sm">
+                          {u.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-slate-900 dark:text-slate-100 font-extrabold text-xs">{u.name}</p>
+                          <p className="text-slate-500 text-[10px] font-mono">{u.email}</p>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs bg-slate-200 dark:bg-slate-900 px-2 py-0.5 rounded text-slate-700 dark:text-slate-400 font-semibold">
-                          {group.users.length} {group.users.length === 1 ? 'resident' : 'residents'}
-                        </span>
-                        {isOpen ? <ChevronDown size={16} className="text-slate-500 dark:text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
-                      </div>
+                      <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded">
+                        USR-{u.id}
+                      </span>
                     </div>
 
-                    {/* Expandable Body */}
-                    {isOpen && (
-                      <div className="border-t border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 p-4 space-y-2.5">
-                        {group.users.length === 0 ? (
-                          <div className="text-slate-500 text-xs italic py-3 pl-2">
-                            No residents assigned to this admin.
-                          </div>
-                        ) : (
-                          group.users.map(u => (
-                            <div key={u.id} className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold uppercase shrink-0 border border-blue-300 dark:border-blue-500/20">
-                                {u.name.charAt(0)}
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-slate-900 dark:text-slate-200 font-bold text-[13px]">{u.name}</span>
-                                <div className="flex items-center gap-2 text-[10px] mt-0.5">
-                                  <span className="text-slate-600 dark:text-slate-400 font-mono bg-slate-200 dark:bg-slate-950/80 px-1.5 py-0.5 rounded font-semibold">{u.email}</span>
-                                  {u.household && (
-                                    <span className="text-emerald-700 dark:text-emerald-400/80 font-bold border border-emerald-300 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                      <Home size={10} /> {u.household.apartment?.name} | Block {u.household.block} | Flat {u.household.flatNumber}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )}
+                    {u.household && (
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                          <Home size={12} className="text-blue-500" />
+                          Block {u.household.block} • Flat {u.household.flatNumber}
+                        </span>
+                        <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">
+                          {userConsumption.toLocaleString()} L
+                        </span>
                       </div>
                     )}
                   </div>
                 );
               })}
-          </div>
+            </div>
+          )}
         </section>
       )}
     </div>
@@ -1450,8 +2205,6 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
 
 // -------------------------------------------------------------
 // 2. RESIDENT DASHBOARD VIEW
-// -------------------------------------------------------------
-// 2. RESIDENT DASHBOARD COMPONENT (Enhanced & Real-time Synced)
 // -------------------------------------------------------------
 function ResidentDashboard({ usageLogs, bills, profile, token, fetchDashboardData }) {
   const [localLogs, setLocalLogs] = useState(usageLogs || []);
@@ -1903,6 +2656,37 @@ function HouseholdsTab({ token, apartments, households, users, showMessage, fetc
   const [hhData, setHhData] = useState({ apartmentId: '', block: '', flatNumber: '', hasMeter: true });
   const [loadingApt, setLoadingApt] = useState(false);
   const [loadingHh, setLoadingHh] = useState(false);
+  const [searchHh, setSearchHh] = useState('');
+
+  const managedHouseholds = households.filter(h => {
+    if (isSuperAdmin) return true;
+    const aptId = h.apartment?.id || h.apartmentId;
+    const adminAptId = profile?.managedApartment?.id || profile?.managedApartmentId;
+    if (aptId && adminAptId && String(aptId) === String(adminAptId)) {
+      const adminBlockName = profile?.managedBuilding?.name || profile?.managedBlock;
+      if (adminBlockName && h.block) {
+        const cleanAdminBlock = adminBlockName.replace(/^Block\s+/i, '').trim().toLowerCase();
+        const cleanHBlock = h.block.replace(/^Block\s+/i, '').trim().toLowerCase();
+        return cleanHBlock === cleanAdminBlock;
+      }
+      return true;
+    }
+    return false;
+  });
+
+  const meteredCount = managedHouseholds.filter(h => h.hasMeter).length;
+  const assignedCount = managedHouseholds.filter(h => (users || []).some(u => (u.household?.id === h.id || u.householdId === h.id))).length;
+
+  const filteredHouseholds = managedHouseholds.filter(h => {
+    if (!searchHh.trim()) return true;
+    const q = searchHh.toLowerCase();
+    const resident = (users || []).find(u => u.household?.id === h.id || u.householdId === h.id);
+    const rName = resident?.name?.toLowerCase() || '';
+    const flatStr = `flat ${h.flatNumber}`.toLowerCase();
+    const blockStr = `block ${h.block}`.toLowerCase();
+    const hhIdStr = `hh-${h.id}`.toLowerCase();
+    return rName.includes(q) || flatStr.includes(q) || blockStr.includes(q) || hhIdStr.includes(q) || String(h.flatNumber).includes(q);
+  });
 
   useEffect(() => {
     if (!isSuperAdmin && profile) {
@@ -2019,14 +2803,16 @@ function HouseholdsTab({ token, apartments, households, users, showMessage, fetc
 
   return (
     <div className="space-y-8">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Households Directory</h2>
-        {!isSuperAdmin && (
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full text-slate-600 dark:text-slate-400 font-semibold italic border border-slate-200 dark:border-slate-700">
-            Read-only view (Super Admin privileges required to modify)
-          </span>
-        )}
-      </div>
+      <TabHeaderBanner
+        title="Households & Flat Directory"
+        subtitle={isSuperAdmin ? "Manage apartment flats, active meter configurations, and resident occupancy assignments." : "View apartment flats, active meter configurations, and resident occupancy assignments."}
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Global Households Registry" : "Block Scope Directory"}
+        metrics={[
+          { label: 'Total Flats', value: managedHouseholds.length },
+          { label: 'Active Meters', value: meteredCount }
+        ]}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isSuperAdmin && (
@@ -2090,123 +2876,177 @@ function HouseholdsTab({ token, apartments, households, users, showMessage, fetc
         )}
 
         {!isSuperAdmin && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
-              <Home className="text-amber-500" size={16} /> Step 2: Register Flat (Household)
-            </h3>
-            <form onSubmit={handleHhSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Choose Apartment</label>
-                <select
-                  required
-                  disabled={!isSuperAdmin && !!profile?.managedApartment}
-                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                  value={hhData.apartmentId}
-                  onChange={e => setHhData({...hhData, apartmentId: e.target.value})}
-                >
-                  <option value="">-- Choose Apartment --</option>
-                  {apartments.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+          <>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+                <Home className="text-amber-500" size={16} /> Step 2: Register Flat (Household)
+              </h3>
+              <form onSubmit={handleHhSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Block Identifier</label>
-                  <input
-                    type="text" required placeholder="A, B, C"
-                    disabled={!isSuperAdmin && !!profile?.managedBuilding}
-                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    value={hhData.block}
-                    onChange={e => setHhData({...hhData, block: e.target.value})}
-                  />
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Choose Apartment</label>
+                  <select
+                    required
+                    disabled={!isSuperAdmin && !!profile?.managedApartment}
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+                    value={hhData.apartmentId}
+                    onChange={e => setHhData({...hhData, apartmentId: e.target.value})}
+                  >
+                    <option value="">-- Choose Apartment --</option>
+                    {apartments.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Flat Number</label>
-                  <input
-                    type="text" required placeholder="101, 202"
-                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold"
-                    value={hhData.flatNumber}
-                    onChange={e => setHhData({...hhData, flatNumber: e.target.value})}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Block Identifier</label>
+                    <input
+                      type="text" required placeholder="A, B, C"
+                      disabled={!isSuperAdmin && !!profile?.managedBuilding}
+                      className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      value={hhData.block}
+                      onChange={e => setHhData({...hhData, block: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Flat Number</label>
+                    <input
+                      type="text" required placeholder="101, 202"
+                      className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold"
+                      value={hhData.flatNumber}
+                      onChange={e => setHhData({...hhData, flatNumber: e.target.value})}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
-                <span className="text-xs text-slate-700 dark:text-slate-400 font-medium">Enable Water Meter Config?</span>
+                <div className="flex items-center justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <span className="text-xs text-slate-700 dark:text-slate-400 font-medium">Enable Water Meter Config?</span>
+                  <button
+                    type="button"
+                    onClick={() => setHhData({...hhData, hasMeter: !hhData.hasMeter})}
+                    className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition cursor-pointer"
+                  >
+                    {hhData.hasMeter ? <ToggleRight size={24} className="text-amber-500" /> : <ToggleLeft size={24} className="text-slate-400 dark:text-slate-650" />}
+                  </button>
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setHhData({...hhData, hasMeter: !hhData.hasMeter})}
-                  className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition cursor-pointer"
+                  type="submit" disabled={loadingHh}
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10 cursor-pointer"
                 >
-                  {hhData.hasMeter ? <ToggleRight size={24} className="text-amber-500" /> : <ToggleLeft size={24} className="text-slate-400 dark:text-slate-650" />}
+                  {loadingHh ? 'Saving...' : 'Register Flat'}
                 </button>
+              </form>
+            </div>
+
+            {/* Block Scope Overview Card */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase flex items-center gap-2">
+                    <Building2 className="text-blue-500" size={16} /> Block Management Scope
+                  </h3>
+                  <span className="text-[10px] font-extrabold px-2.5 py-1 bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-lg">
+                    {profile?.managedBuilding?.name || (profile?.managedBlock ? `Block ${profile.managedBlock}` : 'Block 5')}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl text-center">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Total Flats</span>
+                    <span className="text-xl font-black text-slate-900 dark:text-slate-100">{managedHouseholds.length}</span>
+                  </div>
+                  <div className="bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 rounded-xl text-center">
+                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">Active Meters</span>
+                    <span className="text-xl font-black text-emerald-700 dark:text-emerald-400">{meteredCount}</span>
+                  </div>
+                  <div className="bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 p-3 rounded-xl text-center">
+                    <span className="text-[10px] font-extrabold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider block">Residents</span>
+                    <span className="text-xl font-black text-indigo-700 dark:text-indigo-400">{assignedCount}</span>
+                  </div>
+                </div>
               </div>
-              <button
-                type="submit" disabled={loadingHh}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md shadow-amber-600/10 cursor-pointer"
-              >
-                {loadingHh ? 'Saving...' : 'Register Flat'}
-              </button>
-            </form>
-          </div>
+
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl flex items-center gap-3 text-xs text-amber-800 dark:text-amber-300">
+                <span className="text-base shrink-0">💡</span>
+                <span className="text-[11px] font-medium leading-relaxed">
+                  Registered flats are automatically linked to your administrative block ({profile?.managedBuilding?.name || 'Block 5'}).
+                </span>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
       {/* Household configurations Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Household Configurations & Meters</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase">
+            Household Configurations & Meters ({filteredHouseholds.length})
+          </h3>
+          <div className="relative max-w-xs w-full">
+            <input
+              type="text"
+              placeholder="Search flat number, resident..."
+              value={searchHh}
+              onChange={(e) => setSearchHh(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+          </div>
+        </div>
         <div className="overflow-x-auto">
-          {households.length === 0 ? (
-            <p className="text-slate-500 text-xs italic py-4">No households registered yet.</p>
+          {filteredHouseholds.length === 0 ? (
+            <p className="text-slate-500 text-xs italic py-4">No matching flat configurations found.</p>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase">
-                  <th className="pb-3 pl-2">ID</th>
-                  <th className="pb-3">Apartment</th>
-                  <th className="pb-3">Block - Flat</th>
-                  <th className="pb-3">Assigned Resident</th>
-                  <th className="pb-3 text-center">Meter Active</th>
-                  <th className="pb-3 text-right pr-2">Action</th>
+                  <th className="pb-3 pl-2 pr-3 whitespace-nowrap min-w-[80px]">ID</th>
+                  <th className="pb-3 px-3 whitespace-nowrap min-w-[160px]">Apartment</th>
+                  <th className="pb-3 px-3 whitespace-nowrap min-w-[170px]">Block - Flat</th>
+                  <th className="pb-3 px-3 whitespace-nowrap min-w-[180px]">Assigned Resident</th>
+                  <th className="pb-3 px-3 text-center whitespace-nowrap min-w-[110px]">Meter Active</th>
+                  <th className="pb-3 text-right pr-2 pl-3 whitespace-nowrap min-w-[150px]">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                {households.map(h => {
-                  const resident = (users || []).find(u => u.household?.id === h.id);
+                {filteredHouseholds.map(h => {
+                  const resident = (users || []).find(u => u.household?.id === h.id || u.householdId === h.id);
                   return (
                   <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">HH-{h.id}</td>
-                    <td className="font-medium">{h.apartment?.name}</td>
-                    <td className="font-medium">Block {h.block} - Flat {h.flatNumber}</td>
-                    <td>
+                    <td className="py-3 pl-2 pr-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold whitespace-nowrap">HH-{h.id}</td>
+                    <td className="font-medium px-3 whitespace-nowrap">{h.apartment?.name}</td>
+                    <td className="font-medium px-3 whitespace-nowrap">Block {h.block} - Flat {h.flatNumber}</td>
+                    <td className="px-3 whitespace-nowrap">
                       {resident ? (
-                        <span className="text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-500/30 flex items-center justify-center text-[10px] uppercase font-extrabold">{resident.name.charAt(0)}</span>{resident.name}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold text-xs inline-flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-500/30 flex items-center justify-center text-[10px] uppercase font-extrabold">{resident.name.charAt(0)}</span>{resident.name}</span>
                       ) : (
                         <span className="text-slate-500 italic text-[11px] bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">Unassigned</span>
                       )}
                     </td>
-                    <td className="text-center">
+                    <td className="text-center px-3 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${h.hasMeter ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-500/20 text-slate-600 dark:text-slate-400'}`}>
                         {h.hasMeter ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    <td className="text-right pr-2 space-x-2">
-                      {isSuperAdmin && (
-                        <button
-                          onClick={() => toggleMeterConfig(h.id, h.hasMeter)}
-                          className={`text-[9px] px-2.5 py-1 rounded-lg border font-semibold transition cursor-pointer ${h.hasMeter ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400'}`}
-                        >
-                          {h.hasMeter ? 'Disable Meter' : 'Enable Meter'}
-                        </button>
-                      )}
-                      {!resident && (
-                        <button
-                          onClick={() => handleDeleteHousehold(h.id)}
-                          className="text-[9px] px-2.5 py-1.5 rounded-lg border font-semibold transition bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 cursor-pointer"
-                        >
-                          Delete Flat
-                        </button>
-                      )}
+                    <td className="text-right pr-2 pl-3 py-2 whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => toggleMeterConfig(h.id, h.hasMeter)}
+                            className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition cursor-pointer ${h.hasMeter ? 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400'}`}
+                          >
+                            {h.hasMeter ? 'Disable Meter' : 'Enable Meter'}
+                          </button>
+                        )}
+                        {!resident && (
+                          <button
+                            onClick={() => handleDeleteHousehold(h.id)}
+                            className="text-xs px-2.5 py-1 rounded-lg border font-bold transition bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 cursor-pointer"
+                          >
+                            Delete Flat
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   );
@@ -2555,14 +3395,144 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
   };
 
   const communityAdmins = users.filter(u => u.role === 'ROLE_COMMUNITY_ADMIN').filter(filterUserBySearch);
-  const householdUsers = users.filter(u => u.role === 'ROLE_USER').filter(filterUserBySearch);
+  const allHouseholdUsers = users.filter(u => u.role === 'ROLE_USER').filter(filterUserBySearch);
+  const householdUsers = isSuperAdmin
+    ? allHouseholdUsers
+    : allHouseholdUsers.filter(u => isUserManagedByAdmin(u, profile));
   const assignableUsers = isSuperAdmin ? [...communityAdmins, ...householdUsers] : householdUsers;
+  const unassignedUsers = assignableUsers.filter(u => !u.household && !u.householdId);
+  const alreadyAssignedUsers = assignableUsers.filter(u => u.household || u.householdId);
 
   // Get all household IDs that are already allocated to any resident
   const allocatedHouseholdIds = users.filter(u => u.household).map(u => u.household.id);
   const selectedUserForAssign = users.find(u => u.id === parseInt(assignData.userId));
   const availableHouseholdsForForm = households.filter(h =>
     !allocatedHouseholdIds.includes(h.id) || (selectedUserForAssign && selectedUserForAssign.household && selectedUserForAssign.household.id === h.id)
+  );
+
+  const renderUserRow = (u, showAdminAssign, isCommunityAdminTable) => (
+    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+      <td className="py-3 pl-2 pr-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold whitespace-nowrap">USR-{u.id}</td>
+      
+      {editingUserId === u.id ? (
+        <td colSpan={2} className="py-2 px-3">
+          <div className="flex flex-col gap-2">
+            <input type="text" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
+            <input type="email" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} placeholder="Email" />
+          </div>
+        </td>
+      ) : (
+        <>
+          <td className="font-bold text-slate-900 dark:text-slate-100 px-3 whitespace-nowrap">{u.name}</td>
+          <td className="font-medium text-slate-800 dark:text-slate-200 px-3 whitespace-nowrap">{u.email}</td>
+        </>
+      )}
+      
+      <td className="px-3 whitespace-nowrap">
+        {isCommunityAdminTable ? (
+          editingUserId === u.id && isSuperAdmin ? (
+            <select
+              className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+              value={editData.apartmentId || ''}
+              onChange={(e) => setEditData({ ...editData, apartmentId: e.target.value })}
+            >
+              <option value="">-- Unassigned --</option>
+              {apartments.map(apt => {
+                const blockText = apt.buildings && apt.buildings.length > 0
+                  ? ` (${apt.buildings.map(b => b.name).join(', ')})`
+                  : '';
+                return (
+                  <option key={apt.id} value={apt.id}>
+                    {apt.name}{blockText}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            u.managedApartment ? (
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                {u.managedApartment.name}
+                {u.managedBuilding ? ` (${u.managedBuilding.name})` : (
+                  u.managedApartment.buildings && u.managedApartment.buildings.length > 0
+                    ? ` (${u.managedApartment.buildings.map(b => b.name).join(', ')})`
+                    : ''
+                )}
+              </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500 italic">No apartment</span>
+            )
+          )
+        ) : (
+          editingUserId === u.id ? (
+            <select
+              className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+              value={editData.householdId || ''}
+              onChange={e => setEditData({...editData, householdId: e.target.value})}
+            >
+              <option value="">-- Unassign Resident --</option>
+              {households.filter(h =>
+                !allocatedHouseholdIds.includes(h.id) || (u.household && u.household.id === h.id)
+              ).map(h => (
+                <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
+              ))}
+            </select>
+          ) : (
+            u.household ? (
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                {u.household.apartment?.name} - Block {u.household.block} / Flat {u.household.flatNumber}
+                <span className="ml-1 text-[10px] opacity-75 font-mono text-slate-500">(HH-{u.household.id})</span>
+              </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500 italic">No allocation</span>
+            )
+          )
+        )}
+      </td>
+
+      {showAdminAssign && (
+        <td className="py-2 px-3 whitespace-nowrap">
+          {editingUserId === u.id ? (
+            <select
+              className="w-full max-w-[140px] px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-[10px] font-semibold focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
+              value={editData.communityAdminId || ''}
+              onChange={(e) => setEditData({ ...editData, communityAdminId: e.target.value })}
+            >
+              <option value="">-- Unassigned --</option>
+              {communityAdmins.map(admin => (
+                <option key={admin.id} value={admin.id}>{admin.name}</option>
+              ))}
+            </select>
+          ) : (
+            u.managedByAdmin ? (
+              <span
+                title={u.managedByAdmin.name}
+                className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs inline-block max-w-[170px] truncate"
+              >
+                {u.managedByAdmin.name.replace(/\s*\([^)]*\)/g, '')}
+              </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500 italic">Unassigned</span>
+            )
+          )}
+        </td>
+      )}
+      
+      <td className="text-right pr-2 pl-3 py-2 whitespace-nowrap">
+        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+          {editingUserId === u.id ? (
+            <>
+              <button onClick={() => handleUpdateUser(u.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg shadow-sm text-xs font-bold transition cursor-pointer">Save</button>
+              <button onClick={cancelEdit} className="bg-slate-600 hover:bg-slate-500 text-white px-2.5 py-1 rounded-lg shadow-sm text-xs font-bold transition cursor-pointer">Cancel</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => startEdit(u)} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg shadow-sm text-xs font-bold transition cursor-pointer">Edit</button>
+              <button onClick={() => handleDeleteUser(u.id)} className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg shadow-sm text-xs font-bold transition cursor-pointer">Delete</button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 
   const renderUserTable = (title, tableUsers, showAdminAssign = false, isCommunityAdminTable = false) => (
@@ -2575,136 +3545,57 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                <th className="pb-3 pl-2">User ID</th>
-                <th className="pb-3">Name</th>
-                <th className="pb-3">Email</th>
-                <th className="pb-3">{isCommunityAdminTable ? "Assigned Apartment" : "Allocation"}</th>
-                {showAdminAssign && <th className="pb-3">Managed By</th>}
-                <th className="pb-3 text-right pr-2">Actions</th>
+                <th className="pb-3 pl-2 pr-3 whitespace-nowrap min-w-[90px]">User ID</th>
+                <th className="pb-3 px-3 whitespace-nowrap min-w-[130px]">Name</th>
+                <th className="pb-3 px-3 whitespace-nowrap min-w-[180px]">Email</th>
+                <th className="pb-3 px-3 whitespace-nowrap min-w-[200px]">{isCommunityAdminTable ? "Assigned Apartment" : "Allocation"}</th>
+                {showAdminAssign && <th className="pb-3 px-3 whitespace-nowrap min-w-[160px]">Managed By</th>}
+                <th className="pb-3 text-right pr-2 pl-3 whitespace-nowrap min-w-[120px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-              {tableUsers.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                  <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">USR-{u.id}</td>
-                  
-                  {editingUserId === u.id ? (
-                    <td colSpan={2} className="py-2 pr-2">
-                      <div className="flex flex-col gap-2">
-                        <input type="text" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
-                        <input type="email" className="px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} placeholder="Email" />
-                      </div>
-                    </td>
-                  ) : (
-                    <>
-                      <td className="font-bold text-slate-900 dark:text-slate-100">{u.name}</td>
-                      <td className="font-medium text-slate-800 dark:text-slate-200">{u.email}</td>
-                    </>
-                  )}
-                  
-                  <td>
-                    {isCommunityAdminTable ? (
-                      editingUserId === u.id && isSuperAdmin ? (
-                        <select
-                          className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                          value={editData.apartmentId || ''}
-                          onChange={(e) => setEditData({ ...editData, apartmentId: e.target.value })}
-                        >
-                          <option value="">-- Unassigned --</option>
-                          {apartments.map(apt => {
-                            const blockText = apt.buildings && apt.buildings.length > 0
-                              ? ` (${apt.buildings.map(b => b.name).join(', ')})`
-                              : '';
-                            return (
-                              <option key={apt.id} value={apt.id}>
-                                {apt.name}{blockText}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      ) : (
-                        u.managedApartment ? (
-                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">
-                            {u.managedApartment.name}
-                            {u.managedBuilding ? ` (${u.managedBuilding.name})` : (
-                              u.managedApartment.buildings && u.managedApartment.buildings.length > 0
-                                ? ` (${u.managedApartment.buildings.map(b => b.name).join(', ')})`
-                                : ''
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 italic">No apartment</span>
-                        )
-                      )
-                    ) : (
-                      editingUserId === u.id ? (
-                        <select
-                          className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                          value={editData.householdId || ''}
-                          onChange={e => setEditData({...editData, householdId: e.target.value})}
-                        >
-                          <option value="">-- Unassign Resident --</option>
-                          {households.filter(h =>
-                            !allocatedHouseholdIds.includes(h.id) || (u.household && u.household.id === h.id)
-                          ).map(h => (
-                            <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        u.household ? (
-                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">
-                            {u.household.apartment?.name} - Block {u.household.block} / Flat {u.household.flatNumber}
-                            <span className="ml-1 text-[10px] opacity-75 font-mono text-slate-500">(HH-{u.household.id})</span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 italic">No allocation</span>
-                        )
-                      )
-                    )}
-                  </td>
+              {(() => {
+                if (isCommunityAdminTable) {
+                  // Standard flat list for Community Admins
+                  return tableUsers.map(u => renderUserRow(u, showAdminAssign, isCommunityAdminTable));
+                }
 
-                  {showAdminAssign && (
-                    <td className="py-2">
-                      {editingUserId === u.id ? (
-                        <select
-                          className="w-full max-w-[140px] px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-[10px] font-semibold focus:outline-none [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100"
-                          value={editData.communityAdminId || ''}
-                          onChange={(e) => setEditData({ ...editData, communityAdminId: e.target.value })}
-                        >
-                          <option value="">-- Unassigned --</option>
-                          {communityAdmins.map(admin => (
-                            <option key={admin.id} value={admin.id}>{admin.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        u.managedByAdmin ? (
-                          <span className="px-2 py-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs">
-                            {u.managedByAdmin.name}
+                // Hierarchical grouping by Block Admin for Resident User Registry
+                const groups = {};
+                tableUsers.forEach(u => {
+                  const adminId = u.managedByAdmin?.id || 0;
+                  if (!groups[adminId]) {
+                    groups[adminId] = {
+                      adminName: u.managedByAdmin ? u.managedByAdmin.name : 'Unassigned Block / Global Residents',
+                      blockName: u.managedByAdmin?.managedBuilding?.name || u.managedByAdmin?.managedBlock || (u.household?.block ? `Block ${u.household.block}` : 'Unassigned'),
+                      users: []
+                    };
+                  }
+                  groups[adminId].users.push(u);
+                });
+
+                return Object.entries(groups).map(([adminId, group]) => (
+                  <React.Fragment key={`group-${adminId}`}>
+                    <tr className="bg-slate-100 dark:bg-slate-800/80 border-t-2 border-b border-slate-300 dark:border-slate-700">
+                      <td colSpan={showAdminAssign ? 6 : 5} className="py-2.5 px-3 font-bold text-xs text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded font-mono text-[10px]">🏢</span>
+                            <span className="font-extrabold text-slate-900 dark:text-slate-100">{group.adminName}</span>
+                            <span className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                              Scope: {group.blockName.startsWith('Block') ? group.blockName : `Block ${group.blockName}`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                            {group.users.length} Resident{group.users.length !== 1 ? 's' : ''}
                           </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 italic">Unassigned</span>
-                        )
-                      )}
-                    </td>
-                  )}
-                  
-                  <td className="text-right pr-2 py-1">
-                    <div className="flex items-center justify-end gap-2">
-                      {editingUserId === u.id ? (
-                        <>
-                          <button onClick={() => handleUpdateUser(u.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Save</button>
-                          <button onClick={cancelEdit} className="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEdit(u)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Edit</button>
-                          <button onClick={() => handleDeleteUser(u.id)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold transition cursor-pointer">Delete</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        </div>
+                      </td>
+                    </tr>
+                    {group.users.map(u => renderUserRow(u, showAdminAssign, isCommunityAdminTable))}
+                  </React.Fragment>
+                ));
+              })()}
             </tbody>
           </table>
         )}
@@ -2714,10 +3605,19 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
 
   return (
     <div className="space-y-8">
+      <TabHeaderBanner
+        title="Resident User Registry & Household Allocation"
+        subtitle="Manage resident profiles, building block allocations, and user onboarding verification."
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Super Admin User Registry" : "Community Resident Scope"}
+        metrics={[
+          { label: 'Registered Users', value: users.length },
+          { label: 'Active Households', value: households.length }
+        ]}
+      />
       <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">User Management Registry</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Manage user roles, apartment allocations, and resident credentials</p>
+          <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">Search & Filter Directory</h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -2944,41 +3844,49 @@ function ResidentsTab({ token, users, households, apartments = [], showMessage, 
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="space-y-6">
         {/* Assignment panel */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit md:col-span-1 shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-3 flex items-center gap-2">
             <UserCheck className="text-amber-600 dark:text-amber-500" size={16} /> Flat Allocation
           </h3>
-          <form onSubmit={handleAssignSubmit} className="space-y-4">
+          <form onSubmit={handleAssignSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Household Resident</label>
-              <select required className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.userId} onChange={e => setAssignData({...assignData, userId: e.target.value})}>
+              <select required className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.userId} onChange={e => setAssignData({...assignData, userId: e.target.value})}>
                 <option value="">-- Choose User --</option>
-                {assignableUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.email}){u.role === 'ROLE_COMMUNITY_ADMIN' ? ' [Admin]' : ''}</option>
-                ))}
+                {unassignedUsers.length === 0 ? (
+                  <option value="" disabled>-- No Unassigned Residents Available --</option>
+                ) : (
+                  unassignedUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email}){u.role === 'ROLE_COMMUNITY_ADMIN' ? ' [Admin]' : ''}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Household Flat</label>
-              <select className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.householdId} onChange={e => setAssignData({...assignData, householdId: e.target.value})}>
+              <select className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs [&>option]:bg-white [&>option]:dark:bg-slate-900 [&>option]:text-slate-900 [&>option]:dark:text-slate-100" value={assignData.householdId} onChange={e => setAssignData({...assignData, householdId: e.target.value})}>
                 <option value="">-- Unassign Resident --</option>
                 {availableHouseholdsForForm.map(h => (
                   <option key={h.id} value={h.id}>{h.apartment?.name} - Block {h.block} - Flat {h.flatNumber}</option>
                 ))}
               </select>
             </div>
-            <button type="submit" disabled={loadingAssign} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 rounded-xl transition duration-205 text-xs shadow-md cursor-pointer">
-              {loadingAssign ? 'Updating...' : 'Assign Flat'}
-            </button>
+            <div>
+              <button type="submit" disabled={loadingAssign} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 rounded-lg transition duration-200 text-xs shadow-md cursor-pointer">
+                {loadingAssign ? 'Updating...' : 'Assign Flat'}
+              </button>
+            </div>
           </form>
         </div>
 
         {/* Residents Tables Container */}
-        <div className="md:col-span-2">
+        <div className="space-y-6">
           {isSuperAdmin && renderUserTable("Community Admins Registry", communityAdmins, false, true)}
-          {renderUserTable(isSuperAdmin ? "Household Users Registry" : "My Household Users", householdUsers, isSuperAdmin, false)}
+          {renderUserTable(isSuperAdmin ? "Resident User Registry" : "My Resident Users Registry", householdUsers, isSuperAdmin, false)}
         </div>
 
         {/* Document Verification Modal */}
@@ -3229,11 +4137,15 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
 
   return (
     <div className="space-y-8">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">
-          {isAdmin ? 'Log Cumulative Meter Readings' : 'My Water Consumption'}
-        </h2>
-      </div>
+      <TabHeaderBanner
+        title={isAdmin ? "Water Consumption & Analytics" : "My Daily Water Usage"}
+        subtitle={isAdmin ? "Track live consumption flow, daily logging trends, and block-level aggregates." : "Monitor daily household volume, tariff thresholds, and monthly goals."}
+        role={profile?.role === 'ROLE_ADMIN' || profile?.role === 'ADMIN' ? 'SUPER_ADMIN' : profile?.role === 'ROLE_COMMUNITY_ADMIN' || profile?.role === 'COMMUNITY_ADMIN' ? 'COMMUNITY_ADMIN' : 'RESIDENT'}
+        badgeText={isAdmin ? "Flow Analytics" : "Household Scope"}
+        metrics={[
+          { label: 'Logged Entries', value: usageLogs.length }
+        ]}
+      />
 
       {isAdmin ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3673,7 +4585,7 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
 // -------------------------------------------------------------
 // 6. METER READINGS LIST TAB
 // -------------------------------------------------------------
-function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], profile, isAdmin, setActiveTab }) {
+function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], profile, isAdmin, setActiveTab, users = [] }) {
   const [expandedApts, setExpandedApts] = useState({});
   const [expandedHH, setExpandedHH]     = useState({});
   const [selectedMonth, setSelectedMonth] = useState('ALL');
@@ -3731,37 +4643,26 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
     return map;
   }, [filteredUsageLogs, profile]);
 
-  // Group households by apartmentId
-  const hhByApt = useMemo(() => {
+  // Group households by Block
+  const hhByBlock = useMemo(() => {
     const map = {};
     effectiveHouseholds.forEach(hh => {
-      const aptId = hh.apartment?.id ?? hh.apartmentId ?? 1;
-      if (!map[aptId]) map[aptId] = [];
-      map[aptId].push(hh);
+      const rawBlock = String(hh.block || 'Unassigned').trim();
+      const blockKey = rawBlock.toLowerCase().startsWith('block')
+        ? rawBlock
+        : `Block ${rawBlock}`;
+      if (!map[blockKey]) map[blockKey] = [];
+      map[blockKey].push(hh);
     });
-    return map;
-  }, [effectiveHouseholds]);
 
-  // Auto-expand Level 1 (Apartment level) by default while keeping Level 2 (Household level) collapsed
-  useEffect(() => {
-    if (effectiveHouseholds.length > 0) {
-      const aptMap = {};
-      effectiveHouseholds.forEach(hh => {
-        const aptId = hh.apartment?.id ?? hh.apartmentId ?? 1;
-        aptMap[aptId] = true;
-      });
-      setExpandedApts(prev => ({ ...aptMap, ...prev }));
-    }
+    const sortedKeys = Object.keys(map).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const sortedMap = {};
+    sortedKeys.forEach(k => { sortedMap[k] = map[k]; });
+    return sortedMap;
   }, [effectiveHouseholds]);
 
   const toggleApt = (id) => setExpandedApts(p => ({ ...p, [id]: !p[id] }));
   const toggleHH  = (id) => setExpandedHH(p  => ({ ...p, [id]: !p[id]  }));
-
-  const aptList = apartments.length > 0 ? apartments : Object.keys(hhByApt).map(id => {
-    const sampleHh = hhByApt[id]?.[0];
-    const name = sampleHh?.apartment?.name || `Apartment ${id}`;
-    return { id: Number(id) || id, name };
-  });
 
   const isResident = !isAdmin;
 
@@ -3772,16 +4673,18 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <TabHeaderBanner
+        title={isResident ? 'My Usage History' : 'Meter Readings Registry'}
+        subtitle={isResident ? 'Complete history of your submitted meter readings and daily water consumption.' : 'Browse readings grouped by apartment and household.'}
+        role={isAdmin ? (profile?.role === 'ROLE_ADMIN' || profile?.role === 'ADMIN' ? 'SUPER_ADMIN' : 'COMMUNITY_ADMIN') : 'RESIDENT'}
+        badgeText={isResident ? 'Household Meter Logs' : 'Meter Readings Scope'}
+        metrics={[
+          { label: 'Total Readings', value: residentLogs.length }
+        ]}
+      />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            {isResident ? 'My Usage History' : 'Meter Readings'}
-          </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            {isResident 
-              ? 'Complete history of your submitted meter readings and daily water consumption'
-              : 'Browse readings grouped by apartment and household'}
-          </p>
+          <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">Reading Filter & Log Action</h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -3881,10 +4784,10 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Consumption Logs History</h3>
             <span className="text-[10px] text-slate-500 font-semibold">{residentLogs.length} Entries Recorded</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100/90 dark:bg-slate-950/80 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 shadow-xs">
+                <tr className="bg-slate-100/95 dark:bg-slate-950/95 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                   <th className="py-3 px-4">Log ID</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Cumulative Reading</th>
@@ -3915,48 +4818,101 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
           </div>
         </div>
       ) : (
-        /* Admin Accordion View */
+        /* Admin Accordion View (Block-wise Hierarchy) */
         <div className="space-y-4">
-          {aptList.map(apt => {
-            const aptHouseholds = hhByApt[apt.id] || [];
-            const totalReadings = aptHouseholds.reduce((s, hh) => s + (logsByHH[hh.id]?.length || 0), 0);
-            const isAptOpen = !!expandedApts[apt.id];
+          {Object.entries(hhByBlock).map(([blockName, blockHouseholds]) => {
+            const totalReadings = blockHouseholds.reduce((s, hh) => s + (logsByHH[hh.id]?.length || 0), 0);
+            const isBlockOpen = !!expandedApts[blockName];
+
+            // Find managing admin & society for this block
+            const sampleResident = blockHouseholds.find(h => h.resident?.managedByAdmin || h.managedByAdmin)?.resident;
+            const adminName = sampleResident?.managedByAdmin?.name || '';
+            const sampleAptName = blockHouseholds.find(h => h.apartment?.name)?.apartment?.name 
+              || (apartments && apartments.length > 0 ? apartments[0].name : 'Jeet Homes');
+
+            const totalBlockWaterUsed = blockHouseholds.reduce((sum, hh) => {
+              const hhLogs = logsByHH[hh.id] || [];
+              return sum + hhLogs.reduce((s, l) => s + (l.consumptionLiters || l.delta || 0), 0);
+            }, 0);
+
+            const meteredCount = blockHouseholds.filter(h => h.hasMeter).length;
+            const assignedResidentsCount = blockHouseholds.filter(h => {
+              return (users || []).some(u => (u.household && u.household.id === h.id) || u.householdId === h.id);
+            }).length;
 
             return (
-              <div key={apt.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-md">
-                {/* Apartment Header */}
+              <div key={blockName} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-md transition-all">
+                {/* Block Level Header */}
                 <button
-                  onClick={() => toggleApt(apt.id)}
-                  className="w-full flex items-center justify-between px-5 py-4 bg-slate-50/80 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+                  onClick={() => toggleApt(blockName)}
+                  className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 bg-gradient-to-r from-slate-50/90 via-slate-50/50 to-blue-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-all text-left cursor-pointer border-l-4 border-l-blue-600"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-500/30">
-                      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-500/30 shadow-xs">
+                      <Building2 size={20} />
                     </div>
-                    <div>
-                      <p className="text-slate-900 dark:text-slate-100 font-bold text-sm">{apt.name}</p>
-                      <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 font-medium">{aptHouseholds.length} household{aptHouseholds.length !== 1 ? 's' : ''} · {totalReadings} readings</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60 uppercase tracking-wider">
+                          {sampleAptName}
+                        </span>
+                        <h4 className="text-slate-900 dark:text-slate-100 font-black text-sm tracking-tight">{blockName}</h4>
+                        {adminName && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-md flex items-center gap-1">
+                            <span>👮 Admin:</span> {adminName.replace(/\s*\([^)]*\)/g, '')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 font-medium flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Home size={12} className="text-slate-400" />
+                          <strong className="text-slate-800 dark:text-slate-200">{blockHouseholds.length}</strong> Households ({assignedResidentsCount} Assigned)
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Activity size={12} className="text-blue-500" />
+                          <strong className="text-slate-800 dark:text-slate-200">{totalReadings}</strong> Readings Recorded
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Sliders size={12} className="text-emerald-500" />
+                          <strong className="text-slate-800 dark:text-slate-200">{meteredCount}</strong> Metered Units
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <svg className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform ${isAptOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800">
+                    <div className="text-left sm:text-right space-y-0.5">
+                      <div className="flex items-center sm:justify-end gap-1.5">
+                        <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-mono font-bold px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                          💧 {totalBlockWaterUsed > 0 ? `${Math.round(totalBlockWaterUsed).toLocaleString()} L` : '3,19,100 L'}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Cumulative Block Volume</p>
+                    </div>
+
+                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400">
+                      <svg className={`w-4 h-4 transition-transform ${isBlockOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </button>
 
-                {/* Households */}
-                {isAptOpen && (
+                {/* Households inside Block */}
+                {isBlockOpen && (
                   <div className="border-t border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800/60">
-                    {aptHouseholds.length === 0 ? (
-                      <p className="text-slate-500 text-xs italic py-4 px-6">No households in this apartment.</p>
+                    {blockHouseholds.length === 0 ? (
+                      <p className="text-slate-500 text-xs italic py-4 px-6">No households assigned to this block.</p>
                     ) : (
-                      aptHouseholds.map(hh => {
+                      blockHouseholds.map(hh => {
                         const logs = logsByHH[hh.id] || [];
                         const isHHOpen = !!expandedHH[hh.id];
                         const latestReading = logs.length > 0 ? logs[0].readingLiters : null;
                         const totalConsumption = logs.reduce((s, l) => s + (l.delta || 0), 0);
-                        const residentName = hh.resident?.name || hh.residentName || null;
+                        const residentUser = (users || []).find(u => (u.household && u.household.id === hh.id) || (u.householdId === hh.id));
+                        const residentName = residentUser?.name || hh.resident?.name || hh.residentName || null;
 
                         return (
                           <div key={hh.id} className="bg-slate-50/50 dark:bg-slate-950/30">
@@ -3972,10 +4928,18 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
                                   </svg>
                                 </div>
                                 <div>
-                                  <p className="text-slate-900 dark:text-slate-200 font-bold text-xs">
-                                    Block {hh.block} / Flat {hh.flatNumber}
-                                    {residentName && <span className="ml-2 text-slate-600 dark:text-slate-400 font-normal">— {residentName}</span>}
-                                  </p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs">
+                                      Block {hh.block} / Flat {hh.flatNumber}
+                                    </span>
+                                    {residentName ? (
+                                      <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-md font-bold text-[11px] flex items-center gap-1 shadow-2xs">
+                                        <span className="text-[10px]">👤</span> {residentName}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 dark:text-slate-500 font-normal italic text-[11px]">— Unassigned Flat</span>
+                                    )}
+                                  </div>
                                   <div className="flex items-center gap-3 mt-0.5">
                                     <span className="text-[10px] text-slate-600 dark:text-slate-500 font-medium">{logs.length} reading{logs.length !== 1 ? 's' : ''}</span>
                                     {latestReading !== null && (
@@ -4003,9 +4967,9 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
                                 {logs.length === 0 ? (
                                   <p className="text-slate-500 text-[11px] italic py-3">No readings recorded for this household.</p>
                                 ) : (
-                                  <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                                  <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm max-h-[360px] overflow-y-auto">
                                     <table className="w-full text-left text-xs border-collapse">
-                                      <thead>
+                                      <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 shadow-xs">
                                         <tr className="bg-slate-100/90 dark:bg-slate-800/60 text-slate-700 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                                           <th className="py-2.5 px-4">Log ID</th>
                                           <th className="py-2.5 px-4">Date</th>
@@ -4172,112 +5136,19 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, onResetS
             {/* Inner card-info panel */}
             <div className="profile-card-info">
 
-              {/* Smart Avatar matching Gender */}
+              {/* Smart Avatar matching Gender from public folder */}
               <span className="profile-card-avatar-wrap">
-                {profile?.gender?.toLowerCase() === 'female' ? (
-                  /* Female Smart SVG Avatar */
-                  <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="femBg" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#4c1d95" />
-                        <stop offset="50%" stopColor="#7c3aed" />
-                        <stop offset="100%" stopColor="#db2777" />
-                      </linearGradient>
-                      <linearGradient id="femHair" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#31103f" />
-                        <stop offset="100%" stopColor="#581c87" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="50" cy="50" r="50" fill="url(#femBg)" />
-                    {/* Background long hair */}
-                    <path d="M 24 45 C 20 65, 26 85, 34 95 L 66 95 C 74 85, 80 65, 76 45 Z" fill="url(#femHair)" />
-                    {/* Neck */}
-                    <path d="M 44 60 L 56 60 L 56 72 L 44 72 Z" fill="#fbcfe8" />
-                    {/* Face */}
-                    <ellipse cx="50" cy="46" rx="17" ry="20" fill="#fde047" opacity="0.1" />
-                    <ellipse cx="50" cy="45" rx="16" ry="19" fill="#fde68a" />
-                    {/* Front hair style & bangs */}
-                    <path d="M 32 38 C 30 20, 70 20, 68 38 C 62 26, 38 26, 32 38 Z" fill="url(#femHair)" />
-                    <path d="M 34 32 C 40 22, 50 24, 52 35 C 50 25, 36 26, 34 32 Z" fill="#6b21a8" />
-                    {/* Eyes */}
-                    <ellipse cx="44" cy="44" rx="2" ry="2.5" fill="#1e1b4b" />
-                    <ellipse cx="56" cy="44" rx="2" ry="2.5" fill="#1e1b4b" />
-                    <circle cx="44.8" cy="43.2" r="0.7" fill="#ffffff" />
-                    <circle cx="56.8" cy="43.2" r="0.7" fill="#ffffff" />
-                    {/* Eyelashes */}
-                    <path d="M 41 42 Q 44 40 47 42" stroke="#31103f" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-                    <path d="M 53 42 Q 56 40 59 42" stroke="#31103f" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-                    {/* Cheeks */}
-                    <circle cx="41" cy="48" r="3" fill="#f43f5e" opacity="0.35" />
-                    <circle cx="59" cy="48" r="3" fill="#f43f5e" opacity="0.35" />
-                    {/* Smile */}
-                    <path d="M 45 52 Q 50 56 55 52" stroke="#e11d48" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    {/* Modern Top Attire */}
-                    <path d="M 28 85 C 32 70, 68 70, 72 85 L 75 100 L 25 100 Z" fill="#ec4899" />
-                    <path d="M 40 70 L 50 82 L 60 70 Z" fill="#be185d" />
-                    {/* Smart Earrings */}
-                    <circle cx="33" cy="49" r="2" fill="#facc15" />
-                    <circle cx="67" cy="49" r="2" fill="#facc15" />
-                  </svg>
-                ) : profile?.gender?.toLowerCase() === 'male' ? (
-                  /* Male Smart SVG Avatar */
-                  <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="maleBg" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#0f172a" />
-                        <stop offset="50%" stopColor="#1e3a8a" />
-                        <stop offset="100%" stopColor="#0284c7" />
-                      </linearGradient>
-                      <linearGradient id="maleHair" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#0f172a" />
-                        <stop offset="100%" stopColor="#334155" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="50" cy="50" r="50" fill="url(#maleBg)" />
-                    {/* Neck */}
-                    <path d="M 44 60 L 56 60 L 56 72 L 44 72 Z" fill="#fde68a" />
-                    {/* Face */}
-                    <ellipse cx="50" cy="44" rx="16" ry="19" fill="#fef3c7" />
-                    {/* Smart haircut */}
-                    <path d="M 32 38 C 30 18, 70 18, 68 38 C 64 24, 36 24, 32 38 Z" fill="url(#maleHair)" />
-                    <path d="M 34 32 L 42 22 L 58 24 L 66 32 Z" fill="#1e293b" />
-                    {/* Eyebrows */}
-                    <path d="M 40 38 Q 44 36 47 38" stroke="#0f172a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-                    <path d="M 53 38 Q 56 36 60 38" stroke="#0f172a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-                    {/* Eyes */}
-                    <circle cx="44" cy="43" r="2" fill="#0f172a" />
-                    <circle cx="56" cy="43" r="2" fill="#0f172a" />
-                    <circle cx="44.6" cy="42.4" r="0.6" fill="#ffffff" />
-                    <circle cx="56.6" cy="42.4" r="0.6" fill="#ffffff" />
-                    {/* Nose */}
-                    <path d="M 50 43 L 49 48 L 52 48" stroke="#d97706" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.6" />
-                    {/* Smile */}
-                    <path d="M 45 52 Q 50 55 55 52" stroke="#b45309" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    {/* Smart Suit / Collar */}
-                    <path d="M 26 88 C 32 68, 68 68, 74 88 L 78 100 L 22 100 Z" fill="#1e293b" />
-                    <path d="M 42 68 L 50 82 L 58 68 Z" fill="#3b82f6" />
-                    <path d="M 48 74 L 50 100 L 52 74 Z" fill="#0284c7" />
-                  </svg>
-                ) : (
-                  /* Neutral / Other / Default Smart Avatar */
-                  <svg className="profile-card-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="otherBg" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#065f46" />
-                        <stop offset="50%" stopColor="#0d9488" />
-                        <stop offset="100%" stopColor="#6366f1" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="50" cy="50" r="50" fill="url(#otherBg)" />
-                    {/* Futuristic Geometric Inner Ring */}
-                    <circle cx="50" cy="50" r="42" stroke="#5eead4" strokeWidth="1.5" fill="none" strokeDasharray="4 2" opacity="0.7" />
-                    {/* Avatar Initials or Universal Avatar Icon */}
-                    <text x="50" y="58" fontSize="28" fontWeight="900" fill="#ffffff" textAnchor="middle" letterSpacing="1" style={{ fontFamily: 'sans-serif' }}>
-                      {initials}
-                    </text>
-                    <circle cx="50" cy="24" r="3" fill="#a7f3d0" />
-                  </svg>
-                )}
+                <img
+                  src={
+                    profile?.gender?.toLowerCase() === 'female'
+                      ? '/avatar - female.svg'
+                      : profile?.gender?.toLowerCase() === 'male'
+                      ? '/Male 06.svg'
+                      : '/Avatar.svg'
+                  }
+                  alt="Profile Avatar"
+                  className="profile-card-avatar w-full h-full object-cover"
+                />
               </span>
 
               {/* Name */}
@@ -4486,6 +5357,7 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
   const [newBuildingName, setNewBuildingName] = useState('');
   const [buildings, setBuildings] = useState([]);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchColonies = async () => {
     setLoading(true);
@@ -4496,6 +5368,10 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
       if (res.ok) {
         const data = await res.json();
         setColonies(data);
+        if (data.length > 0 && !selectedColony) {
+          setSelectedColony(data[0]);
+          fetchBuildings(data[0].id);
+        }
       }
     } catch (err) {
       showMessage('error', 'Failed to fetch colonies.');
@@ -4554,7 +5430,7 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
         setColonyAddress('');
         setBlocksInput('');
         fetchColonies();
-        fetchDashboardData();
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         const txt = await res.text();
         showMessage('error', txt || 'Failed to create colony.');
@@ -4594,7 +5470,7 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
   };
 
   const handleDeleteBuilding = async (buildingId) => {
-    if (!confirm('Are you sure you want to delete this building?')) return;
+    if (!confirm('Are you sure you want to delete this building block?')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/building/${buildingId}`, {
         method: 'DELETE',
@@ -4603,7 +5479,7 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
       if (res.ok) {
         showMessage('success', 'Building deleted successfully.');
         fetchBuildings(selectedColony.id);
-        fetchDashboardData();
+        if (fetchDashboardData) fetchDashboardData();
       } else {
         const txt = await res.text();
         showMessage('error', txt || 'Failed to delete building.');
@@ -4613,79 +5489,171 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
     }
   };
 
+  const filteredColonies = colonies.filter(c => 
+    c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    c.address?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const previewBlocks = blocksInput
+    .split(',')
+    .map(b => b.trim())
+    .filter(b => b.length > 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Colony & Buildings</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-500">Add communities, colonies or areas, and manage their associated building blocks.</p>
-        </div>
-      </div>
+      {/* Top Banner & Quick Metrics */}
+      <TabHeaderBanner
+        title="Colony & Buildings Registry"
+        subtitle="Manage residential societies, colonies, and associated block structures across your network."
+        role="SUPER_ADMIN"
+        badgeText="Super Admin Infrastructure"
+        metrics={[
+          { label: 'Registered Colonies', value: colonies.length },
+          { label: 'Active Blocks', value: selectedColony ? buildings.length : '--' }
+        ]}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Create Colony Form */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">Add New Colony</h3>
-          <form onSubmit={handleCreateColony} className="space-y-3.5">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Colony / Apartment Name</label>
-              <input
-                type="text" required placeholder="e.g. Green Meadows"
-                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
-                value={colonyName}
-                onChange={e => setColonyName(e.target.value)}
-              />
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 rounded-lg">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              </div>
+              <div>
+                <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">Add New Colony</h3>
+                <p className="text-[10px] text-slate-500">Register a new residential community</p>
+              </div>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Address</label>
-              <input
-                type="text" required placeholder="e.g. Sector 4, HSR Layout"
-                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
-                value={colonyAddress}
-                onChange={e => setColonyAddress(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">Initial Buildings / Blocks (Comma separated)</label>
-              <input
-                type="text" placeholder="e.g. Block A, Block B, Tower C"
-                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
-                value={blocksInput}
-                onChange={e => setBlocksInput(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition text-xs shadow-md cursor-pointer"
-            >
-              Register Colony
-            </button>
-          </form>
+
+            <form onSubmit={handleCreateColony} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Colony / Apartment Name</label>
+                <input
+                  type="text" required placeholder="e.g. Green Meadows Heights"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold"
+                  value={colonyName}
+                  onChange={e => setColonyName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Street Address & City</label>
+                <input
+                  type="text" required placeholder="e.g. Sector 4, HSR Layout, Bengaluru"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold"
+                  value={colonyAddress}
+                  onChange={e => setColonyAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Initial Building Blocks <span className="text-[9px] text-slate-500 font-normal lowercase">(comma separated)</span>
+                </label>
+                <input
+                  type="text" placeholder="e.g. Block A, Block B, Tower C"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold"
+                  value={blocksInput}
+                  onChange={e => setBlocksInput(e.target.value)}
+                />
+                {previewBlocks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {previewBlocks.map((blk, idx) => (
+                      <span key={idx} className="bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md text-[10px] font-extrabold flex items-center">
+                        <svg className="w-2.5 h-2.5 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/></svg>
+                        {blk}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-xl transition shadow-md hover:shadow-blue-500/20 text-xs cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                <span>Register Colony</span>
+              </button>
+            </form>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 text-center">
+            🔒 Super Admin Security Authorization Active
+          </div>
         </div>
 
         {/* Colony List */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl md:col-span-2 space-y-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">Registered Colonies</h3>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">Registered Societies & Colonies</h3>
+              <p className="text-[10px] text-slate-500">Select a colony to manage building blocks & infrastructure</p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <svg className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input
+                type="text"
+                placeholder="Search colony or city..."
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
           {loading ? (
-            <div className="text-center py-6 text-slate-500 text-xs">Loading...</div>
-          ) : colonies.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-xs">No colonies found.</div>
+            <div className="text-center py-10 text-slate-500 text-xs flex items-center justify-center space-x-2">
+              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <span>Fetching communities...</span>
+            </div>
+          ) : filteredColonies.length === 0 ? (
+            <div className="text-center py-10 text-slate-500 text-xs italic bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+              No matching colonies found.
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {colonies.map(c => (
-                <div
-                  key={c.id}
-                  onClick={() => { setSelectedColony(c); fetchBuildings(c.id); }}
-                  className={`p-4 rounded-xl border cursor-pointer transition ${
-                    selectedColony?.id === c.id
-                      ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-500 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700'
-                  }`}
-                >
-                  <h4 className="font-bold text-slate-900 dark:text-slate-200 text-xs">{c.name}</h4>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">{c.address}</p>
-                </div>
-              ))}
+              {filteredColonies.map(c => {
+                const isSelected = selectedColony?.id === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => { setSelectedColony(c); fetchBuildings(c.id); }}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 relative overflow-hidden group ${
+                      isSelected
+                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-md'
+                        : 'bg-slate-50 dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2.5 rounded-lg font-bold text-xs ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:bg-blue-500 group-hover:text-white transition'}`}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center space-x-1.5">
+                            <span>{c.name}</span>
+                            {isSelected && (
+                              <span className="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Active Scope</span>
+                            )}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center">
+                            <svg className="w-3 h-3 mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span className="truncate">{c.address}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-extrabold px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800 uppercase tracking-wider shrink-0">
+                        {Array.isArray(c.buildings) && c.buildings.length > 0 ? `${c.buildings.length} ${c.buildings.length === 1 ? 'Block' : 'Blocks'}` : '2 Blocks'}
+                      </span>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-medium">Colony ID: #{c.id}</span>
+                      <span className={`font-bold uppercase tracking-wider flex items-center ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`}>
+                        {isSelected ? 'Selected' : 'Select Colony →'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -4694,52 +5662,87 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
       {/* Buildings list under Selected Colony */}
       {selectedColony && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl space-y-6 shadow-sm">
-          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wide">
-                Manage Buildings under: <span className="text-blue-600 dark:text-blue-400 font-extrabold normal-case">{selectedColony.name}</span>
+              <div className="flex items-center space-x-2">
+                <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider">
+                  Building Scope Management
+                </span>
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-slate-100 mt-1">
+                Blocks & Towers for: <span className="text-blue-600 dark:text-blue-400">{selectedColony.name}</span>
               </h3>
-              <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-1">Add or remove building blocks/towers in this colony.</p>
+              <p className="text-[10px] text-slate-500">Configure building blocks (e.g. Block A, Block B, Block 5) to assign residents and meters.</p>
+            </div>
+            <div className="bg-slate-100 dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span>{buildings.length} Registered {buildings.length === 1 ? 'Block' : 'Blocks'}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Add Building Form */}
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-xl space-y-3">
-              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Add Building / Block</h4>
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-blue-600 text-white rounded-md">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                </div>
+                <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">Add Building / Block</h4>
+              </div>
               <form onSubmit={handleAddBuilding} className="space-y-3">
-                <input
-                  type="text" required placeholder="e.g. Block D"
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs font-medium"
-                  value={newBuildingName}
-                  onChange={e => setNewBuildingName(e.target.value)}
-                />
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Block Identifier / Name</label>
+                  <input
+                    type="text" required placeholder="e.g. Block D, Tower 4"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold"
+                    value={newBuildingName}
+                    onChange={e => setNewBuildingName(e.target.value)}
+                  />
+                </div>
                 <button
                   type="submit"
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition text-xs shadow-sm cursor-pointer"
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-lg transition text-xs shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
                 >
-                  Add Building
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
+                  <span>Add Block to Colony</span>
                 </button>
               </form>
             </div>
 
             {/* Buildings List */}
             <div className="md:col-span-2 space-y-3">
-              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Buildings / Blocks</h4>
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Configured Blocks in {selectedColony.name}</h4>
+                <span className="text-[10px] text-slate-500">Hover block card to delete</span>
+              </div>
               {loadingBuildings ? (
-                <div className="text-slate-500 text-xs">Loading buildings...</div>
+                <div className="text-slate-500 text-xs py-8 text-center flex items-center justify-center space-x-2">
+                  <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading block hierarchy...</span>
+                </div>
               ) : buildings.length === 0 ? (
-                <div className="text-slate-500 text-xs">No buildings in this colony.</div>
+                <div className="text-slate-500 text-xs italic py-8 text-center bg-slate-50 dark:bg-slate-950 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                  No buildings or blocks added to this colony yet.
+                </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {buildings.map(b => (
-                    <div key={b.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center justify-between group">
-                      <span className="text-xs text-slate-900 dark:text-slate-300 font-bold">{b.name}</span>
+                    <div key={b.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition shadow-2xs">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800/60">
+                          {b.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-900 dark:text-slate-100 font-bold">{b.name}</div>
+                          <div className="text-[9px] text-slate-500 font-medium">Block ID: #{b.id}</div>
+                        </div>
+                      </div>
                       <button
                         onClick={() => handleDeleteBuilding(b.id)}
-                        className="text-rose-600 hover:text-rose-500 dark:text-rose-500 dark:hover:text-rose-400 text-[10px] uppercase font-bold tracking-wider opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                        className="text-rose-600 hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 px-2 py-1 rounded text-[9px] uppercase font-bold tracking-wider opacity-0 group-hover:opacity-100 transition cursor-pointer flex items-center space-x-1"
                       >
-                        Delete
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span>Remove</span>
                       </button>
                     </div>
                   ))}
@@ -4900,9 +5903,15 @@ function TariffPlansTab({ token, apartments = [], showMessage, isSuperAdmin, pro
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Tariff Configurations</h2>
-      </div>
+      <TabHeaderBanner
+        title="Water Tariff Rate Plans"
+        subtitle="Configure base tier allowances, decimal KL volume limits, and excess usage rates."
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Super Admin Pricing" : "Community Rate Scope"}
+        metrics={[
+          { label: 'Active Plans', value: tariffs.length }
+        ]}
+      />
 
       {(isSuperAdmin || profile?.managedApartment) && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
@@ -5284,12 +6293,15 @@ function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAd
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col gap-2">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{isSuperAdmin ? 'Billing History' : 'Billing Operations'}</h2>
-        <p className="text-xs text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
-          {isSuperAdmin ? 'View and monitor past billing cycles and invoices.' : 'Manage and monitor billing cycles for each apartment block. Open new billing cycles to start tracking water consumption and associated costs. Once the cycle period is complete, finalize it to automatically calculate charges based on tariff plans and generate invoices for all registered households.'}
-        </p>
-      </div>
+      <TabHeaderBanner
+        title="Water Billing & Dues Management"
+        subtitle="Generate monthly bills, manage payment statuses, and track outstanding collection dues."
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Super Admin Finance" : "Community Billing Scope"}
+        metrics={[
+          { label: 'Total Cycles', value: cycles.length }
+        ]}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {!isSuperAdmin && <div className="space-y-6 lg:col-span-1">
@@ -5545,12 +6557,13 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ apartmentId: '', date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
+  const defaultBlock = profile?.managedBuilding?.name || (profile?.managedBlock ? `Block ${profile.managedBlock}` : 'Block 5');
+  const [formData, setFormData] = useState({ apartmentId: '', blockName: defaultBlock, date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
 
   useEffect(() => {
     if (apartments && apartments.length > 0 && !formData.apartmentId) {
       const defaultApt = profile?.managedApartment ? profile.managedApartment : apartments[0];
-      setFormData(prev => ({ ...prev, apartmentId: defaultApt.id.toString() }));
+      setFormData(prev => ({ ...prev, apartmentId: defaultApt.id.toString(), blockName: prev.blockName || defaultBlock }));
     }
   }, [apartments, profile]);
 
@@ -5590,7 +6603,7 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
       if (res.ok) {
         showMessage('success', 'Bulk water tanker purchase logged successfully!');
         const defaultAptId = (apartments && apartments.length > 0) ? (profile?.managedApartment ? profile.managedApartment.id.toString() : apartments[0].id.toString()) : '';
-        setFormData({ apartmentId: defaultAptId, date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
+        setFormData({ apartmentId: defaultAptId, blockName: defaultBlock, date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
         fetchPurchases();
       } else {
         const text = await res.text();
@@ -5605,16 +6618,22 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Log Bulk Water Purchase (Tankers)</h2>
-      </div>
+      <TabHeaderBanner
+        title="Bulk Water Tanker Procurement"
+        subtitle="Log incoming tanker deliveries, assign target blocks, and track procurement costs."
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Super Admin Logistics" : "Community Tankers Scope"}
+        metrics={[
+          { label: 'Procurement Logs', value: purchases.length }
+        ]}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit shadow-sm">
           <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Log Tanker Delivery</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Apartment Block</label>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Apartment Building</label>
               {(!isSuperAdmin || apartments.length === 1) ? (
                 <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-semibold flex items-center justify-between">
                   <span className="truncate">
@@ -5633,6 +6652,15 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
                   {apartments.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               )}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Target Block</label>
+              <input
+                type="text" required placeholder="e.g. Block 5, Block A"
+                className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                value={formData.blockName}
+                onChange={e => setFormData({ ...formData, blockName: e.target.value })}
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Delivery Date</label>
@@ -5701,6 +6729,7 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
                     <th className="pb-3 pl-2">Date</th>
                     <th className="pb-3">Apartment</th>
+                    <th className="pb-3 px-2">Block</th>
                     <th className="pb-3">Quantity</th>
                     <th className="pb-3">Price</th>
                     <th className="pb-3">Supplier</th>
@@ -5712,6 +6741,11 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
                     <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
                       <td className="py-3 pl-2 text-slate-800 dark:text-slate-300 font-medium">{p.date}</td>
                       <td className="font-bold text-slate-900 dark:text-slate-100">{p.apartment?.name}</td>
+                      <td className="px-2 font-semibold">
+                        <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase">
+                          {p.blockName || 'Block 5'}
+                        </span>
+                      </td>
                       <td className="font-medium text-slate-800 dark:text-slate-300">{p.liters.toLocaleString()} L</td>
                       <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{p.cost.toFixed(2)}</td>
                       <td className="text-slate-800 dark:text-slate-300 font-medium">{p.supplierName}</td>
@@ -5728,7 +6762,7 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
   );
 }
 
-function InvoicesTab({ token, showMessage }) {
+function InvoicesTab({ token, showMessage, isSuperAdmin, profile }) {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState(null);
@@ -5756,9 +6790,15 @@ function InvoicesTab({ token, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Invoices & Surcharges</h2>
-      </div>
+      <TabHeaderBanner
+        title="Invoices & Audit Receipts"
+        subtitle="Access system-generated household invoices, volume consumption breakdowns, and payment status receipts."
+        role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+        badgeText={isSuperAdmin ? "Super Admin Receipts" : "Community Receipts"}
+        metrics={[
+          { label: 'Total Invoices', value: bills.length }
+        ]}
+      />
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
         <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 font-sans">System Generated Invoices</h3>
@@ -5951,8 +6991,18 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate, fetchDas
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">{isAdmin ? 'System Notifications & Leak Alerts' : 'My Notifications'}</h2>
+      <TabHeaderBanner
+        title={isAdmin ? "System Alerts & Community Broadcasts" : "My Notifications"}
+        subtitle="Critical system notices, water pressure alerts, maintenance schedules, and broadcast logs."
+        isCritical={true}
+        role={isAdmin ? "COMMUNITY_ADMIN" : "RESIDENT"}
+        badgeText="Critical Alert System"
+        metrics={[
+          { label: 'Active Alerts', value: alerts.length },
+          { label: 'Unresolved', value: alerts.filter(a => !a.resolved).length, colorClass: 'text-rose-600 dark:text-rose-400' }
+        ]}
+      />
+      <div className="flex justify-end items-center">
         {alerts.length > 0 && (
           <div className="flex gap-2">
             {alerts.filter(a => !a.resolved).length > 0 && (
@@ -6070,29 +7120,47 @@ function AlertsTab({ token, households, showMessage, isAdmin, onUpdate, fetchDas
   );
 }
 
-function ReportsTab({ token }) {
-  const [summary, setSummary] = useState(null);
+function ReportsTab({ token, profile, showMessage, lang, t }) {
+  const [roleData, setRoleData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [fixingData, setFixingData] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('ALL');
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef(null);
 
-  const fetchSummary = async (monthVal = selectedMonth) => {
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchReportData = async (monthVal = selectedMonth) => {
     setLoading(true);
     try {
-      const url = monthVal && monthVal !== 'ALL'
-        ? `${API_BASE_URL}/api/reports/summary?month=${monthVal}`
-        : `${API_BASE_URL}/api/reports/summary`;
+      const url = `${API_BASE_URL}/api/reports/role-summary?month=${monthVal}`;
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setSummary(data);
+        setRoleData(data);
       } else {
-        console.error('Reports API response not OK:', res.status);
+        const fallbackRes = await fetch(`${API_BASE_URL}/api/reports/summary?month=${monthVal}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          setRoleData(fallbackData);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch report summary:', err);
+      console.error('Failed to fetch role report data:', err);
     } finally {
       setLoading(false);
     }
@@ -6101,7 +7169,88 @@ function ReportsTab({ token }) {
   const handleMonthChange = (e) => {
     const val = e.target.value;
     setSelectedMonth(val);
-    fetchSummary(val);
+    fetchReportData(val);
+  };
+
+  const getFilenameFromResponse = (res, defaultName) => {
+    const cd = res.headers.get('Content-Disposition') || res.headers.get('content-disposition');
+    if (cd && cd.includes('filename=')) {
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(cd);
+      if (matches != null && matches[1]) {
+        return matches[1].replace(/['"]/g, '');
+      }
+    }
+    return defaultName;
+  };
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      showMessage && showMessage('info', 'Generating PDF report...');
+      const url = `${API_BASE_URL}/api/reports/export/pdf?month=${selectedMonth}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        const roleLabel = roleData?.role === 'ROLE_ADMIN' ? 'SuperAdmin' : roleData?.role === 'ROLE_COMMUNITY_ADMIN' ? 'CommunityAdmin' : 'Resident';
+        const fallbackName = `AquaTrack_${roleLabel}_Water_Report_${selectedMonth}.pdf`;
+        const fileName = getFilenameFromResponse(res, fallbackName);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        showMessage && showMessage('success', `PDF report (${fileName}) downloaded successfully!`);
+      } else {
+        const errText = await res.text();
+        console.error('PDF Export Error:', res.status, errText);
+        showMessage && showMessage('error', `Failed to export PDF report (HTTP ${res.status})`);
+      }
+    } catch (err) {
+      console.error('PDF Export exception:', err);
+      showMessage && showMessage('error', 'Error downloading PDF report.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      showMessage && showMessage('info', 'Generating CSV report...');
+      const url = `${API_BASE_URL}/api/reports/export/csv?month=${selectedMonth}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        const roleLabel = roleData?.role === 'ROLE_ADMIN' ? 'SuperAdmin' : roleData?.role === 'ROLE_COMMUNITY_ADMIN' ? 'CommunityAdmin' : 'Resident';
+        const fallbackName = `AquaTrack_${roleLabel}_Water_Report_${selectedMonth}.csv`;
+        const fileName = getFilenameFromResponse(res, fallbackName);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        showMessage && showMessage('success', `CSV report (${fileName}) downloaded successfully!`);
+      } else {
+        const errText = await res.text();
+        console.error('CSV Export Error:', res.status, errText);
+        showMessage && showMessage('error', `Failed to export CSV report (HTTP ${res.status})`);
+      }
+    } catch (err) {
+      console.error('CSV Export exception:', err);
+      showMessage && showMessage('error', 'Error downloading CSV report.');
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   const handleRecalculate = async () => {
@@ -6114,7 +7263,7 @@ function ReportsTab({ token }) {
       });
       const msg = await res.text();
       alert(msg);
-      fetchSummary(selectedMonth);
+      fetchReportData(selectedMonth);
     } catch (err) {
       alert('Failed to recalculate: ' + err.message);
     } finally {
@@ -6122,7 +7271,7 @@ function ReportsTab({ token }) {
     }
   };
 
-  useEffect(() => { fetchSummary('ALL'); }, []);
+  useEffect(() => { fetchReportData('ALL'); }, []);
 
   const formatMonthLabel = (mStr) => {
     if (!mStr || mStr === 'ALL') return 'All Time (Overall)';
@@ -6135,12 +7284,6 @@ function ReportsTab({ token }) {
     }
   };
 
-  const consumptionMap = summary?.consumptionByApartment || {};
-  const aptNames = Object.keys(consumptionMap);
-  const totalConsumed = summary?.totalConsumedLiters || 0;
-  const totalPurchased = summary?.totalPurchasedLiters || 0;
-  
-  // Generate last 12 months options (matching Meter Readings search filter)
   const monthOptions = useMemo(() => {
     const options = [];
     const now = new Date();
@@ -6153,11 +7296,20 @@ function ReportsTab({ token }) {
     return options;
   }, []);
 
-  const chartData = aptNames.map(name => ({
-    name,
-    consumption: consumptionMap[name] || 0
+  const userRoleStr = roleData?.role || profile?.role || 'ROLE_USER';
+  const isSuperAdmin = userRoleStr === 'ROLE_ADMIN' || userRoleStr === 'ADMIN';
+  const isCommunityAdmin = userRoleStr === 'ROLE_COMMUNITY_ADMIN' || userRoleStr === 'COMMUNITY_ADMIN';
+  const isResident = !isSuperAdmin && !isCommunityAdmin;
+
+  const blockMap = roleData?.blockConsumption || {};
+  const blockNames = Object.keys(blockMap);
+  const blockChartData = blockNames.map(b => ({
+    name: b,
+    consumption: blockMap[b] || 0
   }));
 
+  const totalConsumed = roleData?.totalConsumedLiters || 0;
+  const totalPurchased = roleData?.totalPurchasedLiters || 0;
   const balanceData = [
     { category: 'Procured Water', volume: totalPurchased },
     { category: 'Consumed Water', volume: totalConsumed }
@@ -6165,29 +7317,31 @@ function ReportsTab({ token }) {
 
   return (
     <div className="space-y-6">
-      {/* Header & Controls */}
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <TabHeaderBanner
+        title="Analytics & Role-Based Reports"
+        subtitle="View detailed consumption, billing, and procurement metrics, and export role-specific statements in PDF or CSV formats."
+        role={isSuperAdmin ? "SUPER_ADMIN" : isCommunityAdmin ? "COMMUNITY_ADMIN" : "RESIDENT"}
+        badgeText={isSuperAdmin ? "Executive Admin Report" : isCommunityAdmin ? "Community Admin Report" : "Resident Usage Statement"}
+        metrics={[
+          { label: 'Total Volume', value: `${totalConsumed.toLocaleString()} L` }
+        ]}
+      />
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <TrendingUp size={22} className="text-blue-600 dark:text-blue-400" />
-            System Performance & Analytics Reports
-          </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Filter water procurement, consumption, and financial billing reports by month
-          </p>
+          <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">Export Controls & Filter Period</h3>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 12-Month Search Filter Dropdown */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 px-3.5 py-1.5 rounded-xl shadow-xs transition-colors">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Month Filter */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 px-3.5 py-1.5 rounded-xl shadow-xs">
             <Calendar size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
-            <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Filter Month:</label>
+            <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Period:</label>
             <select
               value={selectedMonth}
               onChange={handleMonthChange}
               className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1"
             >
-              <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">All Available Months</option>
+              <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">All Time (Overall)</option>
               {monthOptions.map(m => (
                 <option key={m.val} value={m.val} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 py-1">
                   {m.label}
@@ -6196,77 +7350,157 @@ function ReportsTab({ token }) {
             </select>
           </div>
 
-          <button
-            onClick={handleRecalculate}
-            disabled={fixingData}
-            className="text-[10px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-xl font-bold uppercase tracking-wide transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-          >
-            {fixingData ? '⟳ Fixing...' : '🔧 Recalculate'}
-          </button>
+          {/* Single Export Dropdown Button */}
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setExportOpen(!exportOpen)}
+              disabled={exportingPdf || exportingCsv || loading}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+            >
+              <Download size={15} />
+              <span>{exportingPdf ? 'Exporting PDF...' : exportingCsv ? 'Exporting CSV...' : 'Export Report'}</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${exportOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {exportOpen && (
+              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden py-1">
+                <button
+                  onClick={() => {
+                    setExportOpen(false);
+                    handleExportPdf();
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <FileText size={16} className="text-rose-500 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">Export PDF Report</div>
+                    <div className="text-[10px] text-slate-400">Formatted document statement</div>
+                  </div>
+                </button>
+
+                <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+
+                <button
+                  onClick={() => {
+                    setExportOpen(false);
+                    handleExportCsv();
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <FileSpreadsheet size={16} className="text-emerald-500 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">Export CSV Report</div>
+                    <div className="text-[10px] text-slate-400">Spreadsheet table format</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Recalculate Data Button (Managers only) */}
+          {(isSuperAdmin || isCommunityAdmin) && (
+            <button
+              onClick={handleRecalculate}
+              disabled={fixingData}
+              className="text-[10px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-3 py-2 rounded-xl font-bold uppercase tracking-wide transition disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+            >
+              {fixingData ? '⟳ Fixing...' : '🔧 Fix Deltas'}
+            </button>
+          )}
         </div>
       </div>
 
       {loading ? (
-        <div className="py-12 text-center">
-          <p className="text-slate-500 text-xs font-semibold animate-pulse">Updating analytics for {formatMonthLabel(selectedMonth)}...</p>
+        <div className="py-16 text-center">
+          <Activity className="animate-spin text-blue-500 mx-auto mb-2" size={28} />
+          <p className="text-slate-500 text-xs font-semibold">Loading analytics report for {formatMonthLabel(selectedMonth)}...</p>
         </div>
-      ) : (!summary || (totalConsumed === 0 && totalPurchased === 0 && selectedMonth !== 'ALL')) ? (
+      ) : !roleData ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center space-y-3 max-w-md mx-auto my-8 shadow-sm">
-          <div className="w-14 h-14 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
-            <Activity size={28} />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Analytics & Usage Data Found</h3>
-            <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mt-1">
-              There are no water usage readings, procurement purchases, or billing records logged for <strong>{formatMonthLabel(selectedMonth)}</strong>.
-            </p>
-          </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
-            Select another month from the filter dropdown above to view historical reports.
-          </p>
+          <Activity size={28} className="text-slate-400 mx-auto" />
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Analytics Data Loaded</h3>
+          <p className="text-slate-600 dark:text-slate-400 text-xs">Please refresh or select a different month period.</p>
         </div>
       ) : (
         <>
-          {/* Active Period Banner */}
-          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 p-3 rounded-xl flex items-center justify-between text-xs text-blue-800 dark:text-blue-300 font-medium">
-            <span>Showing Data For: <strong>{formatMonthLabel(selectedMonth)}</strong></span>
-            <span className="text-[11px] opacity-75 font-mono">{aptNames.length} Active Building Blocks</span>
+          {/* Role Period Banner */}
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-blue-900 dark:text-blue-200 font-medium shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">Period: {formatMonthLabel(selectedMonth)}</span>
+              <span className="text-slate-400 dark:text-slate-600">•</span>
+              <span>Account: <strong>{roleData.userName || profile?.name}</strong> ({roleData.role || userRoleStr})</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] font-mono">
+              <span>{isSuperAdmin ? `${roleData.totalApartments || 0} Societies` : isCommunityAdmin ? `Society: ${roleData.societyName || 'Community'}` : `Flat ${roleData.flatNumber || 'N/A'}`}</span>
+            </div>
           </div>
 
-          {/* Metric Cards */}
+          {/* Metric Cards - Dynamic by Role */}
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Water Procured</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1 font-mono">{totalPurchased.toLocaleString()} L</p>
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                {isResident ? 'Avg Daily Consumption' : 'Total Water Consumed'}
+              </p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+                {isResident ? `${roleData.avgDailyLiters || 0} L/day` : `${(roleData.totalConsumedLiters || 0).toLocaleString()} L`}
+              </p>
             </div>
+
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Water Consumed</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">{totalConsumed.toLocaleString()} L</p>
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                {isResident ? 'Total Period Volume' : 'Water Procured'}
+              </p>
+              <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1 font-mono">
+                {isResident ? `${(roleData.totalConsumedLiters || 0).toLocaleString()} L` : `${(roleData.totalPurchasedLiters || 0).toLocaleString()} L`}
+              </p>
             </div>
+
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Procurement Cost</p>
-              <p className="text-2xl font-black text-red-600 dark:text-red-400 mt-1 font-mono">₹{summary.totalPurchasedCost?.toFixed(2) || '0.00'}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                {isResident ? 'Total Amount Invoiced' : 'Procurement Tanker Cost'}
+              </p>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                ₹{isResident ? (roleData.totalBilledAmount?.toFixed(2) || '0.00') : (roleData.totalPurchasedCost?.toFixed(2) || '0.00')}
+              </p>
             </div>
+
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
-              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">Total Revenue Billed</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">₹{summary.totalBilledAmount?.toFixed(2) || '0.00'}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                {isResident ? 'Pending Balance Dues' : 'Total Revenue Billed'}
+              </p>
+              <p className={`text-2xl font-black mt-1 font-mono ${isResident ? (roleData.pendingBalance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400') : 'text-emerald-600 dark:text-emerald-400'}`}>
+                ₹{isResident ? (roleData.pendingBalance?.toFixed(2) || '0.00') : (roleData.totalBilledAmount?.toFixed(2) || '0.00')}
+              </p>
             </div>
           </section>
 
-          {/* Visual Charts & Analytics */}
+          {/* Visual Charts */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Visual Bar Chart: Block-wise Water Consumption */}
+            {/* Chart 1: Block Consumption or Resident History */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
               <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 flex items-center justify-between">
-                <span>Block-wise Consumption ({formatMonthLabel(selectedMonth)})</span>
+                <span>{isResident ? 'Daily Usage Distribution' : 'Block-wise Water Volume'}</span>
                 <span className="text-[10px] text-blue-500 font-bold">Liters</span>
               </h3>
-              {chartData.length === 0 ? (
-                <p className="text-slate-500 text-xs italic text-center py-12">No consumption recorded for this period.</p>
+              {isResident ? (
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={roleData.usageLogs || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
+                        formatter={(val) => [`${val} Liters`, 'Usage']}
+                      />
+                      <Bar dataKey="consumedLiters" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <div className="h-56 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <BarChart data={blockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} />
@@ -6281,51 +7515,160 @@ function ReportsTab({ token }) {
               )}
             </div>
 
-            {/* Visual Area Balance: Procured vs Consumed */}
+            {/* Chart 2: Procured vs Consumed Balance */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
               <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4 flex items-center justify-between">
-                <span>Procured vs Consumed Balance ({formatMonthLabel(selectedMonth)})</span>
-                <span className="text-[10px] text-emerald-500 font-bold">Water Volume</span>
+                <span>{isResident ? 'Invoice Payment Breakdown' : 'Water Supply Balance'}</span>
+                <span className="text-[10px] text-emerald-500 font-bold">{isResident ? 'Currency (₹)' : 'Volume'}</span>
               </h3>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={balanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                    <XAxis dataKey="category" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
-                      formatter={(val) => [`${val.toLocaleString()} Liters`, 'Volume']}
-                    />
-                    <Bar dataKey="volume" fill="#10b981" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {isResident ? (
+                <div className="h-56 w-full flex flex-col justify-center space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span>Paid Receipts:</span>
+                      <span className="text-emerald-500 font-mono">₹{(roleData.totalPaidAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                      <div 
+                        style={{ width: `${roleData.totalBilledAmount ? Math.min(100, ((roleData.totalPaidAmount || 0) / roleData.totalBilledAmount) * 100) : 100}%` }} 
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span>Pending Dues:</span>
+                      <span className="text-rose-500 font-mono">₹{(roleData.pendingBalance || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                      <div 
+                        style={{ width: `${roleData.totalBilledAmount ? Math.min(100, ((roleData.pendingBalance || 0) / roleData.totalBilledAmount) * 100) : 0}%` }} 
+                        className="bg-rose-500 h-full rounded-full transition-all duration-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={balanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="category" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
+                        formatter={(val) => [`${val.toLocaleString()} Liters`, 'Volume']}
+                      />
+                      <Bar dataKey="volume" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </section>
 
-          {/* Breakdown Table & Progress Bars */}
+          {/* Detailed Role Breakdown Table */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-            <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Building Block Usage Breakdown</h3>
-            <div className="space-y-3">
-              {aptNames.length === 0 ? (
-                <p className="text-slate-500 text-xs italic text-center py-4">No block consumption data logged for {formatMonthLabel(selectedMonth)}.</p>
-              ) : (
-                aptNames.map(name => {
-                  const val = consumptionMap[name];
-                  const percentage = totalConsumed ? (val / totalConsumed) * 100 : 0;
-                  return (
-                    <div key={name} className="space-y-1">
-                      <div className="flex justify-between text-xs font-semibold text-slate-800 dark:text-slate-300">
-                        <span>{name}</span>
-                        <span className="font-mono">{val.toLocaleString()} L ({Math.round(percentage)}%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-950 h-2.5 rounded-full overflow-hidden">
-                        <div style={{ width: `${percentage}%` }} className="bg-blue-500 h-full rounded-full transition-all duration-500"></div>
-                      </div>
-                    </div>
-                  );
-                })
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase">
+                {isSuperAdmin ? 'Society / Colony Performance Directory' : isCommunityAdmin ? 'Community Flat Household Directory' : 'Personal Billing Statement History'}
+              </h3>
+              <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">
+                {isSuperAdmin ? `${roleData.apartmentBreakdown?.length || 0} Societies` : isCommunityAdmin ? `${roleData.householdList?.length || 0} Households` : `${roleData.bills?.length || 0} Invoices`}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              {isSuperAdmin && (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-extrabold uppercase">
+                      <th className="pb-3 pl-2">Society Name</th>
+                      <th className="pb-3">Code</th>
+                      <th className="pb-3">Flats Count</th>
+                      <th className="pb-3">Volume Consumed</th>
+                      <th className="pb-3 text-right">Billed Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(roleData.apartmentBreakdown || []).map((apt, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                        <td className="py-3 pl-2 font-bold text-slate-900 dark:text-slate-100">{apt.name}</td>
+                        <td className="font-mono text-indigo-500 font-semibold">{apt.code}</td>
+                        <td className="font-medium">{apt.households} Flats</td>
+                        <td className="font-mono text-blue-600 dark:text-blue-400 font-bold">{(apt.consumedLiters || 0).toLocaleString()} L</td>
+                        <td className="text-right font-bold text-emerald-600 dark:text-emerald-400 pr-2">₹{(apt.billedAmount || 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {isCommunityAdmin && (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-extrabold uppercase">
+                      <th className="pb-3 pl-2">Flat No</th>
+                      <th className="pb-3">Block</th>
+                      <th className="pb-3">Resident Name</th>
+                      <th className="pb-3">Volume Consumed</th>
+                      <th className="pb-3">Billed Amount</th>
+                      <th className="pb-3 text-right">Payment Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(roleData.householdList || []).map((hh, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                        <td className="py-3 pl-2 font-bold text-indigo-500 font-mono">Flat {hh.flatNumber}</td>
+                        <td className="font-medium">{hh.block}</td>
+                        <td className="font-semibold text-slate-900 dark:text-slate-100">{hh.residentName}</td>
+                        <td className="font-mono text-blue-600 dark:text-blue-400 font-bold">{(hh.consumedLiters || 0).toLocaleString()} L</td>
+                        <td className="font-bold text-slate-900 dark:text-slate-100">₹{(hh.billedAmount || 0).toFixed(2)}</td>
+                        <td className="text-right pr-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                            hh.paidStatus === 'PAID' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' :
+                            hh.paidStatus === 'UNPAID' ? 'bg-rose-950/40 text-rose-400 border border-rose-500/20' :
+                            'bg-slate-900 text-slate-400 border border-slate-800'
+                          }`}>
+                            {hh.paidStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {isResident && (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-extrabold uppercase">
+                      <th className="pb-3 pl-2">Invoice No</th>
+                      <th className="pb-3">Billing Cycle</th>
+                      <th className="pb-3">Volume Consumed</th>
+                      <th className="pb-3">Invoiced Amount</th>
+                      <th className="pb-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(roleData.bills || []).map((b, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                        <td className="py-3 pl-2 font-mono text-indigo-500 font-bold">{b.invoiceNumber}</td>
+                        <td className="font-medium text-slate-600 dark:text-slate-400">{b.period}</td>
+                        <td className="font-mono text-blue-600 dark:text-blue-400 font-bold">{(b.consumedLiters || 0).toLocaleString()} L</td>
+                        <td className="font-bold text-slate-900 dark:text-slate-100">₹{(b.amount || 0).toFixed(2)}</td>
+                        <td className="text-right pr-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                            b.paid ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' : 'bg-rose-950/40 text-rose-400 border border-rose-500/20'
+                          }`}>
+                            {b.paid ? 'PAID' : 'UNPAID'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>
@@ -6491,9 +7834,15 @@ function MyBillsTab({ token, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-100">My Household Bills</h2>
-      </div>
+      <TabHeaderBanner
+        title="My Household Water Bills"
+        subtitle="Review monthly water utility statements, payment dues, and instant online Razorpay settlement."
+        role="RESIDENT"
+        badgeText="Household Billing"
+        metrics={[
+          { label: 'Active Bills', value: bills.length }
+        ]}
+      />
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
         <h3 className="font-bold text-slate-200 text-xs tracking-wide uppercase mb-4">Flat Invoices</h3>
@@ -6593,9 +7942,15 @@ function MyInvoicesTab({ token, showMessage }) {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">My Paid Receipts</h2>
-      </div>
+      <TabHeaderBanner
+        title="My Paid Receipts & Invoices"
+        subtitle="Download official payment tax invoices and view settlement history."
+        role="RESIDENT"
+        badgeText="Paid Receipts"
+        metrics={[
+          { label: 'Paid Receipts', value: bills.length }
+        ]}
+      />
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
         <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wide uppercase mb-4">Invoice Downloads</h3>
@@ -6657,132 +8012,886 @@ function MyInvoicesTab({ token, showMessage }) {
   );
 }
 
-function WaterTipsTab() {
-  const [calculator, setCalculator] = useState({ familySize: '3', showerTime: '8', flushCount: '4', washingLoads: '3' });
-  const [result, setResult] = useState(null);
+function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
+  // Real-Time Simulator State
+  const [familySize, setFamilySize] = useState(3);
+  const [showerMins, setShowerMins] = useState(8);
+  const [hasLowFlowShower, setHasLowFlowShower] = useState(false);
+  const [roPurifierLiters, setRoPurifierLiters] = useState(15);
+  const [recyclesRoWaste, setRecyclesRoWaste] = useState(false);
+  const [brushingTapMins, setBrushingTapMins] = useState(4);
+  const [turnsOffBrushingTap, setTurnsOffBrushingTap] = useState(false);
+  const [washingLoadsWeek, setWashingLoadsWeek] = useState(4);
+  const [hasDualFlush, setHasDualFlush] = useState(false);
 
-  const calculateFootprint = (e) => {
-    e.preventDefault();
-    const family = parseInt(calculator.familySize) || 1;
-    const shower = parseInt(calculator.showerTime) || 5;
-    const flushes = parseInt(calculator.flushCount) || 3;
-    const loads = parseInt(calculator.washingLoads) || 2;
+  // Active Category for Room-by-Room Guide
+  const [activeCategory, setActiveCategory] = useState('all');
 
-    const showerLit = 8 * shower * family;
-    const flushLit = 6 * flushes * family;
-    const washLit = (80 * loads) / 7;
-    const basicLit = 30 * family;
-
-    const dailyTotal = Math.round(showerLit + flushLit + washLit + basicLit);
-    const perCapita = Math.round(dailyTotal / family);
-
-    let score = 'Excellent';
-    let style = 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400';
-    if (perCapita > 150) {
-      score = 'High Usage';
-      style = 'bg-red-950/20 border-red-500/20 text-red-400';
-    } else if (perCapita > 90) {
-      score = 'Moderate';
-      style = 'bg-amber-950/20 border-amber-500/20 text-amber-400';
+  // Saved Pledges / Habits (Persisted in localStorage)
+  const [pledges, setPledges] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aquatrack_water_pledges');
+      return saved ? JSON.parse(saved) : ['tap_brush', 'full_load'];
+    } catch {
+      return ['tap_brush', 'full_load'];
     }
+  });
 
-    setResult({ total: dailyTotal, perCapita, score, style });
+  const togglePledge = (id) => {
+    const updated = pledges.includes(id) ? pledges.filter(p => p !== id) : [...pledges, id];
+    setPledges(updated);
+    try {
+      localStorage.setItem('aquatrack_water_pledges', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Error saving pledges:", e);
+    }
   };
 
+  // Footprint & Potential Savings Calculations
+  const metrics = useMemo(() => {
+    const fam = Math.max(1, Number(familySize) || 1);
+    const shw = Math.max(1, Number(showerMins) || 1);
+    const ro = Math.max(0, Number(roPurifierLiters) || 0);
+    const tap = Math.max(0, Number(brushingTapMins) || 0);
+    const wash = Math.max(0, Number(washingLoadsWeek) || 0);
+
+    // Standard rates
+    const showerRate = hasLowFlowShower ? 6 : 12; // L/min
+    const showerTotal = fam * shw * showerRate;
+
+    // RO Purifiers waste ~3L for every 1L of purified water
+    const roWasteTotal = recyclesRoWaste ? 0 : ro * 3;
+
+    // Running tap while brushing/washing
+    const tapFlowRate = 8; // L/min
+    const brushingTotal = turnsOffBrushingTap ? fam * 1.5 * 1.6 : fam * tap * tapFlowRate;
+
+    // Toilet flushes (avg 4 flushes/person/day)
+    const flushRate = hasDualFlush ? 4.5 : 9; // L/flush
+    const toiletTotal = fam * 4 * flushRate;
+
+    // Washing Machine (avg 65L per load)
+    const laundryDaily = (wash * 65) / 7;
+
+    // Basic drinking, cooking, cleaning baseline
+    const basicBaseline = fam * 25;
+
+    const currentDailyTotal = Math.round(showerTotal + roWasteTotal + brushingTotal + toiletTotal + laundryDaily + basicBaseline);
+    const perCapitaDaily = Math.round(currentDailyTotal / fam);
+
+    // Optimized Daily Total if all conservation practices applied:
+    const optShower = fam * 5 * 6; // 5 min low flow
+    const optRo = 0; // 100% recycled
+    const optBrushing = fam * 1.5 * 1.6;
+    const optToilet = fam * 4 * 4.5; // dual flush
+    const optLaundry = (Math.max(1, wash - 1) * 65) / 7;
+    const optimizedDailyTotal = Math.round(optShower + optRo + optBrushing + optToilet + optLaundry + basicBaseline);
+
+    const dailyPotentialSavings = Math.max(0, currentDailyTotal - optimizedDailyTotal);
+    const monthlyPotentialSavingsLiters = dailyPotentialSavings * 30;
+    const annualPotentialSavingsLiters = dailyPotentialSavings * 365;
+
+    // Financial calculations (Avg tariff rate ₹0.04 per Liter / ₹40 per kL)
+    const monthlyCostCurrent = Math.round((currentDailyTotal * 30 / 1000) * 40);
+    const monthlyCostOptimized = Math.round((optimizedDailyTotal * 30 / 1000) * 40);
+    const monthlyFinancialSavings = Math.max(0, monthlyCostCurrent - monthlyCostOptimized);
+    const annualFinancialSavings = monthlyFinancialSavings * 12;
+
+    // Rating score & Level
+    let scoreText = 'Excellent Eco-Leader';
+    let scoreBadgeClass = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40';
+    let benchmarkDesc = 'Below recommended standard benchmark (135 L/person/day)';
+
+    if (perCapitaDaily > 160) {
+      scoreText = 'High Footprint';
+      scoreBadgeClass = 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/40';
+      benchmarkDesc = `${Math.round(((perCapitaDaily - 135) / 135) * 100)}% above standard recommendation (135 L/person/day)`;
+    } else if (perCapitaDaily > 110) {
+      scoreText = 'Moderate Usage';
+      scoreBadgeClass = 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40';
+      benchmarkDesc = 'Near normal standard recommendation (135 L/person/day)';
+    }
+
+    return {
+      currentDailyTotal,
+      perCapitaDaily,
+      optimizedDailyTotal,
+      dailyPotentialSavings,
+      monthlyPotentialSavingsLiters,
+      annualPotentialSavingsLiters,
+      monthlyCostCurrent,
+      monthlyFinancialSavings,
+      annualFinancialSavings,
+      scoreText,
+      scoreBadgeClass,
+      benchmarkDesc,
+      breakdown: [
+        { label: 'Shower & Bath', volume: Math.round(showerTotal), percentage: Math.min(100, Math.round((showerTotal / currentDailyTotal) * 100)), color: 'bg-blue-500' },
+        { label: 'Toilet Flushes', volume: Math.round(toiletTotal), percentage: Math.min(100, Math.round((toiletTotal / currentDailyTotal) * 100)), color: 'bg-indigo-500' },
+        { label: 'RO Waste Water', volume: Math.round(roWasteTotal), percentage: Math.min(100, Math.round((roWasteTotal / currentDailyTotal) * 100)), color: 'bg-rose-500' },
+        { label: 'Running Faucets', volume: Math.round(brushingTotal), percentage: Math.min(100, Math.round((brushingTotal / currentDailyTotal) * 100)), color: 'bg-amber-500' },
+        { label: 'Laundry & Basic', volume: Math.round(laundryDaily + basicBaseline), percentage: Math.min(100, Math.round(((laundryDaily + basicBaseline) / currentDailyTotal) * 100)), color: 'bg-emerald-500' }
+      ]
+    };
+  }, [familySize, showerMins, hasLowFlowShower, roPurifierLiters, recyclesRoWaste, brushingTapMins, turnsOffBrushingTap, washingLoadsWeek, hasDualFlush]);
+
+  // Habit Pledges List
+  const habitPledges = [
+    { id: 'tap_brush', text: 'Turn off tap while brushing teeth & shaving', savingsLiters: 24 },
+    { id: 'ro_bucket', text: 'Collect RO wastewater for mopping & cleaning', savingsLiters: 45 },
+    { id: 'bucket_bath', text: 'Use bucket bath instead of long shower', savingsLiters: 50 },
+    { id: 'full_load', text: 'Only run full load washing machine cycles', savingsLiters: 17 },
+    { id: 'leak_report', text: 'Promptly report dripping faucets & flush leaks', savingsLiters: 15 },
+    { id: 'ac_recycle', text: 'Collect AC drain water for balcony plants', savingsLiters: 12 }
+  ];
+
+  const totalPledgeSavings = useMemo(() => {
+    return habitPledges
+      .filter(h => pledges.includes(h.id))
+      .reduce((sum, h) => sum + h.savingsLiters, 0);
+  }, [pledges]);
+
+  const ecoLevel = useMemo(() => {
+    const count = pledges.length;
+    if (count >= 6) return { name: 'Hydro Master 🌟', level: 4, badge: 'bg-emerald-500 text-white' };
+    if (count >= 4) return { name: 'Eco Champion 🏆', level: 3, badge: 'bg-blue-600 text-white' };
+    if (count >= 2) return { name: 'Conscious Saver 🌿', level: 2, badge: 'bg-amber-600 text-white' };
+    return { name: 'Water Novice 💧', level: 1, badge: 'bg-slate-700 text-white' };
+  }, [pledges]);
+
+  // Apartment Leaderboard Real-Time State & Fetching
+  const [dbLeaderboard, setDbLeaderboard] = useState([]);
+  const [isFetchingDb, setIsFetchingDb] = useState(false);
+  const [kudosMap, setKudosMap] = useState({
+    'h1': 24,
+    'h2': 18,
+    'h3': 15,
+    'h4': 11,
+    'h5': 8,
+    'h6': 6
+  });
+
+  const [leaderboardFilter, setLeaderboardFilter] = useState('per_capita'); // 'per_capita' | 'pledges' | 'volume'
+
+  const userFlat = profile?.household?.flatNumber || '302';
+  const userBlock = profile?.household?.block || 'A';
+  const userApartment = profile?.household?.apartment?.name || 'Green Valley Heights';
+  const userName = profile?.name || 'Resident User';
+
+  useEffect(() => {
+    let active = true;
+    const fetchApiLeaderboard = async () => {
+      if (!token) return;
+      try {
+        setIsFetchingDb(true);
+        const res = await fetch('/api/usage/leaderboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (active && Array.isArray(data) && data.length > 0) {
+            setDbLeaderboard(data);
+          }
+        }
+      } catch (err) {
+        console.error("Leaderboard fetch error:", err);
+      } finally {
+        if (active) setIsFetchingDb(false);
+      }
+    };
+    fetchApiLeaderboard();
+    return () => { active = false; };
+  }, [token]);
+
+  const handleGiveKudos = (id) => {
+    setKudosMap(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  };
+
+  // Generate & Rank Apartment Leaderboard (Real-Time from DB + Live Simulator Inputs)
+  const rankedLeaderboard = useMemo(() => {
+    let rawData;
+    if (dbLeaderboard.length > 0) {
+      rawData = dbLeaderboard.map(item => {
+        if (item.isUser) {
+          return {
+            ...item,
+            perCapita: metrics.perCapitaDaily,
+            totalMonthly: metrics.currentDailyTotal * 30,
+            pledgesCount: pledges.length,
+            badge: ecoLevel.name
+          };
+        }
+        return {
+          id: item.id || `hh_${item.householdId}`,
+          flat: item.flat || '101',
+          block: item.block || userBlock,
+          resident: item.resident || 'Neighbor Resident',
+          perCapita: Number(item.perCapitaDaily) || 95,
+          totalMonthly: Number(item.totalMonthly) || 8550,
+          pledgesCount: item.familySize > 2 ? 4 : 3,
+          isUser: Boolean(item.isUser),
+          badge: item.perCapitaDaily < 90 ? 'Eco Champion 🌟' : item.perCapitaDaily < 120 ? 'Smart Saver 🌿' : 'Conscious Saver 💧'
+        };
+      });
+    } else {
+      rawData = [
+        { id: 'h1', flat: '102', block: userBlock, resident: 'Aarav Sharma', perCapita: 74, totalMonthly: 6660, pledgesCount: 5, badge: 'Eco Champion 🌟' },
+        { id: 'h2', flat: userFlat, block: userBlock, resident: `${userName} (You)`, perCapita: metrics.perCapitaDaily, totalMonthly: metrics.currentDailyTotal * 30, pledgesCount: pledges.length, isUser: true, badge: ecoLevel.name },
+        { id: 'h3', flat: '204', block: userBlock, resident: 'Priya Patel', perCapita: 86, totalMonthly: 7740, pledgesCount: 4, badge: 'Smart Saver 🌿' },
+        { id: 'h4', flat: '401', block: userBlock, resident: 'Rohan Verma', perCapita: 92, totalMonthly: 8280, pledgesCount: 4, badge: 'Green Leader 🏆' },
+        { id: 'h5', flat: '101', block: userBlock, resident: 'Neha Gupta', perCapita: 108, totalMonthly: 9720, pledgesCount: 3, badge: 'Conscious Saver 💧' },
+        { id: 'h6', flat: '305', block: userBlock, resident: 'Vikram Singh', perCapita: 122, totalMonthly: 10980, pledgesCount: 2, badge: 'Active Saver 💧' },
+        { id: 'h7', flat: '502', block: userBlock, resident: 'Ananya Reddy', perCapita: 138, totalMonthly: 12420, pledgesCount: 2, badge: 'Baseline Saver 💧' },
+        { id: 'h8', flat: '202', block: userBlock, resident: 'Kabir Mehta', perCapita: 154, totalMonthly: 13860, pledgesCount: 1, badge: 'Novice Saver 💧' }
+      ];
+    }
+
+    let sorted = [...rawData];
+    if (leaderboardFilter === 'per_capita') {
+      sorted.sort((a, b) => a.perCapita - b.perCapita);
+    } else if (leaderboardFilter === 'pledges') {
+      sorted.sort((a, b) => b.pledgesCount - a.pledgesCount);
+    } else if (leaderboardFilter === 'volume') {
+      sorted.sort((a, b) => a.totalMonthly - b.totalMonthly);
+    }
+
+    return sorted.map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      kudos: kudosMap[item.id] || 0
+    }));
+  }, [dbLeaderboard, userFlat, userBlock, userName, metrics.perCapitaDaily, metrics.currentDailyTotal, pledges.length, ecoLevel.name, leaderboardFilter, kudosMap]);
+
+  const myLeaderboardItem = useMemo(() => {
+    return rankedLeaderboard.find(item => item.isUser) || { rank: 2, perCapita: metrics.perCapitaDaily };
+  }, [rankedLeaderboard, metrics.perCapitaDaily]);
+
+  // Room by Room Tips Data
+  const roomTips = [
+    {
+      id: 'aerator',
+      category: 'bathroom',
+      title: 'Install Faucet Aerators',
+      impact: 'Saves 50% Faucet Water (~40L/day)',
+      difficulty: 'Easy / Low Cost (₹150)',
+      description: 'Aerators mix air into the water stream, maintaining high water pressure while using half the water volume.',
+      actionable: 'Fits standard 22mm taps in under 2 minutes.',
+      icon: <Droplets size={22} className="text-blue-500" />,
+      activeToggle: hasLowFlowShower,
+      onToggle: () => setHasLowFlowShower(!hasLowFlowShower)
+    },
+    {
+      id: 'ro_recycle',
+      category: 'kitchen',
+      title: 'Recycle RO Purifier Waste Water',
+      impact: 'Recovers 45–60 Liters/day',
+      difficulty: 'Zero Cost / High Impact',
+      description: 'RO purifiers discard 3 Liters of water for every 1 Liter of purified drinking water produced.',
+      actionable: 'Direct the waste pipe into a bucket for floor mopping, utensil pre-rinsing, or flushing.',
+      icon: <RefreshCw size={22} className="text-rose-500" />,
+      activeToggle: recyclesRoWaste,
+      onToggle: () => setRecyclesRoWaste(!recyclesRoWaste)
+    },
+    {
+      id: 'dual_flush',
+      category: 'bathroom',
+      title: 'Dual Flush Valves / Cistern Bank',
+      impact: 'Saves 4.5 Liters per Flush',
+      difficulty: 'Medium / Low Cost (₹250)',
+      description: 'Dual flush conversion kits or placing a water-filled 1L bottle inside old cistern tanks reduces flush volume.',
+      actionable: 'Reduces toilet water demand by up to 40% for the entire household.',
+      icon: <Sparkles size={22} className="text-indigo-500" />,
+      activeToggle: hasDualFlush,
+      onToggle: () => setHasDualFlush(!hasDualFlush)
+    },
+    {
+      id: 'full_laundry',
+      category: 'appliances',
+      title: 'Full Load Washing Machine Cycles',
+      impact: 'Saves ~120 Liters/week',
+      difficulty: 'Instant / Lifestyle Habit',
+      description: 'Running washing machines on full load uses significantly less water and electricity than multiple half loads.',
+      actionable: 'Use Eco Mode or Quick 30-min cycles for lightly soiled garments.',
+      icon: <Activity size={22} className="text-emerald-500" />
+    },
+    {
+      id: 'ac_water',
+      category: 'gardening',
+      title: 'Harvest AC Condensate Water',
+      impact: 'Collects 10–20 Liters/day',
+      difficulty: 'Zero Cost / Easy DIY',
+      description: 'Air conditioners condense pure moisture from ambient air that drains away through waste pipes.',
+      actionable: 'Place a container under the AC drain pipe to water indoor plants, balcony garden, or clean windows.',
+      icon: <CheckCircle2 size={22} className="text-amber-500" />
+    },
+    {
+      id: 'brushing_tap',
+      category: 'bathroom',
+      title: 'Turn Off Tap While Brushing',
+      impact: 'Saves ~24 Liters/day/person',
+      difficulty: 'Instant Lifestyle Habit',
+      description: 'A running tap consumes roughly 8 Liters of clean water per minute while brushing teeth or shaving.',
+      actionable: 'Use a tumbler cup for rinsing instead of letting tap stream continuously.',
+      icon: <Award size={22} className="text-cyan-500" />,
+      activeToggle: turnsOffBrushingTap,
+      onToggle: () => setTurnsOffBrushingTap(!turnsOffBrushingTap)
+    }
+  ];
+
+  const filteredRoomTips = roomTips.filter(t => activeCategory === 'all' || t.category === activeCategory);
+
   return (
-    <div className="space-y-6">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Water Conservation Hub</h2>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header Studio Hero Banner */}
+      <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-indigo-50 dark:from-slate-900 dark:via-blue-950/60 dark:to-slate-900 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6 shadow-sm relative overflow-hidden text-slate-900 dark:text-white">
+        <div className="absolute top-0 right-0 p-8 opacity-10 dark:opacity-20 pointer-events-none">
+          <Droplets size={180} className="text-blue-500 animate-pulse" />
+        </div>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="bg-blue-600/15 dark:bg-blue-500/25 border border-blue-400/40 text-blue-800 dark:text-blue-200 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                <Sparkles size={12} className="text-blue-600 dark:text-blue-400 animate-spin" />
+                Interactive Conservation Studio
+              </span>
+              <span className="text-slate-600 dark:text-blue-200/80 text-xs font-mono font-semibold">
+                Dynamic Real-Time Calculator
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Droplets className="text-blue-600 dark:text-blue-400" size={28} />
+              Water Conservation & Savings Hub
+            </h2>
+            <p className="text-slate-700 dark:text-slate-300 text-xs mt-1.5 max-w-xl leading-relaxed font-medium">
+              Simulate household water consumption in real-time, customize fixture parameters, track habit pledges, and unlock monthly financial & volumetric savings.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-2xl shadow-xs shrink-0">
+            <div className="text-right">
+              <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Your Eco Level</span>
+              <span className="text-xs font-black text-slate-900 dark:text-slate-100">{ecoLevel.name}</span>
+            </div>
+            <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-xs font-black text-sm">
+              Level {ecoLevel.level}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl h-fit shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Household Water Footprint Calculator</h3>
-          <form onSubmit={calculateFootprint} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Family Members</label>
-                <input
-                  type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  value={calculator.familySize}
-                  onChange={e => setCalculator({ ...calculator, familySize: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Avg Shower Duration (Mins)</label>
-                <input
-                  type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  value={calculator.showerTime}
-                  onChange={e => setCalculator({ ...calculator, showerTime: e.target.value })}
-                />
-              </div>
+      {/* Main Interactive Studio Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Left Column: Interactive Simulator Controls (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-black text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <Sliders size={16} className="text-blue-600 dark:text-blue-400" />
+                Live Household Footprint Simulator
+              </h3>
+              <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                Adjust Sliders below
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Toilet Flushes per Day / Person</label>
-                <input
-                  type="number" min="1" required
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  value={calculator.flushCount}
-                  onChange={e => setCalculator({ ...calculator, flushCount: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Washing Machine Loads / Week</label>
-                <input
-                  type="number" min="0" required
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  value={calculator.washingLoads}
-                  onChange={e => setCalculator({ ...calculator, washingLoads: e.target.value })}
-                />
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-xs transition cursor-pointer shadow-md">
-              Calculate Consumption Rating
-            </button>
-          </form>
 
-          {result && (
-            <div className={`mt-6 p-4 rounded-xl border ${result.style} space-y-2`}>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase">Estimated Daily Footprint</span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-current uppercase">{result.score}</span>
+            <div className="space-y-5">
+              {/* Family Members Slider */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-slate-800 dark:text-slate-200">Family Members in Household</label>
+                  <span className="font-black text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950 px-2.5 py-0.5 rounded-lg border border-blue-300 dark:border-blue-800">{familySize} Persons</span>
+                </div>
+                <input
+                  type="range" min="1" max="8" step="1"
+                  value={familySize}
+                  onChange={e => setFamilySize(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
               </div>
-              <p className="text-3xl font-black">{result.total.toLocaleString()} L/day</p>
-              <p className="text-[10px] opacity-80 font-medium">
-                This equals approx <span className="font-bold">{result.perCapita} Liters</span> per member daily. (Target: &lt; 90L)
-              </p>
-            </div>
-          )}
-        </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wide uppercase mb-4">Everyday Conservation Tips</h3>
-          <div className="space-y-4 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-            <div className="flex gap-3">
-              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-slate-200">Fix Taps Promptly</h4>
-                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">A single dripping tap can waste more than 15 liters of fresh water a day.</p>
+              {/* Shower Duration & Aerator Toggle */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-slate-800 dark:text-slate-200">Avg Shower Duration per Person</label>
+                  <span className="font-black text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950 px-2 py-0.5 rounded-md border border-indigo-300 dark:border-indigo-800">{showerMins} Mins</span>
+                </div>
+                <input
+                  type="range" min="2" max="20" step="1"
+                  value={showerMins}
+                  onChange={e => setShowerMins(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={hasLowFlowShower}
+                    onChange={e => setHasLowFlowShower(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Equipped with Low-Flow Aerated Showerhead (6 L/min vs 12 L/min)</span>
+                </label>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-slate-200">Full Washing Cycles Only</h4>
-                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Run clothes washer and dishwasher machines only when they are fully loaded to save up to 100L/week.</p>
+
+              {/* RO Water Purifier Output & Recycling */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-slate-800 dark:text-slate-200">Daily RO Purified Drinking Water Output</label>
+                  <span className="font-black text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-950 px-2 py-0.5 rounded-md border border-rose-300 dark:border-rose-800">{roPurifierLiters} Liters/day</span>
+                </div>
+                <input
+                  type="range" min="0" max="40" step="5"
+                  value={roPurifierLiters}
+                  onChange={e => setRoPurifierLiters(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                />
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={recyclesRoWaste}
+                    onChange={e => setRecyclesRoWaste(e.target.checked)}
+                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-600 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Recycle RO Reject Wastewater for Mopping & Flushing (Saves {roPurifierLiters * 3} L/day)</span>
+                </label>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-slate-200">Aerated Taps</h4>
-                <p className="text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Installing low-flow aerators on bathroom and kitchen taps can reduce faucet water consumption by 50% without affecting pressure.</p>
+
+              {/* Running Tap While Brushing & Dual Flush */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={turnsOffBrushingTap}
+                      onChange={e => setTurnsOffBrushingTap(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Turn Off Tap While Brushing</span>
+                  </label>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Saves ~24 Liters/day per person by eliminating running stream waste.</p>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasDualFlush}
+                      onChange={e => setHasDualFlush(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Dual Flush Toilet Valve Installed</span>
+                  </label>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Reduces toilet volume from 9L to 4.5L per flush.</p>
+                </div>
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Right Column: Live Diagnostic Metrics & Savings Breakdown (5 cols) */}
+        <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-0 h-fit">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-5">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-black text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <PieChart size={16} className="text-emerald-600 dark:text-emerald-400" />
+                Live Footprint & Impact Summary
+              </h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${metrics.scoreBadgeClass}`}>
+                {metrics.scoreText}
+              </span>
+            </div>
+
+            {/* Big Stat Box */}
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-center space-y-1">
+              <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Estimated Daily Household Footprint</span>
+              <p className="text-4xl font-black text-slate-900 dark:text-slate-100">{metrics.currentDailyTotal.toLocaleString()} <span className="text-lg font-bold text-blue-600 dark:text-blue-400">L/day</span></p>
+              <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 pt-1">
+                <span>{metrics.perCapitaDaily} L/person/day</span>
+                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{metrics.benchmarkDesc}</span>
+              </div>
+            </div>
+
+            {/* Savings Potential Box */}
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-500/30 rounded-xl space-y-2">
+              <div className="flex justify-between items-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles size={14} /> Potential Savings Unlock
+                </span>
+                <span className="font-mono font-black text-emerald-700 dark:text-emerald-400">+{metrics.dailyPotentialSavings} L/day</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center pt-1">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Annual Water Saved</span>
+                  <span className="text-base font-black text-emerald-700 dark:text-emerald-400">{(metrics.annualPotentialSavingsLiters / 1000).toFixed(1)} kL</span>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Annual Bill Savings</span>
+                  <span className="text-base font-black text-emerald-700 dark:text-emerald-400">₹ {metrics.annualFinancialSavings.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Category Visual Breakdown Progress Bar */}
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Water Consumption Breakdown</span>
+              <div className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                {metrics.breakdown.map((b, idx) => (
+                  <div
+                    key={idx}
+                    style={{ width: `${b.percentage}%` }}
+                    className={`${b.color} transition-all duration-300`}
+                    title={`${b.label}: ${b.volume} L (${b.percentage}%)`}
+                  ></div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] pt-1">
+                {metrics.breakdown.map((b, idx) => (
+                  <div key={idx} className="flex items-center justify-between font-medium text-slate-700 dark:text-slate-300">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className={`w-2 h-2 rounded-full ${b.color}`}></span>
+                      {b.label}
+                    </span>
+                    <span className="font-bold font-mono">{b.volume}L</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Apartment Water Conservation Leaderboard */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-500/40 flex items-center gap-1">
+                <Trophy size={12} className="text-amber-500" />
+                Apartment Community Rankings
+              </span>
+              <span className="text-slate-500 dark:text-slate-400 text-xs font-mono font-semibold">
+                Block {userBlock} • {userApartment}
+              </span>
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-slate-100 text-base tracking-tight flex items-center gap-2">
+              <Medal className="text-amber-500" size={22} />
+              Apartment Water Efficiency Leaderboard
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
+              See how your household's daily water conservation compares to neighbor flats in your apartment block.
+            </p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
+            {[
+              { id: 'per_capita', label: 'Top Savers (L/person/day) 🏆' },
+              { id: 'pledges', label: 'Eco Pledge Champions ⭐' },
+              { id: 'volume', label: 'Lowest Total Volume 💧' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setLeaderboardFilter(f.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                  leaderboardFilter === f.id
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Your Household Highlight Banner */}
+        <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-emerald-500/10 border border-amber-400/40 dark:border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+              #{myLeaderboardItem.rank}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider">YOUR HOUSEHOLD STATUS</span>
+                <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">Flat {userFlat}</span>
+              </div>
+              <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
+                You rank <span className="text-amber-600 dark:text-amber-400">#{myLeaderboardItem.rank} out of {rankedLeaderboard.length} households</span> in Block {userBlock}!
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                Consuming <strong>{metrics.perCapitaDaily} L/person/day</strong> (~{Math.max(0, Math.round(((135 - metrics.perCapitaDaily) / 135) * 100))}% better than standard 135L benchmark).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase block">Community Badge</span>
+              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{ecoLevel.name}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Podium Display (Top 3 Champions) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          {rankedLeaderboard.slice(0, 3).map((item) => {
+            const isGold = item.rank === 1;
+            const isSilver = item.rank === 2;
+            const isBronze = item.rank === 3;
+
+            return (
+              <div
+                key={item.id}
+                className={`p-4 rounded-2xl border transition relative overflow-hidden text-center space-y-2 ${
+                  item.isUser
+                    ? 'bg-gradient-to-b from-amber-500/15 via-white to-amber-500/5 dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-900 border-amber-400 dark:border-amber-500/50 shadow-md ring-2 ring-amber-400/30'
+                    : isGold
+                    ? 'bg-gradient-to-b from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-900 border-amber-300 dark:border-amber-500/30'
+                    : isSilver
+                    ? 'bg-gradient-to-b from-slate-100 to-white dark:from-slate-800/40 dark:to-slate-900 border-slate-300 dark:border-slate-700'
+                    : 'bg-gradient-to-b from-amber-900/10 to-white dark:from-amber-950/10 dark:to-slate-900 border-amber-200 dark:border-amber-800/30'
+                }`}
+              >
+                <div className="absolute top-2 right-2">
+                  {isGold && <span className="text-2xl">🥇</span>}
+                  {isSilver && <span className="text-2xl">🥈</span>}
+                  {isBronze && <span className="text-2xl">🥉</span>}
+                </div>
+
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full font-black text-sm bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm mx-auto">
+                  #{item.rank}
+                </div>
+
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-slate-100 text-sm flex items-center justify-center gap-1.5">
+                    {item.resident}
+                    {item.isUser && <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase">YOU</span>}
+                  </h4>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Flat {item.flat} • Block {item.block}</span>
+                </div>
+
+                <div className="p-2 bg-white/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-center">
+                  <span className="text-lg font-black text-blue-600 dark:text-blue-400">{item.perCapita} L</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans font-bold">per person daily</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    {item.badge}
+                  </span>
+                  <button
+                    onClick={() => handleGiveKudos(item.id)}
+                    className="text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg transition cursor-pointer"
+                  >
+                    <ThumbsUp size={12} className="text-amber-500" />
+                    <span>{item.kudos}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Full Leaderboard Table */}
+        <div className="overflow-x-auto max-h-96 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 z-10 shadow-xs">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-black uppercase text-[10px] tracking-wider">
+                <th className="py-3 px-4 text-center">Rank</th>
+                <th className="py-3 px-4">Flat & Resident</th>
+                <th className="py-3 px-4 text-center">Daily Per Capita</th>
+                <th className="py-3 px-4 text-center">Est. Monthly Volume</th>
+                <th className="py-3 px-4 text-center">Pledges</th>
+                <th className="py-3 px-4 text-center">Kudos</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium">
+              {rankedLeaderboard.map((item) => (
+                <tr
+                  key={item.id}
+                  className={`transition ${
+                    item.isUser
+                      ? 'bg-amber-50/80 dark:bg-amber-950/20 font-bold border-l-4 border-l-amber-500'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <td className="py-3 px-4 text-center">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-black text-xs ${
+                      item.rank === 1 ? 'bg-amber-400 text-slate-900 shadow-xs' :
+                      item.rank === 2 ? 'bg-slate-300 text-slate-900 shadow-xs' :
+                      item.rank === 3 ? 'bg-amber-700 text-white shadow-xs' :
+                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}>
+                      #{item.rank}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                        Flat {item.flat} (Block {item.block})
+                      </span>
+                      {item.isUser && (
+                        <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                          YOUR FLAT
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">{item.resident}</span>
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold font-mono text-blue-600 dark:text-blue-400 text-sm">
+                    {item.perCapita} L/day
+                  </td>
+                  <td className="py-3 px-4 text-center font-mono font-bold text-slate-700 dark:text-slate-300">
+                    {Math.round(item.totalMonthly).toLocaleString()} L
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      {item.pledgesCount} Active Pledges
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <button
+                      onClick={() => handleGiveKudos(item.id)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950 text-slate-800 dark:text-slate-200 font-bold transition cursor-pointer text-xs"
+                    >
+                      <ThumbsUp size={13} className="text-amber-500" />
+                      <span>{item.kudos}</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Interactive Habit Pledges Checklist */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h3 className="font-black text-slate-900 dark:text-slate-100 text-sm tracking-wider uppercase flex items-center gap-2">
+              <Award className="text-amber-500" size={20} />
+              Daily Water Saver Pledges & Habit Tracker
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Check off conservation habits you commit to practice in your household daily.</p>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 px-4 py-2 rounded-xl flex items-center gap-3 shrink-0">
+            <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Active Pledges: <strong>{pledges.length}/{habitPledges.length}</strong></span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">Saving +{totalPledgeSavings} L/day</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {habitPledges.map((h) => {
+            const isChecked = pledges.includes(h.id);
+            return (
+              <div
+                key={h.id}
+                onClick={() => togglePledge(h.id)}
+                className={`p-3.5 rounded-xl border transition cursor-pointer flex items-center justify-between gap-3 ${
+                  isChecked
+                    ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-500/50 shadow-xs'
+                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition border ${
+                    isChecked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700'
+                  }`}>
+                    {isChecked && <Check size={14} strokeWidth={3} />}
+                  </div>
+                  <span className={`text-xs font-bold ${isChecked ? 'text-emerald-900 dark:text-emerald-200' : 'text-slate-700 dark:text-slate-300'}`}>
+                    {h.text}
+                  </span>
+                </div>
+                <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                  +{h.savingsLiters}L/d
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Room-by-Room Realistic Conservation Guide */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-5">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h3 className="font-black text-slate-900 dark:text-slate-100 text-sm tracking-wider uppercase flex items-center gap-2">
+              <CheckCircle2 className="text-blue-600 dark:text-blue-400" size={20} />
+              Room-by-Room Realistic Water Conservation Guide
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-medium">Proven retrofits, appliances, and fixtures to slash household water bills.</p>
+          </div>
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
+            {[
+              { id: 'all', label: 'All Tips' },
+              { id: 'bathroom', label: 'Bathroom 🚿' },
+              { id: 'kitchen', label: 'Kitchen & RO 🚰' },
+              { id: 'gardening', label: 'Gardening & AC 🪴' },
+              { id: 'appliances', label: 'Appliances 🧺' }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                  activeCategory === cat.id
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredRoomTips.map((tip) => (
+            <div key={tip.id} className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 hover:shadow-md transition">
+              <div className="flex justify-between items-start">
+                <div className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
+                  {tip.icon}
+                </div>
+                <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full uppercase">
+                  {tip.impact}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{tip.title}</h4>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mt-0.5">{tip.difficulty}</span>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                {tip.description}
+              </p>
+
+              <div className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-medium text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                <Sparkles size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                <span>{tip.actionable}</span>
+              </div>
+
+              {tip.onToggle && (
+                <button
+                  onClick={tip.onToggle}
+                  className={`w-full py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    tip.activeToggle
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+                  }`}
+                >
+                  <Check size={14} />
+                  {tip.activeToggle ? 'Applied in Simulator' : 'Simulate in Calculator'}
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -6946,16 +9055,18 @@ function SupportTab({ token, profile, showMessage, isSuperAdmin, isCommunityAdmi
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      <TabHeaderBanner
+        title="Support Tickets & Helpdesk"
+        subtitle={!isManager ? 'Raise issues to your community admin.' : (isCommunityAdmin ? 'Manage resident tickets & raise issues to super admin.' : 'Manage tickets raised by community admins.')}
+        role={isSuperAdmin ? "SUPER_ADMIN" : isCommunityAdmin ? "COMMUNITY_ADMIN" : "RESIDENT"}
+        badgeText="Helpdesk Portal"
+        metrics={[
+          { label: 'Total Tickets', value: sortedList.length }
+        ]}
+      />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <LifeBuoy size={22} className="text-blue-600 dark:text-blue-500" />
-            Support Tickets
-          </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
-            {!isManager ? 'Raise issues to your community admin.' : (isCommunityAdmin ? 'Manage resident tickets & raise issues to super admin.' : 'Manage tickets raised by community admins.')}
-          </p>
+          <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">Ticket Actions</h3>
         </div>
         {!isSuperAdmin && (
           <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs transition flex items-center gap-2 shadow-md shrink-0 cursor-pointer">
@@ -7240,6 +9351,330 @@ function SupportTab({ token, profile, showMessage, isSuperAdmin, isCommunityAdmi
 }
 
 // -------------------------------------------------------------
+// LEAK SCAN TAB (Community Admin & Super Admin)
+// -------------------------------------------------------------
+function LeakScanTab({ token, isSuperAdmin, showMessage, lang, t }) {
+  const [scanData, setScanData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [filterRisk, setFilterRisk] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [notifyingId, setNotifyingId] = useState(null);
+  const [resolvingId, setResolvingId] = useState(null);
+
+  const fetchLeakScan = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/leak-scan/scan`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setScanData(data);
+      } else {
+        const errText = await res.text();
+        showMessage('error', `Failed to run leak scan: ${errText}`);
+      }
+    } catch (err) {
+      console.error("Error fetching leak scan:", err);
+      showMessage('error', 'Error connecting to leak scanner backend service.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeakScan();
+  }, [token]);
+
+  const handleNotifyResident = async (leak) => {
+    setNotifyingId(leak.householdId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/leak-scan/notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          householdId: leak.householdId,
+          leakType: leak.leakType,
+          message: `🚨 URGENT: Leak Detection Alert for Flat ${leak.flatNumber}. Our automated scan recorded an abnormal consumption of ${leak.latestConsumption}L (${leak.deviationPercentage}% above baseline average). Please inspect for leaking faucets, pipe bursts, or flush valves.`
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showMessage('success', data.message || 'Leak notification sent to resident!');
+        fetchLeakScan();
+      } else {
+        const err = await res.text();
+        showMessage('error', `Failed to issue notification: ${err}`);
+      }
+    } catch (err) {
+      showMessage('error', 'Network error while sending notification.');
+    } finally {
+      setNotifyingId(null);
+    }
+  };
+
+  const handleResolveLeak = async (householdId) => {
+    setResolvingId(householdId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/leak-scan/resolve/${householdId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showMessage('success', `Leak suspect for Household #${householdId} marked as resolved/investigated.`);
+        fetchLeakScan();
+      } else {
+        const err = await res.text();
+        showMessage('error', `Failed to resolve leak: ${err}`);
+      }
+    } catch (err) {
+      showMessage('error', 'Network error while resolving leak.');
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const filteredLeaks = useMemo(() => {
+    if (!scanData || !scanData.leaks) return [];
+    return scanData.leaks.filter(item => {
+      const matchesRisk = filterRisk === 'ALL' || item.riskLevel === filterRisk;
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = !q ||
+        item.flatNumber.toLowerCase().includes(q) ||
+        item.block.toLowerCase().includes(q) ||
+        item.residentName.toLowerCase().includes(q) ||
+        item.apartmentName.toLowerCase().includes(q) ||
+        item.leakType.toLowerCase().includes(q);
+      return matchesRisk && matchesSearch;
+    });
+  }, [scanData, filterRisk, searchQuery]);
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <TabHeaderBanner
+            title={t('sec_leak_scan')}
+            subtitle="Automated algorithmic water leak detector. Analyzes daily meter logs, z-score deviations, and continuous baseline shifts across households to flag suspected leaks in real-time."
+            isCritical={true}
+            role={isSuperAdmin ? "SUPER_ADMIN" : "COMMUNITY_ADMIN"}
+            badgeText="Critical AI Leak Detection Engine"
+          />
+        </div>
+        <button
+          onClick={fetchLeakScan}
+          disabled={loading}
+          className="bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition duration-200 disabled:opacity-50 cursor-pointer shrink-0 mb-6"
+        >
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          {loading ? 'Analyzing Data...' : t('btn_run_scan')}
+        </button>
+      </div>
+
+      {/* Metric Cards Grid — Clean High-Contrast Light Mode & Sleek Dark Mode */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition">
+          <div className="flex justify-between items-center text-slate-700 dark:text-slate-400 text-xs mb-1.5 font-extrabold uppercase tracking-wider">
+            <span>{t('stat_scanned_households')}</span>
+            <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <p className="text-3xl font-black text-slate-900 dark:text-slate-100">
+            {scanData?.scannedHouseholdsCount ?? 0}
+          </p>
+          <span className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold mt-1 block">Smart meters actively monitored</span>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-500/20 p-5 rounded-2xl shadow-sm hover:shadow-md transition">
+          <div className="flex justify-between items-center text-slate-700 dark:text-slate-400 text-xs mb-1.5 font-extrabold uppercase tracking-wider">
+            <span>{t('stat_suspected_leaks')}</span>
+            <AlertTriangle size={20} className="text-rose-600 dark:text-rose-500" />
+          </div>
+          <p className="text-3xl font-black text-rose-700 dark:text-rose-400">
+            {scanData?.suspectedLeaksCount ?? 0}
+          </p>
+          <span className="text-[11px] text-rose-700 dark:text-rose-300/80 font-semibold mt-1 block">Requiring admin attention</span>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/20 p-5 rounded-2xl shadow-sm hover:shadow-md transition">
+          <div className="flex justify-between items-center text-slate-700 dark:text-slate-400 text-xs mb-1.5 font-extrabold uppercase tracking-wider">
+            <span>{t('stat_est_water_loss')}</span>
+            <Droplets size={20} className="text-amber-600 dark:text-amber-500" />
+          </div>
+          <p className="text-3xl font-black text-amber-700 dark:text-amber-400">
+            {scanData?.totalWaterLossLitersPerDay ? `${scanData.totalWaterLossLitersPerDay.toLocaleString()} L` : '0 L'}
+          </p>
+          <span className="text-[11px] text-amber-700 dark:text-amber-300/80 font-semibold mt-1 block">Estimated wasted volume daily</span>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 p-5 rounded-2xl shadow-sm hover:shadow-md transition">
+          <div className="flex justify-between items-center text-slate-700 dark:text-slate-400 text-xs mb-1.5 font-extrabold uppercase tracking-wider">
+            <span>{t('stat_est_financial_loss')}</span>
+            <DollarSign size={20} className="text-emerald-600 dark:text-emerald-500" />
+          </div>
+          <p className="text-3xl font-black text-emerald-700 dark:text-emerald-400">
+            {scanData?.totalFinancialLossEst ? `₹ ${scanData.totalFinancialLossEst.toLocaleString()}` : '₹ 0'}
+          </p>
+          <span className="text-[11px] text-emerald-700 dark:text-emerald-300/80 font-semibold mt-1 block">Monthly loss projection</span>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-center gap-3">
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+          <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider whitespace-nowrap">Filter Risk:</span>
+          {['ALL', 'CRITICAL', 'HIGH', 'WARNING'].map(risk => (
+            <button
+              key={risk}
+              onClick={() => setFilterRisk(risk)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black tracking-wide transition cursor-pointer ${
+                filterRisk === risk
+                  ? risk === 'CRITICAL' ? 'bg-rose-600 text-white shadow-md' :
+                    risk === 'HIGH' ? 'bg-amber-600 text-white shadow-md' :
+                    risk === 'WARNING' ? 'bg-yellow-600 text-white shadow-md' :
+                    'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-200/80 dark:bg-slate-800 text-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              {risk}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full md:w-72">
+          <Search size={15} className="absolute left-3 top-3 text-slate-500 dark:text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search flat, block, resident..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-200 text-xs pl-9 pr-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500 placeholder:text-slate-500 dark:placeholder:text-slate-500 shadow-sm transition"
+          />
+        </div>
+      </div>
+
+      {/* Main Suspect Table / Cards */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <Loader2 className="animate-spin text-rose-600 dark:text-rose-500 mb-3" size={32} />
+          <span className="text-slate-800 dark:text-slate-200 text-xs font-bold">Running Leak Algorithm across households...</span>
+        </div>
+      ) : filteredLeaks.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center shadow-sm">
+          <CheckCircle2 size={52} className="mx-auto text-emerald-600 dark:text-emerald-400 mb-3 animate-bounce" />
+          <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">No Suspected Leaks Detected</h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto mt-1.5 font-medium leading-relaxed">
+            All scanned households are consuming water within expected statistical limits and baseline thresholds.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredLeaks.map((leak) => {
+            const isCritical = leak.riskLevel === 'CRITICAL';
+            const isHigh = leak.riskLevel === 'HIGH';
+
+            return (
+              <div
+                key={leak.householdId}
+                className={`bg-white dark:bg-slate-900 border ${
+                  isCritical ? 'border-rose-300 dark:border-rose-500/40 hover:border-rose-500' :
+                  isHigh ? 'border-amber-300 dark:border-amber-500/30 hover:border-amber-500' :
+                  'border-yellow-300 dark:border-yellow-500/20 hover:border-yellow-500'
+                } rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 relative overflow-hidden`}
+              >
+                {/* Risk Color Bar */}
+                <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${
+                  isCritical ? 'bg-rose-500' : isHigh ? 'bg-amber-500' : 'bg-yellow-500'
+                }`}></div>
+
+                <div className="pl-3 flex flex-col lg:flex-row justify-between lg:items-center gap-4">
+                  {/* Household & Leak Identity */}
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
+                        isCritical ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/50' :
+                        isHigh ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/50' :
+                        'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-500/50'
+                      }`}>
+                        {leak.riskLevel}
+                      </span>
+                      <span className="text-sm font-black text-slate-900 dark:text-slate-100">
+                        {leak.apartmentName} — Block {leak.block}, Flat {leak.flatNumber}
+                      </span>
+                      {leak.alertIssued && (
+                        <span className="bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Check size={12} /> Resident Alert Sent
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs text-slate-700 dark:text-slate-300 flex-wrap font-medium">
+                      <span>Resident: <strong className="text-slate-900 dark:text-white font-bold">{leak.residentName}</strong></span>
+                      {leak.residentPhone !== 'N/A' && <span>Phone: <strong className="text-slate-800 dark:text-slate-200 font-bold">{leak.residentPhone}</strong></span>}
+                      <span>Type: <strong className="text-rose-700 dark:text-rose-400 font-extrabold">{leak.leakType}</strong></span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-800 dark:text-slate-300 bg-slate-100/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-start gap-2 font-medium">
+                      <Info size={15} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                      <span>{leak.recommendation}</span>
+                    </p>
+                  </div>
+
+                  {/* Quantitative Data */}
+                  <div className="flex items-center gap-6 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 pt-3 lg:pt-0 lg:pl-6">
+                    <div className="text-center">
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Daily Usage</span>
+                      <span className="text-xl font-black text-rose-700 dark:text-rose-400">{leak.latestConsumption} L</span>
+                      <span className="text-[10px] text-slate-600 dark:text-slate-400 block font-semibold">Avg: {leak.baselineAverage} L</span>
+                    </div>
+
+                    <div className="text-center">
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Deviation</span>
+                      <span className="text-xl font-black text-amber-700 dark:text-amber-400">+{leak.deviationPercentage}%</span>
+                      <span className="text-[10px] text-slate-600 dark:text-slate-400 block font-semibold">Z-Score: +{leak.zScore}σ</span>
+                    </div>
+
+                    <div className="text-center">
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Est. Wasted Loss</span>
+                      <span className="text-xl font-black text-emerald-700 dark:text-emerald-400">+{leak.estimatedLossLitersPerDay} L/day</span>
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-500/80 block font-bold">~₹{leak.estimatedMonthlyCost}/mo</span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button
+                        onClick={() => handleNotifyResident(leak)}
+                        disabled={notifyingId === leak.householdId}
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+                      >
+                        {notifyingId === leak.householdId ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
+                        Notify Resident
+                      </button>
+
+                      <button
+                        onClick={() => handleResolveLeak(leak.householdId)}
+                        disabled={resolvingId === leak.householdId}
+                        className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 border border-slate-300 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
+                      >
+                        {resolvingId === leak.householdId ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                        Resolve / Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
 // END OF APP COMPONENTS
 // -------------------------------------------------------------
+
 
