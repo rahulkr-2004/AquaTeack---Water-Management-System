@@ -56,7 +56,7 @@ const ComponentLoader = () => (
   </div>
 );
 
-const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080');
 
 // Smooth Count-Up Animated Number Component
 const CountUpNumber = ({ target, decimals = 0, suffix = '', duration = 2200 }) => {

@@ -5,7 +5,7 @@ export const RobotSVG = () => (
   <img src="/robot.svg" alt="AquaBot Icon" className="w-full h-full object-contain" />
 );
 
-const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080');
 
 export function FormattedMarkdown({ content }) {
   if (!content) return null;
