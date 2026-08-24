@@ -31,6 +31,34 @@ public class DemoDataSeeder {
 
     @Transactional
     public String seedDemoData() {
+        // 0. Get or Create Colony "Jeet Homes" & Super Admin "Krishna Mohan"
+        Apartment jeetHomes = apartmentRepository.findByName("Jeet Homes")
+                .orElseGet(() -> {
+                    Apartment a = new Apartment();
+                    a.setName("Jeet Homes");
+                    a.setAddress("Sector 21, Aqua City");
+                    return apartmentRepository.save(a);
+                });
+
+        User krishna = userRepository.findByEmail("superadmin@gmail.com").orElseGet(() -> {
+            User u = new User();
+            u.setName("Krishna Mohan");
+            u.setEmail("superadmin@gmail.com");
+            u.setPassword(passwordEncoder.encode("Password@123"));
+            u.setRole(Role.ROLE_ADMIN);
+            u.setApproved(true);
+            u.setManagedApartment(jeetHomes);
+            u.setMobileNo("9988776655");
+            return userRepository.save(u);
+        });
+        krishna.setName("Krishna Mohan");
+        krishna.setPassword(passwordEncoder.encode("Password@123"));
+        krishna.setRole(Role.ROLE_ADMIN);
+        krishna.setApproved(true);
+        krishna.setManagedApartment(jeetHomes);
+        krishna.setMobileNo("9988776655");
+        userRepository.save(krishna);
+
         // 1. Get or Create Apartment "Green Valley Heights"
         Apartment apt = apartmentRepository.findByName("Green Valley Heights")
                 .orElseGet(() -> apartmentRepository.findAll().stream().findFirst().orElseGet(() -> {
