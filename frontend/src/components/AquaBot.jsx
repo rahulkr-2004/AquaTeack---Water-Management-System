@@ -5,7 +5,7 @@ export const RobotSVG = () => (
   <img src="/robot.svg" alt="AquaBot Icon" className="w-full h-full object-contain" />
 );
 
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
 
 export function FormattedMarkdown({ content }) {
   if (!content) return null;
@@ -914,7 +914,7 @@ export function AquaBotChatWindow({ profile, usageLogs, bills, apartments = [], 
             ? 'h-[88vh] max-h-[850px] w-[94vw] max-w-5xl rounded-3xl backdrop-blur-2xl ring-1 ring-white/20 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)]' 
             : isFullPage 
               ? 'h-[80vh] w-full max-w-4xl rounded-2xl' 
-              : 'h-[530px] w-[350px] sm:w-[420px] rounded-2xl'
+              : 'h-[530px] w-[calc(100vw-1.5rem)] sm:w-[420px] max-w-[420px] rounded-2xl'
         }`}
       >
         {/* SVG Doodle Wallpaper Background */}
@@ -1115,7 +1115,7 @@ export function AquaBotFloatingWidget({ profile, usageLogs, bills, apartments, h
   return (
     <>
       {isOpen && (
-        <div className={isExpanded ? "fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in" : "fixed bottom-4 right-4 z-50 animate-fade-in-up shadow-2xl"}>
+        <div className={isExpanded ? "fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in" : "fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-50 animate-fade-in-up shadow-2xl max-w-[calc(100vw-1rem)]"}>
           <AquaBotChatWindow
             profile={profile}
             usageLogs={usageLogs}

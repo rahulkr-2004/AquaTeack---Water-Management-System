@@ -20,7 +20,7 @@ export function WaterGridCanvas() {
     };
     window.addEventListener('resize', handleResize);
 
-    const particleCount = 35;
+    const particleCount = window.innerWidth < 640 ? 10 : 35;
     const particles = [];
 
     for (let i = 0; i < particleCount; i++) {
@@ -109,7 +109,7 @@ export function BubblesCanvas() {
     };
     window.addEventListener('resize', handleResize);
 
-    const bubbleCount = 25;
+    const bubbleCount = window.innerWidth < 640 ? 8 : 25;
     const bubbles = [];
 
     for (let i = 0; i < bubbleCount; i++) {
@@ -188,7 +188,7 @@ export function RaindropsCanvas() {
     };
     window.addEventListener('resize', handleResize);
 
-    const dropCount = 45;
+    const dropCount = window.innerWidth < 640 ? 12 : 45;
     const drops = [];
 
     for (let i = 0; i < dropCount; i++) {

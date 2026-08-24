@@ -6,8 +6,8 @@ export default function InvoiceModal({ invoice, onClose, allowPay = false, onPay
   const amount = invoice.amount.toFixed(2);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden relative text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-[95vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto shadow-2xl overflow-hidden relative text-slate-900 dark:text-slate-100 my-auto">
         <div className="bg-slate-50 dark:bg-slate-950 p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div>
             <h3 className="text-slate-900 dark:text-slate-100 font-black text-lg">Invoice Details</h3>

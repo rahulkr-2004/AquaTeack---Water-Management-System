@@ -65,18 +65,31 @@ import {
   Trophy,
   Medal,
   ThumbsUp,
-  Flame
+  Flame,
+  Menu
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { translations } from './translations';
 import LanguagePicker, { ALL_LANGUAGES } from './components/LanguagePicker';
-import { WaterGridCanvas, BubblesCanvas, RaindropsCanvas } from './components/CanvasBackgrounds';
-import { InviteVerificationView, CommunityAdminVerifyView } from './components/VerificationViews';
-import AuthView from './components/AuthView';
 import { FormattedMarkdown, AquaBotChatWindow, ResidentChatbotTab, AquaBotFloatingWidget } from './components/AquaBot';
-import InvoiceModal from './components/InvoiceModal';
 
-const API_BASE_URL = 'http://localhost:8080';
+// Lazy loaded components for fast mobile initialization and code-splitting
+const AuthView = React.lazy(() => import('./components/AuthView'));
+const InvoiceModal = React.lazy(() => import('./components/InvoiceModal'));
+const InviteVerificationView = React.lazy(() => import('./components/VerificationViews').then(m => ({ default: m.InviteVerificationView })));
+const CommunityAdminVerifyView = React.lazy(() => import('./components/VerificationViews').then(m => ({ default: m.CommunityAdminVerifyView })));
+
+// Loading spinner fallback component for lazy suspense
+const ComponentLoader = () => (
+  <div className="flex items-center justify-center p-8 w-full h-full min-h-[200px]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+      <span className="text-xs font-semibold text-slate-400">Loading module...</span>
+    </div>
+  </div>
+);
+
+const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
 
 const parseJwt = (token) => {
   try {
@@ -194,7 +207,7 @@ function HeaderNotificationBell({ token, setActiveTab, showMessage, t, isManager
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+        <div className="fixed sm:absolute top-16 sm:top-auto left-3 right-3 sm:left-auto sm:right-0 sm:mt-2 w-auto sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
           {/* Top Dropdown Header */}
           <div className="p-3.5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -303,6 +316,8 @@ export default function App() {
   const [alertsCount, setAlertsCount] = useState(0);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('aq-theme') === 'dark');
   const [lang, setLang] = useState(() => localStorage.getItem('aquatrack_lang') || 'en');
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Initialize Google Translate Script
   useEffect(() => {
@@ -532,18 +547,18 @@ export default function App() {
 
     if (window.location.pathname.startsWith('/invite') || inviteToken) {
       return (
-        <>
+        <React.Suspense fallback={<ComponentLoader />}>
           <InviteVerificationView inviteToken={inviteToken} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} />
           {toastNode}
-        </>
+        </React.Suspense>
       );
     }
     return (
-      <>
+      <React.Suspense fallback={<ComponentLoader />}>
         <AuthView setToken={setToken} message={message} showMessage={showMessage} darkMode={darkMode} toggleDarkMode={() => setDarkMode(prev => !prev)} lang={lang} setLang={setLang} />
         <AquaBotFloatingWidget isLanding={true} lang={lang} t={t} />
         {toastNode}
-      </>
+      </React.Suspense>
     );
   }
 
@@ -613,25 +628,33 @@ export default function App() {
       <div id="google_translate_element" className="hidden"></div>
 
       {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center z-10 shadow-md shrink-0">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-slate-800/80 border border-cyan-500/40 p-1 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+      <header className="bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center z-20 shadow-md shrink-0 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5 sm:gap-3.5">
+          <button
+            onClick={() => setMobileDrawerOpen(true)}
+            className="lg:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
+            title="Open menu"
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-slate-800/80 border border-cyan-500/40 p-1 flex items-center justify-center shadow-lg shadow-cyan-500/20">
             <LogoSVG className="w-full h-full object-contain" />
           </div>
           <div className="notranslate" translate="no">
-            <h1 className="text-lg font-black tracking-tight text-slate-100 flex items-center gap-0.5" translate="no">
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-100 flex items-center gap-0.5" translate="no">
               Aqua<span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent font-black">Track</span>
               {isSuperAdmin && <Crown size={16} className="text-amber-400 animate-bounce ml-0.5" />}
             </h1>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+            <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider">
               {isSuperAdmin ? t('portal_superadmin') : isCommunityAdmin ? t('portal_admin') : t('portal_resident')}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap">
           {profile && (
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <span className="text-slate-400">{t('dash_welcome')}</span>
               <span className={`font-bold ${isSuperAdmin ? 'text-amber-400' : 'text-blue-400'}`}>{profile.name}</span>
             </div>
@@ -659,9 +682,11 @@ export default function App() {
 
           <button 
             onClick={() => { fetchDashboardData(); fetchProfile(); }}
-            className="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-slate-300 hover:text-slate-100 font-semibold"
+            className="bg-slate-800 hover:bg-slate-700 px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-300 hover:text-slate-100 font-semibold cursor-pointer"
+            title="Refresh Data"
           >
-            {t('btn_refresh')}
+            <RefreshCw size={14} className="inline sm:hidden" />
+            <span className="hidden sm:inline">{t('btn_refresh')}</span>
           </button>
 
           {/* User Portal Notification Bell Dropdown */}
@@ -675,21 +700,42 @@ export default function App() {
           <button
             onClick={() => setDarkMode(prev => !prev)}
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-slate-100"
+            className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-slate-100 cursor-pointer"
           >
             {darkMode ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <span className={`border px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${getBadgeStyle()}`}>
+          <span className={`hidden xs:inline-block border px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-wider uppercase ${getBadgeStyle()}`}>
             {isSuperAdmin ? t('role_super_admin') : isCommunityAdmin ? t('role_community_admin') : t('role_resident')}
           </span>
         </div>
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Menu */}
-        <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-sm overflow-y-auto h-full">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Drawer Backdrop */}
+        {mobileDrawerOpen && (
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+            onClick={() => setMobileDrawerOpen(false)}
+          />
+        )}
+
+        {/* Sidebar Menu Drawer */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:w-64 lg:z-auto lg:shadow-sm overflow-y-auto h-full ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="space-y-4">
+            <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-200 dark:border-slate-800 lg:hidden">
+              <div className="flex items-center gap-2">
+                <LogoSVG className="w-6 h-6" />
+                <span className="font-black text-sm text-slate-900 dark:text-slate-100">AquaTrack</span>
+              </div>
+              <button
+                onClick={() => setMobileDrawerOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3">{t('nav_menu')}</p>
             <nav className="space-y-1">
               {sidebarItems.map(item => (
@@ -697,6 +743,7 @@ export default function App() {
                   key={item.id}
                   onClick={() => {
                     setActiveTab(item.id);
+                    setMobileDrawerOpen(false);
                     if (item.id === 'alerts' || item.id === 'notifications') {
                       setAlertsCount(0);
                     }
@@ -717,8 +764,8 @@ export default function App() {
 
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
             <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-950/20 hover:text-red-300 transition duration-150 text-xs font-semibold"
+              onClick={() => { setMobileDrawerOpen(false); setShowLogoutConfirm(true); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-950/20 hover:text-red-300 transition duration-150 text-xs font-semibold cursor-pointer"
             >
               <LogOut size={18} />
               {t('nav_logout')}
@@ -726,8 +773,45 @@ export default function App() {
           </div>
         </aside>
 
+        {/* ── LOGOUT CONFIRMATION MODAL ───────────────────── */}
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 relative overflow-hidden">
+              <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/25 text-red-500 flex items-center justify-center mx-auto shadow-inner">
+                <LogOut size={26} />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-slate-100">Confirm Logout</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Are you sure you want to sign out of AquaTrack? You will need to log back in to access your portal.
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    handleLogout();
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-red-600/25 flex items-center justify-center gap-1.5"
+                >
+                  <LogOut size={14} />
+                  <span>Yes, Log Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Content Panel */}
-        <main className="flex-1 p-6 overflow-y-auto bg-slate-950 space-y-6">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 overflow-y-auto bg-slate-950 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full">
 
 
           {loading ? (
@@ -1112,15 +1196,15 @@ function TabHeaderBanner({ title, subtitle, role, isCritical, badgeText, metrics
   }
 
   return (
-    <div className={`p-6 rounded-2xl shadow-sm relative overflow-hidden transition-colors mb-6 ${containerStyle}`}>
+    <div className={`p-4 sm:p-6 rounded-2xl shadow-sm relative overflow-hidden transition-colors mb-4 sm:mb-6 ${containerStyle}`}>
       <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 dark:opacity-15 pointer-events-none">
-        <svg className={`w-64 h-64 fill-current ${bgIconColor}`} viewBox="0 0 24 24">
+        <svg className={`w-48 h-48 sm:w-64 sm:h-64 fill-current ${bgIconColor}`} viewBox="0 0 24 24">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center space-x-2 mb-1.5">
+          <div className="flex items-center space-x-2 mb-1.5 flex-wrap gap-y-1">
             {badgeText && (
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${badgeStyle}`}>
                 {badgeText}
@@ -1132,16 +1216,16 @@ function TabHeaderBanner({ title, subtitle, role, isCritical, badgeText, metrics
               </span>
             )}
           </div>
-          <h2 className={`text-2xl font-black tracking-tight ${titleStyle}`}>{title}</h2>
+          <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${titleStyle}`}>{title}</h2>
           {subtitle && <p className={`text-xs font-medium mt-0.5 ${subtitleStyle}`}>{subtitle}</p>}
         </div>
 
         {metrics && metrics.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {metrics.map((m, idx) => (
-              <div key={idx} className={`backdrop-blur-md px-4 py-2.5 rounded-xl text-center shadow-xs ${metricCardStyle}`}>
-                <div className={`text-[10px] font-extrabold uppercase tracking-wider ${metricLabelStyle}`}>{m.label}</div>
-                <div className={`text-xl font-black ${m.colorClass || metricValueStyle}`}>{m.value}</div>
+              <div key={idx} className={`backdrop-blur-md px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-center shadow-xs flex-1 sm:flex-none min-w-[100px] ${metricCardStyle}`}>
+                <div className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider ${metricLabelStyle}`}>{m.label}</div>
+                <div className={`text-lg sm:text-xl font-black ${m.colorClass || metricValueStyle}`}>{m.value}</div>
               </div>
             ))}
           </div>
@@ -1207,12 +1291,12 @@ function ResidentAlertsTab({ token, profile, usageLogs = [], bills = [], showMes
         ]}
       />
 
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto no-scrollbar max-w-full">
         {['ALL', 'CONSUMPTION', 'MAINTENANCE', 'ANNOUNCEMENT'].map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
               filter === cat
                 ? 'bg-rose-600 text-white shadow-sm'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
@@ -1305,6 +1389,8 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
   const [blockChartLoading, setBlockChartLoading] = useState(false);
   const [selectedBlockFilter, setSelectedBlockFilter] = useState('ALL');
   const [selectedAlertTab, setSelectedAlertTab] = useState('ALL');
+  const [expandedAptList, setExpandedAptList] = useState(false);
+  const [expandedAlertsList, setExpandedAlertsList] = useState(false);
 
   // Sync with parent data
   useEffect(() => { setLocalLogs(usageLogs || []); }, [usageLogs]);
@@ -1685,7 +1771,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                   <BarChart
                     layout="vertical"
                     data={filteredChartData}
-                    margin={{ top: 10, right: 80, left: 20, bottom: 10 }}
+                    margin={{ top: 10, right: 55, left: -25, bottom: 10 }}
                     barCategoryGap="30%"
                     barGap={6}
                   >
@@ -1703,8 +1789,8 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                     <YAxis
                       type="category"
                       dataKey="block"
-                      width={80}
-                      tick={{ fontSize: 13, fontWeight: 800, fill: '#64748b' }}
+                      width={65}
+                      tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }}
                       tickFormatter={v => v ? (String(v).startsWith('Block') ? String(v) : `Block ${v}`) : ''}
                       tickLine={false}
                       axisLine={false}
@@ -1877,7 +1963,7 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
             <p className="text-slate-500 text-xs italic py-4 text-center">No apartments registered yet.</p>
           ) : (
             <div className="space-y-3">
-              {apartments.map(a => {
+              {(expandedAptList ? apartments : apartments.slice(0, 3)).map(a => {
                 const aptIdStr = String(a.id);
                 const matchingHouseholdIds = new Set(
                   (households || [])
@@ -1948,35 +2034,30 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                   .reduce((s, l) => s + (l.consumptionLiters || 0), 0));
 
                 return (
-                  <div key={a.id} className="bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-950 dark:to-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500/50 transition shadow-sm">
-                    <div className="space-y-1">
+                  <div key={a.id} className="bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-950 dark:to-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 hover:border-blue-400 dark:hover:border-blue-500/50 transition shadow-sm">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
                           <Building2 size={16} />
                         </span>
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{a.name}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{a.name}</p>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <MapPin size={12} className="text-slate-400" /> {a.address || 'Vrindavan Nagar, Bhopal'}
+                        <MapPin size={12} className="text-slate-400 shrink-0" /> <span className="truncate">{a.address || 'Vrindavan Nagar, Bhopal'}</span>
                       </p>
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 pt-0.5">
-                        <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 text-[9px] uppercase tracking-wider font-extrabold">
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+                        <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 text-[9px] uppercase tracking-wider font-extrabold shrink-0">
                           {blockCount} {blockCount === 1 ? 'Block' : 'Blocks'}
                         </span>
-                        <span className="text-slate-500 dark:text-slate-400 font-medium">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium break-words max-w-full">
                           ({allBlockNames.length > 0 ? allBlockNames.join(', ') : 'Block A, Block B'})
                         </span>
-                      </p>
-                    </div>
-                    <div className="text-right space-y-1">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
-                          {blockCount} {blockCount === 1 ? 'Block' : 'Blocks'}
-                        </span>
-                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold px-2.5 py-1 rounded-lg border border-blue-300 dark:border-blue-800 inline-block">
-                          {count} Flats Assigned
-                        </span>
                       </div>
+                    </div>
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1.5 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-200/80 dark:border-slate-800 shrink-0">
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold px-2.5 py-1 rounded-lg border border-blue-300 dark:border-blue-800 inline-block">
+                        {count} Flats Assigned
+                      </span>
                       <p className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
                         {waterUsed > 0 ? `${waterUsed.toLocaleString()} L` : '4,42,108 L'}
                       </p>
@@ -1984,65 +2065,87 @@ function AdminDashboard({ usageLogs, apartments, households, users, isSuperAdmin
                   </div>
                 );
               })}
+
+              {apartments.length > 3 && (
+                <button
+                  onClick={() => setExpandedAptList(!expandedAptList)}
+                  className="w-full mt-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-extrabold text-[11px] border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <span>{expandedAptList ? 'Collapse List' : `Expand All (${apartments.length} Complexes)`}</span>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${expandedAptList ? 'rotate-180' : ''}`} />
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Active Alerts Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-md">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
-              <Bell className="text-amber-500" size={16} />
-              Active System Alerts
-            </h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
+                <Bell className="text-amber-500" size={16} />
+                Active System Alerts
+              </h3>
 
-            {/* Filter Pills */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px]">
-              {['ALL', 'LEAK', 'MAINTENANCE', 'BILLING'].map(typeKey => (
-                <button
-                  key={typeKey}
-                  onClick={() => setSelectedAlertTab(typeKey)}
-                  className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
-                    selectedAlertTab === typeKey
-                      ? 'bg-amber-500 text-white'
-                      : 'text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  {typeKey}
-                </button>
-              ))}
+              {/* Filter Pills */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px]">
+                {['ALL', 'LEAK', 'MAINTENANCE', 'BILLING'].map(typeKey => (
+                  <button
+                    key={typeKey}
+                    onClick={() => setSelectedAlertTab(typeKey)}
+                    className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                      selectedAlertTab === typeKey
+                        ? 'bg-amber-500 text-white'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {typeKey}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {filteredAlerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                <CheckCircle className="text-emerald-500 mb-2" size={32} />
+                <p className="text-slate-800 dark:text-slate-200 text-xs font-bold">No Active Alerts</p>
+                <p className="text-slate-500 text-[11px] mt-1">All water network sensors and meters are operating normally.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                {(expandedAlertsList ? filteredAlerts : filteredAlerts.slice(0, 3)).map(a => (
+                  <div key={a.id} className={`p-3.5 rounded-xl border text-xs transition hover:shadow-sm ${
+                    a.type === 'LEAK' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' :
+                    a.type === 'BILLING' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800' :
+                    'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                        a.type === 'LEAK' ? 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' :
+                        a.type === 'BILLING' ? 'bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300' :
+                        'bg-blue-200 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
+                      }`}>
+                        {a.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">{a.date}</span>
+                    </div>
+                    <p className="font-bold text-slate-900 dark:text-slate-100 mt-2">{a.title}</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-1 leading-relaxed">{a.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {filteredAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-              <CheckCircle className="text-emerald-500 mb-2" size={32} />
-              <p className="text-slate-800 dark:text-slate-200 text-xs font-bold">No Active Alerts</p>
-              <p className="text-slate-500 text-[11px] mt-1">All water network sensors and meters are operating normally.</p>
-            </div>
-          ) : (
-            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
-              {filteredAlerts.map(a => (
-                <div key={a.id} className={`p-3.5 rounded-xl border text-xs transition hover:shadow-sm ${
-                  a.type === 'LEAK' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' :
-                  a.type === 'BILLING' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800' :
-                  'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                      a.type === 'LEAK' ? 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300' :
-                      a.type === 'BILLING' ? 'bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300' :
-                      'bg-blue-200 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
-                    }`}>
-                      {a.type}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">{a.date}</span>
-                  </div>
-                  <p className="font-bold text-slate-900 dark:text-slate-100 mt-2">{a.title}</p>
-                  <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-1 leading-relaxed">{a.message}</p>
-                </div>
-              ))}
-            </div>
+          {filteredAlerts.length > 3 && (
+            <button
+              onClick={() => setExpandedAlertsList(!expandedAlertsList)}
+              className="w-full mt-3 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>{expandedAlertsList ? 'Collapse Alerts' : `Expand All (${filteredAlerts.length} Alerts)`}</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${expandedAlertsList ? 'rotate-180' : ''}`} />
+            </button>
           )}
         </div>
       </section>
@@ -2543,7 +2646,7 @@ function ResidentDashboard({ usageLogs, bills, profile, token, fetchDashboardDat
                   <XAxis type="number" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={75} />
                   <Tooltip 
-                    cursor={{ fill: '#0f172a' }} 
+                    cursor={{ fill: 'transparent' }} 
                     contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
                     itemStyle={{ color: '#10b981' }}
                   />
@@ -2591,7 +2694,7 @@ function ResidentDashboard({ usageLogs, bills, profile, token, fetchDashboardDat
                 <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  cursor={{ fill: '#0f172a' }} 
+                  cursor={{ fill: 'transparent' }} 
                   contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', fontSize: '12px', color: '#e2e8f0' }}
                   itemStyle={{ color: '#3b82f6' }}
                 />
@@ -4243,20 +4346,20 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
                 </button>
               </form>
             </div>
-            <div className="bg-slate-100 dark:bg-slate-950/40 p-3 rounded-lg border border-slate-200 dark:border-slate-800 mt-4 text-[10px] text-slate-500 flex justify-between items-center">
+            <div className="bg-slate-100 dark:bg-slate-950/40 p-3 rounded-lg border border-slate-200 dark:border-slate-800 mt-4 text-[10px] text-slate-500 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <span>Format: householdId, date, readingLiters (Cumulative Meter Reading)</span>
               <button 
                 type="button"
                 onClick={() => setShowTemplateModal(true)}
-                className="text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 font-bold underline cursor-pointer transition text-[9px] uppercase tracking-wider flex items-center gap-1"
+                className="text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 font-bold underline cursor-pointer transition text-[9px] uppercase tracking-wider flex items-center gap-1 shrink-0"
               >
                 <Download size={10} /> Download Template
               </button>
             </div>
           </div>
 
-          {/* Admin Recent Community Logs Table */}
-          <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+          {/* Admin Recent Community Logs Table / Card View */}
+          <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-slate-900 dark:text-slate-200 text-xs tracking-wider uppercase flex items-center gap-2">
                 <Activity className="text-blue-600 dark:text-blue-500" size={16} /> Recent Community Water Logs
@@ -4271,39 +4374,75 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
                   <p className="text-[10px] text-slate-400 dark:text-slate-600">Use the manual log entry or bulk CSV upload above to add meter readings.</p>
                 </div>
               ) : (
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
-                      <th className="pb-3 pl-1">Date</th>
-                      <th className="pb-3">Household / Resident</th>
-                      <th className="pb-3">Flat Details</th>
-                      <th className="pb-3">Cumulative Reading</th>
-                      <th className="pb-3 text-right">Logged Consumption</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                <>
+                  {/* Mobile View: Clean Responsive Cards */}
+                  <div className="md:hidden space-y-3">
                     {usageLogs.slice(0, 10).map(l => {
                       const resident = users.find(u => u.household?.id === l.household?.id);
                       return (
-                        <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition">
-                          <td className="py-3 pl-1 font-mono text-slate-500 dark:text-slate-400">{l.date}</td>
-                          <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
-                            {resident ? resident.name : (l.household?.residentName || 'Unassigned Resident')}
-                          </td>
-                          <td className="py-3 text-slate-600 dark:text-slate-400">
-                            {l.household ? `Block ${l.household.block} - Flat ${l.household.flatNumber}` : '-'}
-                          </td>
-                          <td className="py-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                            {l.readingLiters != null ? `${l.readingLiters.toLocaleString()} L` : '-'}
-                          </td>
-                          <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
-                            {l.consumptionLiters != null ? `+${l.consumptionLiters.toLocaleString()} L` : '-'}
-                          </td>
-                        </tr>
+                        <div key={l.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/80 space-y-2.5 shadow-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                              {resident ? resident.name : (l.household?.residentName || 'Unassigned Resident')}
+                            </span>
+                            <span className="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0">
+                              {l.date}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-800/60 gap-2">
+                            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium truncate">
+                              {l.household ? `Block ${l.household.block} - Flat ${l.household.flatNumber}` : '-'}
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                                {l.readingLiters != null ? `${l.readingLiters.toLocaleString()} L` : '-'}
+                              </span>
+                              <span className="font-mono text-blue-600 dark:text-blue-400 font-extrabold text-xs bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/40">
+                                {l.consumptionLiters != null ? `+${l.consumptionLiters.toLocaleString()} L` : '-'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Desktop View: Full Table */}
+                  <table className="hidden md:table w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                        <th className="pb-3 pl-1">Date</th>
+                        <th className="pb-3">Household / Resident</th>
+                        <th className="pb-3">Flat Details</th>
+                        <th className="pb-3">Cumulative Reading</th>
+                        <th className="pb-3 text-right">Logged Consumption</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                      {usageLogs.slice(0, 10).map(l => {
+                        const resident = users.find(u => u.household?.id === l.household?.id);
+                        return (
+                          <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition">
+                            <td className="py-3 pl-1 font-mono text-slate-500 dark:text-slate-400">{l.date}</td>
+                            <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
+                              {resident ? resident.name : (l.household?.residentName || 'Unassigned Resident')}
+                            </td>
+                            <td className="py-3 text-slate-600 dark:text-slate-400">
+                              {l.household ? `Block ${l.household.block} - Flat ${l.household.flatNumber}` : '-'}
+                            </td>
+                            <td className="py-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                              {l.readingLiters != null ? `${l.readingLiters.toLocaleString()} L` : '-'}
+                            </td>
+                            <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
+                              {l.consumptionLiters != null ? `+${l.consumptionLiters.toLocaleString()} L` : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
               )}
             </div>
           </div>
@@ -4378,28 +4517,49 @@ function WaterUsageTab({ token, households, isAdmin, profile, showMessage, fetch
                   <p className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">Your logged readings will show up here once updated by an admin.</p>
                 </div>
               ) : (
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                      <th className="pb-3 pl-1">Log ID</th>
-                      <th className="pb-3">Date</th>
-                      <th className="pb-3">Cumulative Value</th>
-                      <th className="pb-3 text-right">Consumption</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                <>
+                  {/* Mobile View: Clean Responsive Cards */}
+                  <div className="md:hidden space-y-3">
                     {householdLogs.slice(0, 5).map(l => (
-                      <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                        <td className="py-3 pl-1 font-mono text-indigo-600 dark:text-indigo-400 font-bold">LOG-{l.id}</td>
-                        <td className="py-3 font-medium text-slate-800 dark:text-slate-300">{l.date}</td>
-                        <td className="py-3 font-mono font-medium text-slate-800 dark:text-slate-300">{l.readingLiters.toLocaleString()} L</td>
-                        <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
-                          +{(l.computedConsumption ?? l.consumptionLiters ?? 0).toLocaleString()} L
-                        </td>
-                      </tr>
+                      <div key={l.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/80 space-y-2 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold text-xs">LOG-{l.id}</span>
+                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-md">{l.date}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60">
+                          <span className="text-slate-500 dark:text-slate-400 text-[11px]">Reading: <strong className="text-slate-800 dark:text-slate-200 font-mono">{l.readingLiters.toLocaleString()} L</strong></span>
+                          <span className="font-mono text-blue-600 dark:text-blue-400 font-bold text-xs bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/40">
+                            +{(l.computedConsumption ?? l.consumptionLiters ?? 0).toLocaleString()} L
+                          </span>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Desktop View: Full Table */}
+                  <table className="hidden md:table w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                        <th className="pb-3 pl-1">Log ID</th>
+                        <th className="pb-3">Date</th>
+                        <th className="pb-3">Cumulative Value</th>
+                        <th className="pb-3 text-right">Consumption</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                      {householdLogs.slice(0, 5).map(l => (
+                        <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                          <td className="py-3 pl-1 font-mono text-indigo-600 dark:text-indigo-400 font-bold">LOG-{l.id}</td>
+                          <td className="py-3 font-medium text-slate-800 dark:text-slate-300">{l.date}</td>
+                          <td className="py-3 font-mono font-medium text-slate-800 dark:text-slate-300">{l.readingLiters.toLocaleString()} L</td>
+                          <td className="py-3 font-mono text-blue-600 dark:text-blue-400 font-bold text-right">
+                            +{(l.computedConsumption ?? l.consumptionLiters ?? 0).toLocaleString()} L
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
               )}
             </div>
           </div>
@@ -4589,6 +4749,7 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
   const [expandedApts, setExpandedApts] = useState({});
   const [expandedHH, setExpandedHH]     = useState({});
   const [selectedMonth, setSelectedMonth] = useState('ALL');
+  const [expandedResidentLogs, setExpandedResidentLogs] = useState(false);
 
   // Generate last 12 months options
   const monthOptions = useMemo(() => {
@@ -4784,37 +4945,78 @@ function MeterReadingsTab({ usageLogs = [], households = [], apartments = [], pr
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Consumption Logs History</h3>
             <span className="text-[10px] text-slate-500 font-semibold">{residentLogs.length} Entries Recorded</span>
           </div>
-          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 shadow-xs">
-                <tr className="bg-slate-100/95 dark:bg-slate-950/95 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
-                  <th className="py-3 px-4">Log ID</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Cumulative Reading</th>
-                  <th className="py-3 px-4 text-right">Water Consumed</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                {residentLogs.map((log, idx) => (
-                  <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
-                    <td className="py-3 px-4 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">LOG-{log.id}</td>
-                    <td className="py-3 px-4 text-slate-800 dark:text-slate-200 font-medium">{log.date}</td>
-                    <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100 font-bold">{(log.readingLiters || 0).toLocaleString()} L</td>
-                    <td className="py-3 px-4 font-mono text-right">
+          <div className="p-4">
+            {/* Mobile Card Layout (phones) */}
+            <div className="space-y-3 sm:hidden">
+              {(expandedResidentLogs ? residentLogs : residentLogs.slice(0, 5)).map((log) => (
+                <div key={log.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-[11px]">LOG-{log.id}</span>
+                    <span className="text-[10px] bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Recorded</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">{log.date}</span>
+                    <span className="font-mono text-slate-900 dark:text-slate-100 font-extrabold">{(log.readingLiters || 0).toLocaleString()} L</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-500 font-medium">Water Consumed:</span>
+                    <span className="font-mono font-extrabold">
                       {log.consumptionLiters > 0 ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{Math.round(log.consumptionLiters).toLocaleString()} L</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">+{Math.round(log.consumptionLiters).toLocaleString()} L</span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500">0 L</span>
+                        <span className="text-slate-400">0 L</span>
                       )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Recorded</span>
-                    </td>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto max-h-[480px] overflow-y-auto">
+              <table className="w-full text-left text-xs border-collapse min-w-[480px]">
+                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-950 shadow-xs">
+                  <tr className="bg-slate-100/95 dark:bg-slate-950/95 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                    <th className="py-3 px-4">Log ID</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Cumulative Reading</th>
+                    <th className="py-3 px-4 text-right">Water Consumed</th>
+                    <th className="py-3 px-4 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                  {(expandedResidentLogs ? residentLogs : residentLogs.slice(0, 5)).map((log, idx) => (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">LOG-{log.id}</td>
+                      <td className="py-3 px-4 text-slate-800 dark:text-slate-200 font-medium">{log.date}</td>
+                      <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100 font-bold">{(log.readingLiters || 0).toLocaleString()} L</td>
+                      <td className="py-3 px-4 font-mono text-right">
+                        {log.consumptionLiters > 0 ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{Math.round(log.consumptionLiters).toLocaleString()} L</span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">0 L</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase">Recorded</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {residentLogs.length > 5 && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-center mt-3 rounded-b-xl">
+                <button
+                  onClick={() => setExpandedResidentLogs(!expandedResidentLogs)}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-extrabold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition cursor-pointer"
+                >
+                  <span>{expandedResidentLogs ? 'Collapse History' : `Expand All Readings (${residentLogs.length} Total)`}</span>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${expandedResidentLogs ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -5071,28 +5273,28 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, showMess
   const initials = profile ? profile.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* ── PROFILE HERO BANNER & HEADER ───────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-slate-900/60 border border-blue-500/20 p-6 shadow-lg backdrop-blur-md">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-slate-900/60 border border-blue-500/20 p-4 sm:p-6 shadow-lg backdrop-blur-md">
         <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shadow-inner">
-              <User size={24} />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shadow-inner shrink-0">
+              <User size={22} className="sm:w-6 sm:h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight text-slate-100">Profile Settings</h2>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-100">Profile Settings</h2>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Verified Account
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Manage your personal credentials, contact details, and account security.</p>
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Manage your personal credentials, contact details, and account security.</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-right">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="px-3.5 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80 w-full sm:w-auto flex sm:block items-center justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Access Level</div>
               <div className="text-xs font-extrabold text-blue-400">{roleColor.label}</div>
             </div>
@@ -5188,7 +5390,7 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, showMess
         {/* ── Edit Form ─────────────────────────────────── */}
         <div className="bg-slate-900 border border-slate-800/90 p-4 sm:p-6 rounded-2xl lg:col-span-2 w-full space-y-6 shadow-xl backdrop-blur-sm">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800/80 mb-5 gap-1">
               <h3 className="font-bold text-slate-100 text-xs tracking-wide uppercase flex items-center gap-2">
                 <Edit3 size={15} className="text-blue-400" /> Update Profile Details
               </h3>
@@ -5265,7 +5467,7 @@ function ProfileTab({ token, profile, fetchProfile, fetchDashboardData, showMess
               <div className="pt-2 flex justify-end">
                 <button
                   type="submit" disabled={updating}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition duration-200 text-xs cursor-pointer shadow-lg hover:shadow-blue-500/25 flex items-center gap-2"
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl transition duration-200 text-xs cursor-pointer shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2"
                 >
                   {updating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                   {updating ? 'Saving Changes...' : 'Save Profile Changes'}
@@ -5649,7 +5851,7 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
             <div className="md:col-span-2 space-y-3">
               <div className="flex justify-between items-center">
                 <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Configured Blocks in {selectedColony.name}</h4>
-                <span className="text-[10px] text-slate-500">Hover block card to delete</span>
+                <span className="text-[10px] text-slate-500 font-medium">Manage colony blocks</span>
               </div>
               {loadingBuildings ? (
                 <div className="text-slate-500 text-xs py-8 text-center flex items-center justify-center space-x-2">
@@ -5664,18 +5866,19 @@ function ColonyManagementTab({ token, showMessage, fetchDashboardData }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {buildings.map(b => (
                     <div key={b.id} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition shadow-2xs">
-                      <div className="flex items-center space-x-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800/60">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800/60 shrink-0">
                           {b.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="text-xs text-slate-900 dark:text-slate-100 font-bold">{b.name}</div>
-                          <div className="text-[9px] text-slate-500 font-medium">Block ID: #{b.id}</div>
+                        <div className="min-w-0">
+                          <div className="text-xs text-slate-900 dark:text-slate-100 font-bold truncate">{b.name}</div>
+                          <div className="text-[9px] text-slate-500 font-medium truncate">Block ID: #{b.id}</div>
                         </div>
                       </div>
                       <button
                         onClick={() => handleDeleteBuilding(b.id)}
-                        className="text-rose-600 hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 px-2 py-1 rounded text-[9px] uppercase font-bold tracking-wider opacity-0 group-hover:opacity-100 transition cursor-pointer flex items-center space-x-1"
+                        className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800/80 px-2 py-1 rounded-lg text-[9px] uppercase font-extrabold tracking-wider transition cursor-pointer flex items-center space-x-1 shrink-0 ml-2 shadow-2xs"
+                        title="Remove Block"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         <span>Remove</span>
@@ -6014,6 +6217,8 @@ function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAd
 
   // For viewing/editing invoices
   const [selectedCycleBills, setSelectedCycleBills] = useState(null);
+  const [expandedCycles, setExpandedCycles] = useState(false);
+  const [expandedCycleBills, setExpandedCycleBills] = useState(false);
   
   // Editing a bill
   const [editingBillId, setEditingBillId] = useState(null);
@@ -6339,36 +6544,29 @@ function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAd
             ) : cycles.length === 0 ? (
               <p className="text-slate-500 text-xs italic py-4 text-center">No billing cycles opened yet.</p>
             ) : (
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                    <th className="pb-3 pl-2">Apartment</th>
-                    <th className="pb-3">Period</th>
-                    <th className="pb-3">Cost</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                  {cycles.map(c => (
-                    <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                      <td className="py-3 pl-2">
-                        <div className="font-bold text-slate-900 dark:text-slate-200">{c.apartment?.name}</div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{c.apartment?.address}</div>
-                      </td>
-                      <td className="font-medium text-slate-800 dark:text-slate-300">{c.startDate} to {c.endDate}</td>
-                      <td className="font-bold text-slate-900 dark:text-slate-100">₹{c.totalBulkCost?.toFixed(2) || '0.00'}</td>
-                      <td>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${c.finalized ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400'}`}>
+              <div>
+                {/* Mobile Card View (phones) */}
+                <div className="space-y-3 sm:hidden">
+                  {(expandedCycles ? cycles : cycles.slice(0, 4)).map(c => (
+                    <div key={c.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{c.apartment?.name}</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{c.apartment?.address}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${c.finalized ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400'}`}>
                           {c.finalized ? 'Finalized' : 'Active'}
                         </span>
-                      </td>
-                      <td className="text-right py-2">
-                        <div className="flex items-center justify-end gap-2">
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">{c.startDate} to {c.endDate}</span>
+                        <span className="font-extrabold text-slate-900 dark:text-slate-100">₹{c.totalBulkCost?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-end">
                         {c.finalized ? (
                           <button
                             onClick={() => viewInvoices(c.id)}
-                            className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 px-2.5 py-1 rounded-lg font-bold text-[10px] transition shadow-sm cursor-pointer"
+                            className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 px-3 py-1.5 rounded-lg font-bold text-xs transition shadow-sm cursor-pointer whitespace-nowrap"
                           >
                             View Invoices
                           </button>
@@ -6378,26 +6576,98 @@ function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAd
                               <button
                                 disabled={deletingId === c.id || finalizingId === c.id}
                                 onClick={() => handleDeleteCycle(c.id)}
-                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-red-500 transition cursor-pointer disabled:opacity-50"
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-sm border border-red-500 transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
                               >
                                 {deletingId === c.id ? 'Deleting...' : 'Delete'}
                               </button>
                               <button
                                 disabled={finalizingId === c.id || deletingId === c.id}
                                 onClick={() => handleFinalize(c.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-emerald-500 transition cursor-pointer disabled:opacity-50"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-sm border border-emerald-500 transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
                               >
                                 {finalizingId === c.id ? 'Running...' : 'Finalize & Bill'}
                               </button>
                             </div>
                           )
                         )}
-                        </div>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Desktop Table View */}
+                <table className="w-full text-left text-xs border-collapse hidden sm:table min-w-[540px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                      <th className="pb-3 pl-2">Apartment</th>
+                      <th className="pb-3">Period</th>
+                      <th className="pb-3">Cost</th>
+                      <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(expandedCycles ? cycles : cycles.slice(0, 4)).map(c => (
+                      <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                        <td className="py-3 pl-2">
+                          <div className="font-bold text-slate-900 dark:text-slate-200">{c.apartment?.name}</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{c.apartment?.address}</div>
+                        </td>
+                        <td className="font-medium text-slate-800 dark:text-slate-300">{c.startDate} to {c.endDate}</td>
+                        <td className="font-bold text-slate-900 dark:text-slate-100">₹{c.totalBulkCost?.toFixed(2) || '0.00'}</td>
+                        <td>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${c.finalized ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400'}`}>
+                            {c.finalized ? 'Finalized' : 'Active'}
+                          </span>
+                        </td>
+                        <td className="text-right py-2">
+                          <div className="flex items-center justify-end gap-2">
+                          {c.finalized ? (
+                            <button
+                              onClick={() => viewInvoices(c.id)}
+                              className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 px-2.5 py-1 rounded-lg font-bold text-[10px] transition shadow-sm cursor-pointer whitespace-nowrap shrink-0"
+                            >
+                              View Invoices
+                            </button>
+                          ) : (
+                            !isSuperAdmin && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={deletingId === c.id || finalizingId === c.id}
+                                  onClick={() => handleDeleteCycle(c.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-red-500 transition cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
+                                >
+                                  {deletingId === c.id ? 'Deleting...' : 'Delete'}
+                                </button>
+                                <button
+                                  disabled={finalizingId === c.id || deletingId === c.id}
+                                  onClick={() => handleFinalize(c.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded-lg text-xs shadow-sm border border-emerald-500 transition cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
+                                >
+                                  {finalizingId === c.id ? 'Running...' : 'Finalize & Bill'}
+                                </button>
+                              </div>
+                            )
+                          )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {cycles.length > 4 && (
+              <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-center">
+                <button
+                  onClick={() => setExpandedCycles(!expandedCycles)}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-extrabold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition cursor-pointer"
+                >
+                  <span>{expandedCycles ? 'Collapse Billing Cycles' : `Expand All Cycles (${cycles.length} Total)`}</span>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${expandedCycles ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -6413,74 +6683,87 @@ function BillingTab({ token, apartments = [], users = [], showMessage, isSuperAd
             {selectedCycleBills.length === 0 ? (
               <p className="text-slate-500 text-xs italic py-2">No invoices generated. Check if this apartment has registered households.</p>
             ) : (
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                    <th className="pb-3 pl-2">Invoice No</th>
-                    <th className="pb-3">Target</th>
-                    <th className="pb-3">Consumption</th>
-                    <th className="pb-3">Amount</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                  {selectedCycleBills.map(b => {
-                    const cycleId = b.billingCycle?.id;
-                    const isTargetAdmin = !!b.targetUser;
-                    return (
-                      <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition-colors">
-                        <td className="py-2 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[10px]">{b.invoiceNumber}</td>
-                        <td className="py-2">
-                          {isTargetAdmin ? (
-                            <span className="text-amber-600 dark:text-amber-400 font-bold">Admin: {b.targetUser?.name}</span>
-                          ) : (
-                            <div>
-                              <span className="font-bold text-slate-900 dark:text-slate-200">Block {b.household?.block} - Flat {b.household?.flatNumber}</span>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{getResidentName(b.household?.id)}</div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2 font-medium">
-                          {isTargetAdmin ? <span className="text-slate-400 italic">N/A</span> : `${b.consumptionLiters.toLocaleString()} L`}
-                        </td>
-                        <td className="py-2 font-bold">
-                          {editingBillId === b.id ? (
-                            <input type="number" step="0.01" className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.amount} onChange={(e) => setEditBillData({...editBillData, amount: e.target.value})} />
-                          ) : (
-                            <span className="font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</span>
-                          )}
-                        </td>
-                        <td className="py-2">
-                          {editingBillId === b.id ? (
-                            <select className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.paid} onChange={(e) => setEditBillData({...editBillData, paid: e.target.value === 'true'})}>
-                              <option value="false">Unpaid</option>
-                              <option value="true">Paid</option>
-                            </select>
-                          ) : (
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'}`}>
-                              {b.paid ? 'Paid' : 'Unpaid'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-right py-2">
-                          {editingBillId === b.id ? (
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => handleUpdateBill(b.id, cycleId)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Save</button>
-                              <button onClick={cancelEditBill} className="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Cancel</button>
-                            </div>
-                          ) : (
-                            <div className="flex justify-end gap-2">
-                              {!isSuperAdmin && <button onClick={() => startEditBill(b)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Edit</button>}
-                              {!isSuperAdmin && <button onClick={() => handleDeleteBill(b.id, cycleId)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer">Delete</button>}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div>
+                <table className="w-full text-left text-xs border-collapse min-w-[580px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                      <th className="pb-3 pl-2">Invoice No</th>
+                      <th className="pb-3">Target</th>
+                      <th className="pb-3">Consumption</th>
+                      <th className="pb-3">Amount</th>
+                      <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(expandedCycleBills ? selectedCycleBills : selectedCycleBills.slice(0, 4)).map(b => {
+                      const cycleId = b.billingCycle?.id;
+                      const isTargetAdmin = !!b.targetUser;
+                      return (
+                        <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition-colors">
+                          <td className="py-2 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold text-[10px]">{b.invoiceNumber}</td>
+                          <td className="py-2">
+                            {isTargetAdmin ? (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold">Admin: {b.targetUser?.name}</span>
+                            ) : (
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-slate-200">Block {b.household?.block} - Flat {b.household?.flatNumber}</span>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{getResidentName(b.household?.id)}</div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 font-medium">
+                            {isTargetAdmin ? <span className="text-slate-400 italic">N/A</span> : `${b.consumptionLiters.toLocaleString()} L`}
+                          </td>
+                          <td className="py-2 font-bold">
+                            {editingBillId === b.id ? (
+                              <input type="number" step="0.01" className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.amount} onChange={(e) => setEditBillData({...editBillData, amount: e.target.value})} />
+                            ) : (
+                              <span className="font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            {editingBillId === b.id ? (
+                              <select className="w-20 px-1 py-0.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100" value={editBillData.paid} onChange={(e) => setEditBillData({...editBillData, paid: e.target.value === 'true'})}>
+                                <option value="false">Unpaid</option>
+                                <option value="true">Paid</option>
+                              </select>
+                            ) : (
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'}`}>
+                                {b.paid ? 'Paid' : 'Unpaid'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-right py-2">
+                            {editingBillId === b.id ? (
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => handleUpdateBill(b.id, cycleId)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0">Save</button>
+                                <button onClick={cancelEditBill} className="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0">Cancel</button>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end gap-2">
+                                {!isSuperAdmin && <button onClick={() => startEditBill(b)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0">Edit</button>}
+                                {!isSuperAdmin && <button onClick={() => handleDeleteBill(b.id, cycleId)} className="bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded shadow text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0">Delete</button>}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {selectedCycleBills.length > 4 && (
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-center">
+                    <button
+                      onClick={() => setExpandedCycleBills(!expandedCycleBills)}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-extrabold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition cursor-pointer"
+                    >
+                      <span>{expandedCycleBills ? 'Collapse Invoice List' : `Expand All Invoices (${selectedCycleBills.length} Total)`}</span>
+                      <ChevronDown size={14} className={`transition-transform duration-200 ${expandedCycleBills ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -6493,6 +6776,7 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [expandedPurchases, setExpandedPurchases] = useState(false);
   const defaultBlock = profile?.managedBuilding?.name || (profile?.managedBlock ? `Block ${profile.managedBlock}` : 'Block 5');
   const [formData, setFormData] = useState({ apartmentId: '', blockName: defaultBlock, date: '', liters: '', cost: '', supplierName: '', invoiceNumber: '' });
 
@@ -6660,36 +6944,81 @@ function WaterPurchaseTab({ token, apartments = [], showMessage, isSuperAdmin, p
             ) : purchases.length === 0 ? (
               <p className="text-slate-500 text-xs italic py-4 text-center">No purchases recorded.</p>
             ) : (
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                    <th className="pb-3 pl-2">Date</th>
-                    <th className="pb-3">Apartment</th>
-                    <th className="pb-3 px-2">Block</th>
-                    <th className="pb-3">Quantity</th>
-                    <th className="pb-3">Price</th>
-                    <th className="pb-3">Supplier</th>
-                    <th className="pb-3">Invoice No</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                  {purchases.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                      <td className="py-3 pl-2 text-slate-800 dark:text-slate-300 font-medium">{p.date}</td>
-                      <td className="font-bold text-slate-900 dark:text-slate-100">{p.apartment?.name}</td>
-                      <td className="px-2 font-semibold">
-                        <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase">
+              <div>
+                {/* Mobile Card Layout (phones) */}
+                <div className="space-y-3 sm:hidden">
+                  {(expandedPurchases ? purchases : purchases.slice(0, 5)).map(p => (
+                    <div key={p.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 font-mono">{p.date}</span>
+                        <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shrink-0">
                           {p.blockName || 'Block 5'}
                         </span>
-                      </td>
-                      <td className="font-medium text-slate-800 dark:text-slate-300">{p.liters.toLocaleString()} L</td>
-                      <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{p.cost.toFixed(2)}</td>
-                      <td className="text-slate-800 dark:text-slate-300 font-medium">{p.supplierName}</td>
-                      <td className="font-mono text-purple-600 dark:text-purple-400 font-bold">{p.invoiceNumber || 'N/A'}</td>
-                    </tr>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        <div>
+                          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm block">{p.apartment?.name}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">Supplier: {p.supplierName}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm block">₹{p.cost.toFixed(2)}</span>
+                          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">{p.liters.toLocaleString()} L</span>
+                        </div>
+                      </div>
+                      {p.invoiceNumber && (
+                        <div className="text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold pt-1 flex items-center justify-between border-t border-dashed border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-400 font-sans font-medium">Invoice No:</span>
+                          <span>{p.invoiceNumber}</span>
+                        </div>
+                      )}
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Desktop/Tablet Table Layout */}
+                <table className="w-full text-left text-xs border-collapse hidden sm:table min-w-[650px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase whitespace-nowrap">
+                      <th className="pb-3 pl-2">Date</th>
+                      <th className="pb-3 px-2">Apartment</th>
+                      <th className="pb-3 px-2">Block</th>
+                      <th className="pb-3 px-2">Quantity</th>
+                      <th className="pb-3 px-2">Price</th>
+                      <th className="pb-3 px-2">Supplier</th>
+                      <th className="pb-3 px-2">Invoice No</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                    {(expandedPurchases ? purchases : purchases.slice(0, 5)).map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition whitespace-nowrap">
+                        <td className="py-3 pl-2 text-slate-800 dark:text-slate-300 font-medium">{p.date}</td>
+                        <td className="px-2 font-bold text-slate-900 dark:text-slate-100">{p.apartment?.name}</td>
+                        <td className="px-2 font-semibold">
+                          <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase">
+                            {p.blockName || 'Block 5'}
+                          </span>
+                        </td>
+                        <td className="px-2 font-medium text-slate-800 dark:text-slate-300">{p.liters.toLocaleString()} L</td>
+                        <td className="px-2 font-bold text-emerald-600 dark:text-emerald-400">₹{p.cost.toFixed(2)}</td>
+                        <td className="px-2 text-slate-800 dark:text-slate-300 font-medium">{p.supplierName}</td>
+                        <td className="px-2 font-mono text-purple-600 dark:text-purple-400 font-bold">{p.invoiceNumber || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {purchases.length > 5 && (
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-center">
+                    <button
+                      onClick={() => setExpandedPurchases(!expandedPurchases)}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400 font-extrabold text-xs hover:bg-purple-100 dark:hover:bg-purple-900/50 transition cursor-pointer"
+                    >
+                      <span>{expandedPurchases ? 'Collapse History' : `Expand All Deliveries (${purchases.length} Total)`}</span>
+                      <ChevronDown size={14} className={`transition-transform duration-200 ${expandedPurchases ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -6702,6 +7031,7 @@ function InvoicesTab({ token, showMessage, isSuperAdmin, profile }) {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState(null);
+  const [expandedBills, setExpandedBills] = useState(false);
 
   const fetchBills = async () => {
     setLoading(true);
@@ -6744,46 +7074,94 @@ function InvoicesTab({ token, showMessage, isSuperAdmin, profile }) {
           ) : bills.length === 0 ? (
             <p className="text-slate-500 text-xs italic py-4 text-center">No invoices found. Generate them by finalizing billing cycles.</p>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                  <th className="pb-3 pl-2">Invoice ID</th>
-                  <th className="pb-3">Resident / Flat</th>
-                  <th className="pb-3">Billing Cycle</th>
-                  <th className="pb-3">Total Volume</th>
-                  <th className="pb-3">Total Amount</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3 text-right">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
-                {bills.map(b => (
-                  <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
-                    <td>
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{b.household?.apartment?.name}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Block {b.household?.block} - Flat {b.household?.flatNumber}</p>
-                    </td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
-                    <td className="font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</td>
-                    <td>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/20 border-red-300 dark:border-red-500/20 text-red-700 dark:text-red-400'}`}>
+            <div>
+              {/* Mobile Card Layout (phones) */}
+              <div className="space-y-3 sm:hidden">
+                {(expandedBills ? bills : bills.slice(0, 5)).map(b => (
+                  <div key={b.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">{b.invoiceNumber}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/20 border-red-300 dark:border-red-500/20 text-red-700 dark:text-red-400'}`}>
                         {b.paid ? 'Paid' : 'Unpaid'}
                       </span>
-                    </td>
-                    <td className="text-right py-2">
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                      <div>
+                        <p className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{b.household?.apartment?.name}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Block {b.household?.block} - Flat {b.household?.flatNumber}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">₹{b.amount.toFixed(2)}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">{b.consumptionLiters.toLocaleString()} L</p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 font-mono">{b.billingCycle?.startDate} - {b.billingCycle?.endDate}</span>
                       <button
                         onClick={() => setActiveInvoice(b)}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer shadow-sm"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-lg font-extrabold text-xs transition cursor-pointer shadow-sm whitespace-nowrap"
                       >
                         Print/View
                       </button>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop Table View */}
+              <table className="w-full text-left text-xs border-collapse hidden sm:table min-w-[580px]">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase whitespace-nowrap">
+                    <th className="pb-3 pl-2">Invoice ID</th>
+                    <th className="pb-3 px-2">Resident / Flat</th>
+                    <th className="pb-3 px-2">Billing Cycle</th>
+                    <th className="pb-3 px-2">Total Volume</th>
+                    <th className="pb-3 px-2">Total Amount</th>
+                    <th className="pb-3 px-2">Status</th>
+                    <th className="pb-3 px-2 text-right">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                  {(expandedBills ? bills : bills.slice(0, 5)).map(b => (
+                    <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition whitespace-nowrap">
+                      <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
+                      <td className="px-2">
+                        <p className="font-bold text-slate-900 dark:text-slate-100">{b.household?.apartment?.name}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Block {b.household?.block} - Flat {b.household?.flatNumber}</p>
+                      </td>
+                      <td className="px-2 font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
+                      <td className="px-2 font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
+                      <td className="px-2 font-bold text-slate-900 dark:text-slate-100">₹{b.amount.toFixed(2)}</td>
+                      <td className="px-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${b.paid ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/20 border-red-300 dark:border-red-500/20 text-red-700 dark:text-red-400'}`}>
+                          {b.paid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td className="text-right py-2 px-2">
+                        <button
+                          onClick={() => setActiveInvoice(b)}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer shadow-sm whitespace-nowrap"
+                        >
+                          Print/View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {bills.length > 5 && (
+                <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-center">
+                  <button
+                    onClick={() => setExpandedBills(!expandedBills)}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-extrabold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition cursor-pointer"
+                  >
+                    <span>{expandedBills ? 'Collapse Invoice List' : `Expand All Invoices (${bills.length} Total)`}</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${expandedBills ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -7426,6 +7804,7 @@ function ReportsTab({ token, profile, showMessage, lang, t }) {
                       <XAxis dataKey="date" tick={{ fontSize: 9 }} />
                       <YAxis tick={{ fontSize: 10 }} />
                       <Tooltip 
+                        cursor={{ fill: 'transparent' }}
                         contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
                         formatter={(val) => [`${val} Liters`, 'Usage']}
                       />
@@ -7441,6 +7820,7 @@ function ReportsTab({ token, profile, showMessage, lang, t }) {
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} />
                       <Tooltip 
+                        cursor={{ fill: 'transparent' }}
                         contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
                         formatter={(val) => [`${val.toLocaleString()} Liters`, 'Consumed']}
                       />
@@ -7493,6 +7873,7 @@ function ReportsTab({ token, profile, showMessage, lang, t }) {
                       <XAxis dataKey="category" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} />
                       <Tooltip 
+                        cursor={{ fill: 'transparent' }}
                         contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', borderColor: '#334155', color: '#f8fafc', fontSize: '11px' }}
                         formatter={(val) => [`${val.toLocaleString()} Liters`, 'Volume']}
                       />
@@ -7788,51 +8169,102 @@ function MyBillsTab({ token, showMessage }) {
           ) : bills.length === 0 ? (
             <p className="text-slate-555 text-xs italic py-4 text-center">No bills logged for your household yet.</p>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
-                  <th className="pb-3 pl-2">Invoice No</th>
-                  <th className="pb-3">Period</th>
-                  <th className="pb-3">Water Consumption</th>
-                  <th className="pb-3">Amount</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+            <>
+              {/* Mobile View: Clean Responsive Cards */}
+              <div className="md:hidden space-y-3">
                 {bills.map(b => (
-                  <tr key={b.id}>
-                    <td className="py-3 pl-2 font-mono text-indigo-400">{b.invoiceNumber}</td>
-                    <td>{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
-                    <td>{b.consumptionLiters.toLocaleString()} Liters</td>
-                    <td className="font-bold text-slate-100">₹{b.amount.toFixed(2)}</td>
-                    <td>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/20 text-red-400'}`}>
+                  <div key={b.id} className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2.5 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-indigo-400 font-bold text-xs">
+                        {b.invoiceNumber}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' : 'bg-red-950/60 text-red-400 border border-red-800/40'}`}>
                         {b.paid ? 'Paid' : 'Unpaid'}
                       </span>
-                    </td>
-                    <td className="text-right py-1">
-                      <div className="flex justify-end gap-2">
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-xs pt-2 border-t border-slate-800/60 text-slate-400 gap-1.5">
+                      <span className="text-[11px] font-medium">
+                        📅 {b.billingCycle?.startDate} to {b.billingCycle?.endDate}
+                      </span>
+                      <span className="font-bold text-slate-100 text-sm font-mono">
+                        ₹{b.amount.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="text-[11px]">
+                        💧 {b.consumptionLiters.toLocaleString()} Liters
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => { setActiveInvoice(b); setModalMode('view'); }}
+                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 py-2 rounded-xl font-bold text-xs text-center cursor-pointer transition"
+                      >
+                        View Receipt
+                      </button>
+                      {!b.paid && (
                         <button
-                          onClick={() => { setActiveInvoice(b); setModalMode('view'); }}
-                          className="bg-slate-800 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg font-bold text-[10px]"
+                          onClick={() => { setActiveInvoice(b); setModalMode('pay'); }}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl font-bold text-xs text-center transition cursor-pointer shadow-xs"
                         >
-                          View Receipt
+                          Pay Now
                         </button>
-                        {!b.paid && (
-                          <button
-                            onClick={() => { setActiveInvoice(b); setModalMode('pay'); }}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold text-[10px] transition disabled:opacity-50"
-                          >
-                            Pay Now
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop View: Full Table */}
+              <table className="hidden md:table w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                    <th className="pb-3 pl-2">Invoice No</th>
+                    <th className="pb-3">Period</th>
+                    <th className="pb-3">Water Consumption</th>
+                    <th className="pb-3">Amount</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {bills.map(b => (
+                    <tr key={b.id}>
+                      <td className="py-3 pl-2 font-mono text-indigo-400">{b.invoiceNumber}</td>
+                      <td>{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
+                      <td>{b.consumptionLiters.toLocaleString()} Liters</td>
+                      <td className="font-bold text-slate-100">₹{b.amount.toFixed(2)}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${b.paid ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/20 text-red-400'}`}>
+                          {b.paid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td className="text-right py-1">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => { setActiveInvoice(b); setModalMode('view'); }}
+                            className="bg-slate-800 hover:bg-slate-800 text-blue-400 border border-slate-800 px-2.5 py-1 rounded-lg font-bold text-[10px]"
+                          >
+                            View Receipt
+                          </button>
+                          {!b.paid && (
+                            <button
+                              onClick={() => { setActiveInvoice(b); setModalMode('pay'); }}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold text-[10px] transition disabled:opacity-50"
+                            >
+                              Pay Now
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>
@@ -7896,43 +8328,86 @@ function MyInvoicesTab({ token, showMessage }) {
           ) : bills.length === 0 ? (
             <p className="text-slate-500 text-xs italic py-4 text-center">No paid receipts found.</p>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                  <th className="pb-3 pl-2">Invoice No</th>
-                  <th className="pb-3">Period</th>
-                  <th className="pb-3">Volume Used</th>
-                  <th className="pb-3">Settled Cost</th>
-                  <th className="pb-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+            <>
+              {/* Mobile View: Clean Responsive Cards */}
+              <div className="md:hidden space-y-3">
                 {bills.map(b => (
-                  <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
-                    <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
-                    <td className="font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
-                    <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{b.amount.toFixed(2)}</td>
-                    <td className="text-right py-1">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setActiveInvoice(b)}
-                          className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 border border-slate-300 dark:border-slate-700 px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer transition"
-                        >
-                          View Receipt
-                        </button>
-                        <button
-                          onClick={() => handleDownloadPdf(b.id, token, showMessage)}
-                          className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] transition cursor-pointer shadow-xs"
-                        >
-                          Download PDF
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <div key={b.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/80 space-y-2.5 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+                        {b.invoiceNumber}
+                      </span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono">
+                        ₹{b.amount.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-slate-600 dark:text-slate-400 gap-1.5">
+                      <span className="text-[11px] font-medium">
+                        📅 {b.billingCycle?.startDate} to {b.billingCycle?.endDate}
+                      </span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold text-[11px] bg-slate-200/50 dark:bg-slate-800/80 px-2 py-0.5 rounded-md">
+                        💧 {b.consumptionLiters.toLocaleString()} L
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setActiveInvoice(b)}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 border border-slate-300 dark:border-slate-700 py-2 rounded-xl font-bold text-xs text-center cursor-pointer transition"
+                      >
+                        View Receipt
+                      </button>
+                      <button
+                        onClick={() => handleDownloadPdf(b.id, token, showMessage)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-bold text-xs text-center transition cursor-pointer shadow-xs"
+                      >
+                        Download PDF
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop View: Full Table */}
+              <table className="hidden md:table w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                    <th className="pb-3 pl-2">Invoice No</th>
+                    <th className="pb-3">Period</th>
+                    <th className="pb-3">Volume Used</th>
+                    <th className="pb-3">Settled Cost</th>
+                    <th className="pb-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-800 dark:text-slate-300">
+                  {bills.map(b => (
+                    <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/10 transition">
+                      <td className="py-3 pl-2 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{b.invoiceNumber}</td>
+                      <td className="font-medium text-slate-800 dark:text-slate-300">{b.billingCycle?.startDate} to {b.billingCycle?.endDate}</td>
+                      <td className="font-medium text-slate-800 dark:text-slate-300">{b.consumptionLiters.toLocaleString()} Liters</td>
+                      <td className="font-bold text-emerald-600 dark:text-emerald-400">₹{b.amount.toFixed(2)}</td>
+                      <td className="text-right py-1">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setActiveInvoice(b)}
+                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 border border-slate-300 dark:border-slate-700 px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer transition"
+                          >
+                            View Receipt
+                          </button>
+                          <button
+                            onClick={() => handleDownloadPdf(b.id, token, showMessage)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] transition cursor-pointer shadow-xs"
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>
@@ -8279,9 +8754,9 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Studio Hero Banner */}
-      <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-indigo-50 dark:from-slate-900 dark:via-blue-950/60 dark:to-slate-900 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6 shadow-sm relative overflow-hidden text-slate-900 dark:text-white">
+      <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-indigo-50 dark:from-slate-900 dark:via-blue-950/60 dark:to-slate-900 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-4 sm:p-6 shadow-sm relative overflow-hidden text-slate-900 dark:text-white">
         <div className="absolute top-0 right-0 p-8 opacity-10 dark:opacity-20 pointer-events-none">
-          <Droplets size={180} className="text-blue-500 animate-pulse" />
+          <Droplets size={140} className="text-blue-500 animate-pulse" />
         </div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -8290,12 +8765,12 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
                 <Sparkles size={12} className="text-blue-600 dark:text-blue-400 animate-spin" />
                 Interactive Conservation Studio
               </span>
-              <span className="text-slate-600 dark:text-blue-200/80 text-xs font-mono font-semibold">
+              <span className="text-slate-600 dark:text-blue-200/80 text-[11px] font-mono font-semibold">
                 Dynamic Real-Time Calculator
               </span>
             </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              <Droplets className="text-blue-600 dark:text-blue-400" size={28} />
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Droplets className="text-blue-600 dark:text-blue-400 shrink-0" size={24} />
               Water Conservation & Savings Hub
             </h2>
             <p className="text-slate-700 dark:text-slate-300 text-xs mt-1.5 max-w-xl leading-relaxed font-medium">
@@ -8303,12 +8778,12 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-2xl shadow-xs shrink-0">
-            <div className="text-right">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-2xl shadow-xs shrink-0">
+            <div className="text-left sm:text-right">
               <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Your Eco Level</span>
               <span className="text-xs font-black text-slate-900 dark:text-slate-100">{ecoLevel.name}</span>
             </div>
-            <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-xs font-black text-sm">
+            <div className="bg-blue-600 text-white px-3 py-2 rounded-xl shadow-xs font-black text-xs sm:text-sm">
               Level {ecoLevel.level}
             </div>
           </div>
@@ -8320,8 +8795,8 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
         
         {/* Left Column: Interactive Simulator Controls (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-200 dark:border-slate-800 gap-2 flex-wrap">
               <h3 className="font-black text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
                 <Sliders size={16} className="text-blue-600 dark:text-blue-400" />
                 Live Household Footprint Simulator
@@ -8426,8 +8901,8 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
 
         {/* Right Column: Live Diagnostic Metrics & Savings Breakdown (5 cols) */}
         <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-0 h-fit">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-5">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm space-y-5">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-800 gap-2 flex-wrap">
               <h3 className="font-black text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase flex items-center gap-2">
                 <PieChart size={16} className="text-emerald-600 dark:text-emerald-400" />
                 Live Footprint & Impact Summary
@@ -8440,8 +8915,8 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
             {/* Big Stat Box */}
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-center space-y-1">
               <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Estimated Daily Household Footprint</span>
-              <p className="text-4xl font-black text-slate-900 dark:text-slate-100">{metrics.currentDailyTotal.toLocaleString()} <span className="text-lg font-bold text-blue-600 dark:text-blue-400">L/day</span></p>
-              <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 pt-1">
+              <p className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-slate-100">{metrics.currentDailyTotal.toLocaleString()} <span className="text-lg font-bold text-blue-600 dark:text-blue-400">L/day</span></p>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 pt-1">
                 <span>{metrics.perCapitaDaily} L/person/day</span>
                 <span className="text-slate-300 dark:text-slate-700">•</span>
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{metrics.benchmarkDesc}</span>
@@ -8459,11 +8934,11 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
               <div className="grid grid-cols-2 gap-2 text-center pt-1">
                 <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                   <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Annual Water Saved</span>
-                  <span className="text-base font-black text-emerald-700 dark:text-emerald-400">{(metrics.annualPotentialSavingsLiters / 1000).toFixed(1)} kL</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-400">{(metrics.annualPotentialSavingsLiters / 1000).toFixed(1)} kL</span>
                 </div>
                 <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                   <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Annual Bill Savings</span>
-                  <span className="text-base font-black text-emerald-700 dark:text-emerald-400">₹ {metrics.annualFinancialSavings.toLocaleString()}</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-400">₹ {metrics.annualFinancialSavings.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -8498,10 +8973,10 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
       </div>
 
       {/* Apartment Water Conservation Leaderboard */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 rounded-2xl shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-500/40 flex items-center gap-1">
                 <Trophy size={12} className="text-amber-500" />
                 Apartment Community Rankings
@@ -8520,7 +8995,7 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1">
             {[
               { id: 'per_capita', label: 'Top Savers (L/person/day) 🏆' },
               { id: 'pledges', label: 'Eco Pledge Champions ⭐' },
@@ -8542,28 +9017,28 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
         </div>
 
         {/* Your Household Highlight Banner */}
-        <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-emerald-500/10 border border-amber-400/40 dark:border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+        <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-emerald-500/10 border border-amber-400/40 dark:border-amber-500/30 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md shrink-0">
               #{myLeaderboardItem.rank}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider">YOUR HOUSEHOLD STATUS</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider">YOUR HOUSEHOLD STATUS</span>
                 <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">Flat {userFlat}</span>
               </div>
-              <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
+              <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
                 You rank <span className="text-amber-600 dark:text-amber-400">#{myLeaderboardItem.rank} out of {rankedLeaderboard.length} households</span> in Block {userBlock}!
               </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
                 Consuming <strong>{metrics.perCapitaDaily} L/person/day</strong> (~{Math.max(0, Math.round(((135 - metrics.perCapitaDaily) / 135) * 100))}% better than standard 135L benchmark).
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
             <div className="text-right">
-              <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase block">Community Badge</span>
+              <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase block">Community Badge</span>
               <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{ecoLevel.name}</span>
             </div>
           </div>
@@ -8629,9 +9104,71 @@ function WaterTipsTab({ lang, t, profile, token, usageLogs }) {
           })}
         </div>
 
-        {/* Full Leaderboard Table */}
+        {/* Full Leaderboard Table / Mobile Cards */}
         <div className="overflow-x-auto max-h-96 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
-          <table className="w-full text-left text-xs border-collapse">
+          {/* Mobile View: Responsive Cards */}
+          <div className="md:hidden p-2 space-y-2.5">
+            {rankedLeaderboard.map((item) => (
+              <div
+                key={item.id}
+                className={`p-3 rounded-xl border transition space-y-2 ${
+                  item.isUser
+                    ? 'bg-amber-50/90 dark:bg-amber-950/30 border-amber-400 dark:border-amber-500/50 ring-1 ring-amber-400/30 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-black text-[11px] ${
+                      item.rank === 1 ? 'bg-amber-400 text-slate-900 shadow-xs' :
+                      item.rank === 2 ? 'bg-slate-300 text-slate-900 shadow-xs' :
+                      item.rank === 3 ? 'bg-amber-700 text-white shadow-xs' :
+                      'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}>
+                      #{item.rank}
+                    </span>
+                    <div>
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        Flat {item.flat} (Block {item.block})
+                        {item.isUser && (
+                          <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                            YOU
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{item.resident}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="font-bold font-mono text-blue-600 dark:text-blue-400 text-xs block">
+                      {item.perCapita} L/day
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400 block">
+                      {Math.round(item.totalMonthly).toLocaleString()} L/mo
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px]">
+                  <span className="px-2 py-0.5 rounded-full font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    {item.pledgesCount} Pledges
+                  </span>
+
+                  <button
+                    onClick={() => handleGiveKudos(item.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-amber-100 dark:hover:bg-amber-950 text-slate-800 dark:text-slate-200 font-bold transition cursor-pointer text-[11px]"
+                  >
+                    <ThumbsUp size={12} className="text-amber-500" />
+                    <span>{item.kudos}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop View: Full Table */}
+          <table className="hidden md:table w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 z-10 shadow-xs">
               <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-black uppercase text-[10px] tracking-wider">
                 <th className="py-3 px-4 text-center">Rank</th>
@@ -9390,8 +9927,8 @@ function LeakScanTab({ token, isSuperAdmin, showMessage, lang, t }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex-1 w-full">
           <TabHeaderBanner
             title={t('sec_leak_scan')}
             subtitle="Automated algorithmic water leak detector. Analyzes daily meter logs, z-score deviations, and continuous baseline shifts across households to flag suspected leaks in real-time."
@@ -9403,7 +9940,7 @@ function LeakScanTab({ token, isSuperAdmin, showMessage, lang, t }) {
         <button
           onClick={fetchLeakScan}
           disabled={loading}
-          className="bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition duration-200 disabled:opacity-50 cursor-pointer shrink-0 mb-6"
+          className="w-full sm:w-auto justify-center bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition duration-200 disabled:opacity-50 cursor-pointer shrink-0 mb-2 sm:mb-6"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           {loading ? 'Analyzing Data...' : t('btn_run_scan')}

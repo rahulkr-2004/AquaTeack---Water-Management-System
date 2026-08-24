@@ -69,16 +69,16 @@ export default function LanguagePicker({ currentLang, onSelectLanguage }) {
     <div className="relative inline-block text-left notranslate" translate="no" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-white dark:bg-slate-950/90 border border-slate-300 dark:border-slate-800 hover:border-sky-400 dark:hover:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 transition shadow-sm cursor-pointer notranslate"
+        className="flex items-center gap-1.5 sm:gap-2 bg-white dark:bg-slate-950/90 border border-slate-300 dark:border-slate-800 hover:border-sky-400 dark:hover:border-slate-700 px-2 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-200 transition shadow-sm cursor-pointer notranslate shrink-0 whitespace-nowrap"
         translate="no"
       >
-        <Globe size={15} className="text-blue-500 dark:text-blue-400" />
-        <span>{activeLangObj.flag} {activeLangObj.name} ({activeLangObj.nativeName})</span>
-        <ChevronDown size={14} className={`text-slate-500 dark:text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <Globe size={14} className="text-blue-500 dark:text-blue-400 shrink-0" />
+        <span className="truncate max-w-[85px] sm:max-w-none">{activeLangObj.flag} {activeLangObj.name}</span>
+        <ChevronDown size={13} className={`text-slate-500 dark:text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 notranslate" translate="no">
+        <div className="fixed sm:absolute top-16 sm:top-auto left-3 right-3 sm:left-auto sm:right-0 sm:mt-2 w-auto sm:w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 notranslate" translate="no">
           {/* Search Header */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 sticky top-0 z-10">
             <div className="relative">

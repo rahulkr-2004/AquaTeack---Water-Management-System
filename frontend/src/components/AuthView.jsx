@@ -34,14 +34,29 @@ import {
   Award,
   TrendingUp,
   Link2,
-  ExternalLink
+  ExternalLink,
+  Sliders,
+  RefreshCw,
+  Gauge,
+  Radio,
+  Power,
+  Layers,
+  X
 } from 'lucide-react';
 import { WaterGridCanvas, BubblesCanvas, RaindropsCanvas } from './CanvasBackgrounds';
-import { CommunityAdminVerifyView } from './VerificationViews';
-import RegistrationWizard from './RegistrationWizard';
 import LanguagePicker from './LanguagePicker';
 
-const API_BASE_URL = 'http://localhost:8080';
+// Lazy loaded components for optimized registration flow
+const RegistrationWizard = React.lazy(() => import('./RegistrationWizard'));
+const CommunityAdminVerifyView = React.lazy(() => import('./VerificationViews').then(m => ({ default: m.CommunityAdminVerifyView })));
+
+const ComponentLoader = () => (
+  <div className="flex items-center justify-center p-6 w-full min-h-[160px]">
+    <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+);
+
+const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
 
 // Smooth Count-Up Animated Number Component
 const CountUpNumber = ({ target, decimals = 0, suffix = '', duration = 2200 }) => {
@@ -78,6 +93,7 @@ const CountUpNumber = ({ target, decimals = 0, suffix = '', duration = 2200 }) =
 
 export default function AuthView({ setToken, message, showMessage, darkMode, toggleDarkMode, lang = 'en', setLang }) {
   const [view, setView] = useState('login'); // 'login' (default), 'register', 'admin_verify'
+  const [authModalOpen, setAuthModalOpen] = useState(false); // Auth popup modal visibility
   const [landingNav, setLandingNav] = useState('home'); // 'home' | 'features' | 'about' | 'contact'
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [formData, setFormData] = useState({
@@ -88,8 +104,38 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
   const [loading, setLoading] = useState(false);
   const [waterFill, setWaterFill] = useState(55);
   const [bgAnimation, setBgAnimation] = useState('bubbles');
-  const [adminVerifyUserId, setAdminVerifyUserId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Interactive Telemetry Showcase Card State
+  const [telemetryTab, setTelemetryTab] = useState('telemetry'); // 'telemetry' | 'leak_scan' | 'billing'
+  const [liveFlowRate, setLiveFlowRate] = useState(42.4);
+  const [isScanningLeak, setIsScanningLeak] = useState(false);
+  const [leakScanMessage, setLeakScanMessage] = useState(null);
+  const [valveState, setValveState] = useState('OPEN');
+  const [simulatedUsageKl, setSimulatedUsageKl] = useState(14.5);
+
+  // Live telemetry flow rate fluctuation tick
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveFlowRate(prev => {
+        const delta = (Math.random() - 0.5) * 1.4;
+        return Math.max(34.0, Math.min(52.0, parseFloat((prev + delta).toFixed(1))));
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRunLeakDiagnostic = () => {
+    setIsScanningLeak(true);
+    setLeakScanMessage('Sweeping 148 ultrasonic pressure sensors...');
+    setTimeout(() => {
+      setLeakScanMessage('Checking Main Riser Differentials...');
+    }, 1000);
+    setTimeout(() => {
+      setIsScanningLeak(false);
+      setLeakScanMessage('✅ DIAGNOSTIC PASSED: 0 Leaks. Pressure nominal.');
+    }, 2400);
+  };
 
   // Colony/Building cascading dropdown state
   const [colonies, setColonies] = useState([]);
@@ -373,103 +419,121 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
       <div className="water-particle" style={{ width: 22, height: 22, top: '90%', left: '85%', animationDelay: '13s', animationDuration: '21s' }}></div>
 
       {/* SHARED COMMON HEADER ACROSS ALL PAGES WITH GLASSMORPHISM */}
-      <header className="w-full bg-white/75 dark:bg-slate-900/80 border-b border-sky-200/70 dark:border-blue-500/20 px-6 sm:px-10 py-2 sm:py-3 flex items-center justify-between z-20 shadow-sm dark:shadow-xl backdrop-blur-lg relative shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="w-full bg-white/75 dark:bg-slate-900/80 border-b border-sky-200/70 dark:border-blue-500/20 px-3 sm:px-10 py-2 sm:py-3 flex flex-wrap items-center justify-between gap-2 z-20 shadow-sm dark:shadow-xl backdrop-blur-lg relative shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div
             onClick={() => setLandingNav('home')}
-            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-cyan-400/80 shadow-[0_0_20px_rgba(56,189,248,0.5)] shrink-0 cursor-pointer flex items-center justify-center bg-white dark:bg-slate-950 p-0.5 transition-all duration-300 hover:scale-110 hover:rotate-3"
+            className="w-9 h-9 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-cyan-400/80 shadow-[0_0_20px_rgba(56,189,248,0.5)] shrink-0 cursor-pointer flex items-center justify-center bg-white dark:bg-slate-950 p-0.5 transition-all duration-300 hover:scale-110 hover:rotate-3"
           >
             <LogoSVG className="w-full h-full" />
           </div>
           <div
             onClick={() => setLandingNav('home')}
-            className="flex items-center gap-2 cursor-pointer notranslate select-none transition-all duration-300 hover:opacity-90"
+            className="flex items-center gap-1 sm:gap-2 cursor-pointer notranslate select-none transition-all duration-300 hover:opacity-90"
             translate="no"
           >
-            <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-950 dark:text-slate-100 uppercase font-jakarta notranslate drop-shadow-sm" translate="no">AQUA</span>
-            <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-600 via-sky-500 to-blue-600 dark:from-cyan-400 dark:via-sky-400 dark:to-blue-400 bg-clip-text text-transparent uppercase font-jakarta notranslate drop-shadow" translate="no">TRACK</span>
+            <span className="text-xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-950 dark:text-slate-100 uppercase font-jakarta notranslate drop-shadow-sm" translate="no">AQUA</span>
+            <span className="text-xl sm:text-4xl lg:text-5xl font-black tracking-tight bg-gradient-to-r from-cyan-600 via-sky-500 to-blue-600 dark:from-cyan-400 dark:via-sky-400 dark:to-blue-400 bg-clip-text text-transparent uppercase font-jakarta notranslate drop-shadow" translate="no">TRACK</span>
           </div>
         </div>
 
         {/* Navigation Menu Links */}
-        <nav className="flex items-center gap-1 sm:gap-4 md:gap-6 text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-widest font-bold font-jakarta flex-wrap justify-center">
-          <button
-            type="button"
-            onClick={() => setLandingNav('home')}
-            className={`transition cursor-pointer px-2.5 sm:px-3 py-1.5 rounded-xl font-bold ${landingNav === 'home' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => setLandingNav('features')}
-            className={`transition cursor-pointer px-2.5 sm:px-3 py-1.5 rounded-xl font-bold ${landingNav === 'features' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
-          >
-            Features
-          </button>
-          <button
-            type="button"
-            onClick={() => setLandingNav('about')}
-            className={`transition cursor-pointer px-2.5 sm:px-3 py-1.5 rounded-xl font-bold ${landingNav === 'about' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
-          >
-            About
-          </button>
-          <button
-            type="button"
-            onClick={() => setLandingNav('contact')}
-            className={`transition cursor-pointer px-2.5 sm:px-3 py-1.5 rounded-xl font-bold ${landingNav === 'contact' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
-          >
-            Contact
-          </button>
+        <nav className="flex items-center gap-2 sm:gap-4 md:gap-6 text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-widest font-bold font-jakarta flex-wrap justify-between sm:justify-end w-full sm:w-auto">
+          {/* Main Page Links + Theme Toggle (Whole Row Expanded on Mobile) */}
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-1 sm:gap-3 flex-nowrap shrink-0 py-0.5 max-w-full">
+            <button
+              type="button"
+              onClick={() => setLandingNav('home')}
+              className={`flex-1 sm:flex-initial text-center transition cursor-pointer px-2 sm:px-3 py-1.5 rounded-xl font-bold whitespace-nowrap ${landingNav === 'home' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
+            >
+              Home
+            </button>
+            <button
+              type="button"
+              onClick={() => setLandingNav('features')}
+              className={`flex-1 sm:flex-initial text-center transition cursor-pointer px-2 sm:px-3 py-1.5 rounded-xl font-bold whitespace-nowrap ${landingNav === 'features' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
+            >
+              Features
+            </button>
+            <button
+              type="button"
+              onClick={() => setLandingNav('about')}
+              className={`flex-1 sm:flex-initial text-center transition cursor-pointer px-2 sm:px-3 py-1.5 rounded-xl font-bold whitespace-nowrap ${landingNav === 'about' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
+            >
+              About
+            </button>
+            <button
+              type="button"
+              onClick={() => setLandingNav('contact')}
+              className={`flex-1 sm:flex-initial text-center transition cursor-pointer px-2 sm:px-3 py-1.5 rounded-xl font-bold whitespace-nowrap ${landingNav === 'contact' ? 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/15 border border-cyan-500/40 shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'}`}
+            >
+              Contact
+            </button>
 
-          {/* Theme Toggle Button (Icon Only) */}
-          <button
-            onClick={toggleDarkMode}
-            className="p-2 sm:p-2.5 rounded-full bg-slate-100/90 dark:bg-slate-800/80 border-none outline-none text-slate-800 dark:text-slate-200 transition-all duration-300 hover:scale-110 cursor-pointer flex items-center justify-center shrink-0"
-            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            aria-label="Toggle theme"
-          >
-            {darkMode ? (
-              <Sun size={20} className="text-amber-400" />
-            ) : (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Bold crescent moon — always visible */}
-                <path
-                  d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
-                  fill="#1e3a8a"
-                  stroke="#3b82f6"
-                  strokeWidth="1"
-                  strokeLinejoin="round"
-                />
-                {/* Moon highlight shimmer */}
-                <path
-                  d="M8 6.5C9.5 5.5 11 5 12 5.2c-2 1-3.5 3-3.5 5.8 0 2 .8 3.8 2 5-2-1-3.5-3-3.5-5.5 0-1.5.4-3 1-4z"
-                  fill="#93c5fd"
-                  opacity="0.5"
-                />
-              </svg>
+            {/* Theme Toggle Button (Icon Only) */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-full bg-slate-100/90 dark:bg-slate-800/80 border-none outline-none text-slate-800 dark:text-slate-200 transition-all duration-300 hover:scale-110 cursor-pointer flex items-center justify-center shrink-0"
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label="Toggle theme"
+            >
+              {darkMode ? (
+                <Sun size={18} className="text-amber-400" />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                    fill="#1e3a8a"
+                    stroke="#3b82f6"
+                    strokeWidth="1"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M8 6.5C9.5 5.5 11 5 12 5.2c-2 1-3.5 3-3.5 5.8 0 2 .8 3.8 2 5-2-1-3.5-3-3.5-5.5 0-1.5.4-3 1-4z"
+                    fill="#93c5fd"
+                    opacity="0.5"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          {/* Language, Log In & Sign Up Controls (Right Shifted & Single Row) */}
+          <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0 flex-nowrap whitespace-nowrap">
+            {setLang && (
+              <LanguagePicker
+                currentLang={lang}
+                onSelectLanguage={(langCode) => {
+                  document.cookie = `googtrans=/en/${langCode}; path=/; domain=${window.location.hostname}`;
+                  document.cookie = `googtrans=/en/${langCode}; path=/`;
+                  setLang(langCode);
+                  localStorage.setItem('aquatrack_lang', langCode);
+                  const selectElem = document.querySelector('.goog-te-combo');
+                  if (selectElem) {
+                    selectElem.value = langCode;
+                    selectElem.dispatchEvent(new Event('change'));
+                  } else {
+                    window.location.reload();
+                  }
+                }}
+              />
             )}
-          </button>
 
-          {/* Language Picker */}
-          {setLang && (
-            <LanguagePicker
-              currentLang={lang}
-              onSelectLanguage={(langCode) => {
-                document.cookie = `googtrans=/en/${langCode}; path=/; domain=${window.location.hostname}`;
-                document.cookie = `googtrans=/en/${langCode}; path=/`;
-                setLang(langCode);
-                localStorage.setItem('aquatrack_lang', langCode);
-                const selectElem = document.querySelector('.goog-te-combo');
-                if (selectElem) {
-                  selectElem.value = langCode;
-                  selectElem.dispatchEvent(new Event('change'));
-                } else {
-                  window.location.reload();
-                }
-              }}
-            />
-          )}
+            <button
+              type="button"
+              onClick={() => { setView('login'); setAuthModalOpen(true); }}
+              className="px-2.5 sm:px-4 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-500/10 transition duration-200 cursor-pointer shrink-0"
+            >
+              Log In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setView('register'); setAuthModalOpen(true); }}
+              className="px-2.5 sm:px-4.5 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-500 shadow-md shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-105 transition duration-200 cursor-pointer shrink-0"
+            >
+              Sign Up
+            </button>
+          </div>
         </nav>
       </header>
 
@@ -481,19 +545,19 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
           <div className="w-full max-w-6xl space-y-2 py-0 my-auto">
 
             {/* Top First Viewport Hero Area */}
-            <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-8 min-h-[calc(100vh-80px)] py-0">
+            <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-8 min-h-0 lg:min-h-[calc(100vh-80px)] py-2 sm:py-4 lg:py-0">
 
               {/* Left Hero Water Conservation Section */}
               <div className="w-full lg:w-1/2 space-y-2 text-center lg:text-left flex flex-col justify-center py-0">
 
                 {/* Top Badge with Harmonized Sky Contrast & Pulse Glow */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/90 dark:bg-cyan-500/15 border-2 border-cyan-400/60 dark:border-cyan-400/40 text-sky-950 dark:text-cyan-200 text-[11px] font-black tracking-wide backdrop-blur-md shadow-md self-center lg:self-start pill-glow-pulse">
-                  <Sparkles size={13} className="text-cyan-600 dark:text-cyan-400 animate-pulse" />
-                  Smart Sub-Metering & Telemetry Engine
+                <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1 rounded-full bg-white/90 dark:bg-cyan-500/15 border-2 border-cyan-400/60 dark:border-cyan-400/40 text-sky-950 dark:text-cyan-200 text-[10px] sm:text-[11px] font-black tracking-wide backdrop-blur-md shadow-md self-center lg:self-start pill-glow-pulse">
+                  <Sparkles size={13} className="text-cyan-600 dark:text-cyan-400 animate-pulse shrink-0" />
+                  <span>Smart Sub-Metering & Telemetry Engine</span>
                 </div>
 
                 {/* Dynamic Short & Powerful Refined Heading with Enhanced Light Mode Contrast */}
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight text-slate-950 dark:text-slate-100 drop-shadow-sm">
+                <h1 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight text-slate-950 dark:text-slate-100 drop-shadow-sm">
                   Smart Water Management & <br className="hidden sm:inline" />
                   <span className="bg-gradient-to-r from-blue-700 via-sky-600 to-cyan-600 dark:from-cyan-400 dark:via-sky-400 dark:to-blue-400 bg-clip-text text-transparent drop-shadow">
                     Billing Platform
@@ -505,12 +569,12 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
                   <img
                     src="/Girl watering plants animation.svg"
                     alt="Girl watering plants animation"
-                    className="w-full max-w-lg sm:max-w-xl lg:max-w-2xl max-h-80 sm:max-h-96 lg:max-h-[420px] object-contain drop-shadow-2xl transition-all duration-300"
+                    className="w-full max-w-xs sm:max-w-md lg:max-w-2xl max-h-36 sm:max-h-60 lg:max-h-[400px] object-contain drop-shadow-2xl transition-all duration-300"
                   />
                   {/* SAVE WATER, SAVE EARTH Slogan directly below SVG */}
-                  <div className="flex items-center justify-center gap-2 text-center">
-                    <Droplets size={22} className="text-cyan-600 dark:text-cyan-400 shrink-0 animate-bounce" />
-                    <span className="text-base sm:text-lg lg:text-xl font-black tracking-wider text-emerald-800 dark:text-emerald-400 uppercase drop-shadow">
+                  <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-center">
+                    <Droplets size={18} className="text-cyan-600 dark:text-cyan-400 shrink-0 animate-bounce" />
+                    <span className="text-xs sm:text-base lg:text-xl font-black tracking-wider text-emerald-800 dark:text-emerald-400 uppercase drop-shadow">
                       SAVE WATER, SAVE EARTH
                     </span>
                   </div>
@@ -518,196 +582,185 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
 
               </div>
 
-              {/* Right Side Card */}
-              <div className="w-full lg:w-[450px] shrink-0 self-center my-auto">
-                <div className="relative rounded-3xl bg-white dark:bg-slate-900 border-2 border-sky-200/90 dark:border-slate-800 p-6 sm:p-8 shadow-2xl shadow-sky-950/15 dark:shadow-cyan-900/20 transition-all duration-300 card-3d-tilt card-side-glow hover:border-cyan-400 dark:hover:border-cyan-500/80 hover:shadow-[0_25px_60px_-15px_rgba(14,165,233,0.35)] dark:hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.3)] hover:-translate-y-1">
+              {/* Right Side Theme-Compatible Telemetry Showcase Card */}
+              <div className="w-full lg:w-[480px] shrink-0 self-center my-auto">
+                <div className="relative rounded-3xl bg-white/90 dark:bg-slate-900/90 border-2 border-sky-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-2xl shadow-sky-950/10 dark:shadow-cyan-900/20 backdrop-blur-xl transition-all duration-300 space-y-4 hover:border-cyan-400 dark:hover:border-cyan-500/80">
+                  
+                  {/* Card Header & Live Status */}
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0 shadow-md">
+                        <Activity size={20} className="animate-pulse" />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-sm font-black text-slate-950 dark:text-slate-100 uppercase tracking-wide">
+                          Live Telemetry Console
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Real-time Sub-metering & Diagnostic Engine</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 shadow-sm">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                      ONLINE
+                    </span>
+                  </div>
 
-                  {view === 'register' ? (
-                    <RegistrationWizard
-                      showMessage={showMessage}
-                      onSwitchToLogin={() => setView('login')}
-                      darkMode={darkMode}
-                    />
-                  ) : (
-                    <>
-                      {/* Auth View Header (Login only) */}
-                      <div className="text-center mb-6">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:shadow-[0_0_30px_rgba(56,189,248,0.6)] mx-auto mb-3 flex items-center justify-center bg-white dark:bg-slate-950 p-1 transition-all duration-300 hover:scale-110 hover:rotate-3 cursor-pointer">
-                          <LogoSVG className="w-full h-full" />
+                  {/* Interactive Sub-Metering View Switcher Tabs (2 Compatible Options) */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryTab('telemetry')}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${telemetryTab === 'telemetry' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                    >
+                      <Gauge size={14} />
+                      <span>Telemetry</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTelemetryTab('leak_scan')}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${telemetryTab === 'leak_scan' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                    >
+                      <ShieldCheck size={14} />
+                      <span>Leak Scan</span>
+                    </button>
+                  </div>
+
+                  {/* TAB 1: LIVE TELEMETRY & TANK CAPACITY */}
+                  {telemetryTab === 'telemetry' && (
+                    <div className="space-y-4 animate-fade-in text-left">
+                      {/* Interactive Reservoir Level Control Slider */}
+                      <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
+                        <div className="flex justify-between items-center text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <span className="flex items-center gap-2">
+                            <Droplets size={15} className="text-cyan-600 dark:text-cyan-400 animate-pulse" />
+                            <span>Overhead Reservoir Level</span>
+                          </span>
+                          <span className="text-cyan-600 dark:text-cyan-400 font-black text-sm font-mono">{waterFill}% Reserve</span>
                         </div>
-                        <h2 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-100 tracking-tight">Sign In</h2>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Access your AquaTrack smart water portal</p>
+                        <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 relative">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-all duration-300 shadow-sm"
+                            style={{ width: `${waterFill}%` }}
+                          />
+                        </div>
+                        {/* Interactive Drag Control */}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Test Reservoir Capacity:</span>
+                          <input
+                            type="range" min="10" max="100"
+                            value={waterFill}
+                            onChange={(e) => setWaterFill(parseInt(e.target.value))}
+                            className="w-36 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-600"
+                          />
+                        </div>
                       </div>
 
-                  {/* Form Elements with Sharp Input Borders & Enhanced Contrast */}
-                  <form onSubmit={handleSubmit} className="space-y-5">
-                    {view === 'register' && (
-                      <>
-                        {/* Role Selector Tabs */}
-                        <div className="p-1 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-sky-200 dark:border-slate-800 flex items-center gap-1 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, role: 'ROLE_COMMUNITY_ADMIN' })}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${formData.role === 'ROLE_COMMUNITY_ADMIN' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200'}`}
-                          >
-                            Community Admin
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, role: 'ROLE_ADMIN' })}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${formData.role === 'ROLE_ADMIN' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200'}`}
-                          >
-                            Super Admin
-                          </button>
+                      {/* 4 Detailed Metric Badges */}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1 hover:border-cyan-500/40 transition">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <span>Main Flow Velocity</span>
+                            <Radio size={12} className="text-cyan-600 dark:text-cyan-400 animate-ping" />
+                          </div>
+                          <div className="text-base font-black text-slate-900 dark:text-slate-100 font-mono">
+                            {liveFlowRate} <span className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 font-sans">L/min</span>
+                          </div>
                         </div>
 
-                        <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                          <User className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                          <input
-                            type="text" required placeholder="Full Name"
-                            className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
-                            value={formData.name}
-                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                          />
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1 hover:border-cyan-500/40 transition">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <span>Riser Pressure</span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          </div>
+                          <div className="text-base font-black text-slate-900 dark:text-slate-100 font-mono">
+                            4.2 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-sans">Bar (Nominal)</span>
+                          </div>
                         </div>
 
-                        <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                          <Mail className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                          <input
-                            type="email" required placeholder="Email Address"
-                            className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
-                            value={formData.email}
-                            onChange={e => setFormData({ ...formData, email: e.target.value })}
-                          />
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1 hover:border-cyan-500/40 transition">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <span>Active IoT Nodes</span>
+                            <CheckCircle2 size={12} className="text-emerald-500" />
+                          </div>
+                          <div className="text-base font-black text-slate-900 dark:text-slate-100 font-mono">
+                            148 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Flats Synced</span>
+                          </div>
                         </div>
 
-                        {/* Colony / Apartment & Block Dropdowns placed at bottom for Community Admin */}
-                        {formData.role === 'ROLE_COMMUNITY_ADMIN' && (
-                          <>
-                            <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                              <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                              <select
-                                required
-                                value={formData.colonyId}
-                                onChange={e => setFormData({ ...formData, colonyId: e.target.value })}
-                                className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold focus:outline-none antialiased cursor-pointer"
-                              >
-                                <option value="" className="bg-slate-900 text-slate-300">-- Select Colony / Apartment --</option>
-                                {colonies.map(c => (
-                                  <option key={c.id} value={c.id} className="bg-slate-900 text-white font-medium">{c.name}</option>
-                                ))}
-                              </select>
-                            </div>
+                        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1 hover:border-cyan-500/40 transition">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <span>System Efficiency</span>
+                            <TrendingUp size={12} className="text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                          <div className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                            99.4% <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Zero Loss</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                            {/* Block Dropdown */}
-                            {formData.colonyId && (
-                              <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                                <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                                <select
-                                  required
-                                  value={formData.buildingId}
-                                  onChange={e => setFormData({ ...formData, buildingId: e.target.value })}
-                                  className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold focus:outline-none antialiased cursor-pointer"
-                                >
-                                  <option value="" className="bg-slate-900 text-slate-300">-- Select Block --</option>
-                                  {availableBuildings.map(b => (
-                                    <option key={b.id} value={b.id} className="bg-slate-900 text-white font-medium">
-                                      {b.name.toLowerCase().startsWith('block') ? b.name : `Block ${b.name}`} (Unassigned)
-                                    </option>
-                                  ))}
-                                  <option value="CUSTOM" className="bg-slate-900 text-cyan-400 font-bold">+ Propose New Block...</option>
-                                </select>
-                              </div>
-                            )}
+                  {/* TAB 2: AI LEAK DIAGNOSTICS & REMOTE VALVE ISOLATION */}
+                  {telemetryTab === 'leak_scan' && (
+                    <div className="space-y-3.5 animate-fade-in text-left">
+                      {/* Diagnostic Status Box */}
+                      <div className="p-4 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-cyan-400">
+                            <Activity size={15} className={isScanningLeak ? "animate-spin text-amber-400" : ""} />
+                            Acoustic Pressure Sweep
+                          </span>
+                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            24/7 Monitoring
+                          </span>
+                        </div>
 
-                            {/* Custom Block Input */}
-                            {formData.buildingId === 'CUSTOM' && (
-                              <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                                <Building2 className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                                <input
-                                  type="text" required placeholder="Enter Proposed Block Name (e.g. Block D)"
-                                  className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
-                                  value={formData.customBuildingName || ''}
-                                  onChange={e => setFormData({ ...formData, customBuildingName: e.target.value })}
-                                />
-                              </div>
-                            )}
-                          </>
+                        {leakScanMessage ? (
+                          <div className="p-3 rounded-xl bg-slate-950 border border-cyan-500/30 text-xs font-mono text-cyan-300 leading-relaxed shadow-inner">
+                            {leakScanMessage}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Continuous acoustic sensor sweep analyzing pipe vibration signatures for micro-cracks and pressure differentials.
+                          </p>
                         )}
-                      </>
-                    )}
 
-                    <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                      {view === 'login' ? (
-                        <Mail className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                      ) : (
-                        <AtSign className="text-cyan-600 dark:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                      )}
-                      <input
-                        type="text" required placeholder={view === 'login' ? 'Username or Email' : 'Username (e.g. rahul2004)'}
-                        className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none antialiased"
-                        value={view === 'login' ? formData.email : formData.username}
-                        onChange={e => view === 'login' ? setFormData({ ...formData, email: e.target.value }) : handleUsernameChange(e.target.value)}
-                      />
-                      {view === 'register' && usernameStatus && (
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${usernameStatus.available ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'}`} title={usernameStatus.message}>
-                          {usernameStatus.available ? 'Available' : (usernameStatus.message?.toLowerCase().includes('taken') ? 'Taken' : 'Invalid')}
-                        </span>
-                      )}
+                        <button
+                          type="button"
+                          disabled={isScanningLeak}
+                          onClick={handleRunLeakDiagnostic}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition duration-200 shadow-lg shadow-cyan-600/25 cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={14} className={isScanningLeak ? "animate-spin" : ""} />
+                          <span>{isScanningLeak ? 'Sweeping Pipe Sensors...' : 'Run Acoustic Diagnostic'}</span>
+                        </button>
+                      </div>
+
+                      {/* Remote Valve Isolation Control */}
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2.5 rounded-xl border ${valveState === 'OPEN' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400'}`}>
+                            <Power size={18} />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black text-slate-900 dark:text-slate-100">Emergency Motorized Valve</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Status: <span className={valveState === 'OPEN' ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-rose-600 dark:text-rose-400 font-black'}>{valveState}</span></div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setValveState(prev => prev === 'OPEN' ? 'SHUT' : 'OPEN')}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition cursor-pointer ${valveState === 'OPEN' ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/25' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'}`}
+                        >
+                          {valveState === 'OPEN' ? 'Isolate Main' : 'Open Valve'}
+                        </button>
+                      </div>
                     </div>
+                  )}
 
-                    <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3.5 sm:py-4 border-2 border-slate-400 dark:border-slate-700 hover:border-cyan-500/70 dark:hover:border-cyan-400/70 focus-within:border-cyan-600 dark:focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
-                      <Lock className="text-slate-600 dark:text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 group-hover:scale-110 shrink-0 mr-3 transition-all duration-200" size={18} />
-                      <input
-                        type={showPassword ? "text" : "password"} required placeholder="Password"
-                        className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm sm:text-base font-semibold tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 pr-7 focus:outline-none antialiased"
-                        value={formData.password}
-                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition cursor-pointer hover:scale-110"
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-
-                    {/* Submit Action Button */}
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm uppercase tracking-wider transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-xl hover:shadow-cyan-500/40 hover:scale-[1.025] active:scale-95 cursor-pointer flex items-center justify-center gap-2 mt-3"
-                    >
-                      {loading ? (
-                        <span className="flex items-center gap-2">
-                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          Authenticating...
-                        </span>
-                      ) : (
-                        <span>{view === 'login' ? 'SUBMIT' : 'CREATE ACCOUNT'}</span>
-                      )}
-                    </button>
-
-                    <div className="text-center pt-2 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setView(view === 'login' ? 'register' : 'login');
-                          setFormData({ name: '', email: '', username: '', password: '', role: 'ROLE_COMMUNITY_ADMIN', gender: '', mobileNo: '+91 ', buildingId: '', flatNo: '', moveInDate: '' });
-                        }}
-                        className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition cursor-pointer"
-                      >
-                        Don't have an account? <span className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">Create account</span>
-                      </button>
-
-                    </div>
-                  </form>
-                </>
-              )}
-
-            </div>
-          </div>
+                </div>
+              </div>
 
             </div>
 
@@ -1165,6 +1218,128 @@ export default function AuthView({ setToken, message, showMessage, darkMode, tog
 
         </div>
       </footer>
+
+      {/* DYNAMIC POPUP AUTH MODAL (EVERYWHERE ACROSS ALL DEVICES) */}
+      {authModalOpen && (
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md p-3 sm:p-4 flex items-center justify-center animate-fade-in"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}
+        >
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 shadow-2xl border-2 border-cyan-500/50 dark:border-cyan-500/40 my-auto max-h-[85vh] flex flex-col z-[10000]">
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition cursor-pointer hover:scale-110 z-10"
+              title="Close modal"
+              aria-label="Close auth modal"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Modal Header & Logo */}
+            <div className="text-center mb-4 shrink-0">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-cyan-500/70 shadow-[0_0_20px_rgba(56,189,248,0.35)] mx-auto mb-2 flex items-center justify-center bg-white dark:bg-slate-950 p-1">
+                <LogoSVG className="w-full h-full" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-950 dark:text-slate-100 tracking-tight">
+                {view === 'login' ? 'Sign In to AquaTrack' : 'Create an Account'}
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                {view === 'login' ? 'Access your smart society water portal' : 'Join AquaTrack smart sub-metering platform'}
+              </p>
+
+              {/* Toggle Mode Tabs */}
+              <div className="p-1 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center gap-1 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setView('login')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${view === 'login' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('register')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${view === 'register' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                >
+                  Sign Up
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Internal Scroll Container */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              {view === 'register' ? (
+                <React.Suspense fallback={<ComponentLoader />}>
+                  <RegistrationWizard
+                    showMessage={showMessage}
+                    onSwitchToLogin={() => setView('login')}
+                    darkMode={darkMode}
+                  />
+                </React.Suspense>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-3.5">
+                  <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3 border-2 border-slate-300 dark:border-slate-700 hover:border-cyan-500 focus-within:border-cyan-600 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
+                    <Mail className="text-slate-500 group-hover:text-cyan-500 shrink-0 mr-3 transition" size={18} />
+                    <input
+                      type="text" required placeholder="Username or Email"
+                      className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm font-semibold tracking-normal placeholder:text-slate-400 focus:outline-none antialiased"
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="w-full relative flex items-center bg-white dark:bg-slate-950 rounded-2xl px-4 py-3 border-2 border-slate-300 dark:border-slate-700 hover:border-cyan-500 focus-within:border-cyan-600 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all duration-200 shadow-sm group">
+                    <Lock className="text-slate-500 group-hover:text-cyan-500 shrink-0 mr-3 transition" size={18} />
+                    <input
+                      type={showPassword ? "text" : "password"} required placeholder="Password"
+                      className="w-full bg-transparent border-none text-slate-900 dark:text-slate-100 text-sm font-semibold tracking-normal placeholder:text-slate-400 pr-7 focus:outline-none antialiased"
+                      value={formData.password}
+                      onChange={e => setFormData({ ...formData, password: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 text-slate-400 hover:text-cyan-500 transition cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Submit Action Button */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition-all duration-300 shadow-lg shadow-cyan-600/25 hover:shadow-xl hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2 mt-1"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Authenticating...
+                      </span>
+                    ) : (
+                      <span>LOG IN TO PORTAL</span>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setView('register')}
+                      className="text-xs font-semibold text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition cursor-pointer"
+                    >
+                      Don't have an account? <span className="text-cyan-600 dark:text-cyan-400 font-black hover:underline">Sign up now</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

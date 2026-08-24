@@ -6,7 +6,7 @@ import {
   ChevronLeft, CheckCircle2, AlertCircle, Loader2, UserCheck
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8080` : 'http://localhost:8080';
 
 const STEPS = [
   { id: 1, label: 'Account',   icon: User },
@@ -387,7 +387,7 @@ export default function RegistrationWizard({ showMessage, onSwitchToLogin, darkM
             onChange={e => setMobile(e.target.value)} />
 
           {/* Upload zones */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <UploadZone label="Aadhar / PAN" field="documentAadhar" value={aadhar}
               onChange={e => handleFile(e, setAadhar)} accept="image/*,.pdf" />
             <UploadZone label="Photograph" field="documentPhoto" value={photo}
