@@ -80,24 +80,14 @@ public class OnboardingService {
      */
     public void dropLegacyTables() {
         try {
-            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate();
             try {
                 entityManager.createNativeQuery("DROP TABLE IF EXISTS tickets").executeUpdate();
             } catch (Exception ignored) {}
             
-            // Clean up orphaned 'deleted' column if created during schema evolution
             try {
-                entityManager.createNativeQuery("ALTER TABLE buildings DROP COLUMN deleted").executeUpdate();
+                entityManager.createNativeQuery("ALTER TABLE buildings DROP COLUMN IF EXISTS deleted").executeUpdate();
             } catch (Exception ignored) {}
 
-            // Set default value on 'is_deleted' column
-            try {
-                entityManager.createNativeQuery("ALTER TABLE buildings MODIFY COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0").executeUpdate();
-            } catch (Exception ignored) {}
-
-            try {
-                entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
-            } catch (Exception ignored) {}
             System.out.println("Bootstrap: Legacy table cleanup complete.");
         } catch (Exception e) {
             System.err.println("Bootstrap: Legacy cleanup warning: " + e.getMessage());
